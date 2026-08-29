@@ -7,7 +7,6 @@
     published by the Free Software Foundation.
 */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import './styles/tokens.css';
 import {
   requestPermission, listAudioInputs, saveSelection, loadSelection, resolveSelection,
   type AudioInput,

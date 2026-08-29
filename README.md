@@ -15,6 +15,9 @@ Under development. Current milestone: browser audio capture and hardware
 verification. Measurement is not yet implemented — see
 [docs/roadmap.md](docs/roadmap.md) for the roadmap.
 
+Verified hardware and browser combinations are recorded in
+[docs/hardware-compatibility.md](docs/hardware-compatibility.md).
+
 ## Relationship to tg
 
 This is a derivative work of [tg](https://github.com/vacaboja/tg) by Marcello
@@ -38,7 +41,7 @@ GNU General Public License, version 2 only. See [LICENSE](LICENSE).
 
     cd web
     npm install
-    npm run dev      # http://localhost:5173
+    npm run dev      # http://localhost:5173/tools/timegrapher/
     npm test
 
 Building the original native application still requires GTK+3, GLib, PortAudio,

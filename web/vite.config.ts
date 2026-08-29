@@ -12,8 +12,10 @@ import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
-  // The app is served from a subdirectory of macwatches.com, not the root.
-  base: '/tools/timegrapher/',
+  // The production deploy serves the app from a subdirectory, not the root,
+  // so that stays the default. A fork serving it elsewhere overrides it at
+  // build time: VITE_BASE=/ npm run build
+  base: process.env.VITE_BASE ?? '/tools/timegrapher/',
   plugins: [react()],
   build: { outDir: 'dist', sourcemap: true },
   test: {

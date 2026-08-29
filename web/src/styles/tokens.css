@@ -7,6 +7,15 @@
     published by the Free Software Foundation.
 */
 :root {
+  /* Explicitly dark, not `light dark`. The palette below is dark-only, so
+     advertising light support makes a light-mode OS paint scrollbars, select
+     popups and focus rings light against a black page. */
+  color-scheme: dark;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
   --ink: #0a0b0d;
   --panel: #121417;
   --panel-2: #171a1e;
