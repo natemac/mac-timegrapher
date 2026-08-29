@@ -43,15 +43,25 @@ export function WaveformCanvas({ latest }: { latest: Float32Array | null }) {
 
     // One column per pixel, drawn as the min/max envelope of its frames so
     // single-sample impulses cannot be missed by decimation.
-    const framesPerColumn = Math.max(1, Math.floor(HISTORY_FRAMES / width));
+    //
+    // Column bounds are derived from the column index rather than from a
+    // fixed stride: floor(48000 / 900) is 53, and 900 columns of 53 frames
+    // cover only 47,700 of the 48,000, so the newest ~300 frames — the ones
+    // that just arrived — would never be drawn.
     ctx.strokeStyle = '#e9ebee';
     ctx.beginPath();
     for (let x = 0; x < width; x++) {
-      let min = 1;
-      let max = -1;
-      for (let f = 0; f < framesPerColumn; f++) {
-        const idx = (writeIndex.current + x * framesPerColumn + f) % HISTORY_FRAMES;
-        const v = buf[idx];
+      const start = Math.round((x * HISTORY_FRAMES) / width);
+      const end = Math.round(((x + 1) * HISTORY_FRAMES) / width);
+      if (end <= start) continue; // canvas wider than the history buffer
+
+      // Seeded from the first sample, not from ±1: a sample past full scale
+      // is exactly what the clip indicator exists to show, and clamping the
+      // envelope to ±1 would hide it.
+      let min = buf[(writeIndex.current + start) % HISTORY_FRAMES];
+      let max = min;
+      for (let f = start + 1; f < end; f++) {
+        const v = buf[(writeIndex.current + f) % HISTORY_FRAMES];
         if (v < min) min = v;
         if (v > max) max = v;
       }

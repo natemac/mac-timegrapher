@@ -57,6 +57,12 @@ export default function App() {
   const session = useRef<CaptureSession | null>(null);
   const recorder = useRef<WavRecorder | null>(null);
   const isRecording = useRef(false);
+  // Guards start/stop against re-entry. A ref rather than `busy` alone
+  // because setState is asynchronous: two clicks inside one tick would both
+  // read the old `busy` and both call getUserMedia, leaving the first
+  // MediaStream unreachable with its tracks still live — the browser's
+  // recording indicator then stays lit until the tab closes.
+  const inFlight = useRef(false);
 
   const secure = window.isSecureContext;
   const supported = typeof AudioWorkletNode !== 'undefined';
@@ -94,7 +100,9 @@ export default function App() {
   // leaking the MediaStream/AudioContext during Fast Refresh in development).
   useEffect(() => {
     return () => {
-      void session.current?.stop();
+      // Nothing is left to report a failure to at unmount, and an unhandled
+      // rejection here would surface as a spurious console error.
+      void session.current?.stop().catch(() => {});
     };
   }, []);
 
@@ -147,7 +155,9 @@ export default function App() {
   }, [releaseCaptureState]);
 
   const start = async () => {
-    if (!selectedId) return;
+    if (!selectedId || inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
     setError(null);
     try {
       const s = await startCapture(selectedId, handleBlock, handleDisconnect);
@@ -159,12 +169,28 @@ export default function App() {
       saveSelection(selectedId);
     } catch (err) {
       setError(describeError(err));
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
     }
   };
 
   const stop = async () => {
-    await session.current?.stop();
-    releaseCaptureState();
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+    try {
+      await session.current?.stop();
+    } catch (err) {
+      // ctx.close() can reject. Without this the state below never ran, so
+      // the button stayed on Stop and the dropdown stayed disabled with no
+      // way back short of reloading the page.
+      setError(describeError(err));
+    } finally {
+      releaseCaptureState();
+      inFlight.current = false;
+      setBusy(false);
+    }
   };
 
   const startRecording = () => {
@@ -233,6 +259,7 @@ export default function App() {
             requestedSampleRate={requestedSampleRate}
             warnings={warnings}
             capturing={capturing}
+            busy={busy}
             onSelect={setSelectedId}
             onStart={start}
             onStop={stop}

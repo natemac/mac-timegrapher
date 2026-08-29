@@ -16,13 +16,14 @@ interface Props {
   requestedSampleRate: number | null;
   warnings: ProcessingWarning[];
   capturing: boolean;
+  busy: boolean;
   onSelect: (deviceId: string) => void;
   onStart: () => void;
   onStop: () => void;
 }
 
 export function DeviceSelector({
-  devices, selectedId, sampleRate, requestedSampleRate, warnings, capturing,
+  devices, selectedId, sampleRate, requestedSampleRate, warnings, capturing, busy,
   onSelect, onStart, onStop,
 }: Props) {
   const applied = warnings.filter((w) => w.state === 'applied');
@@ -55,7 +56,12 @@ export function DeviceSelector({
       )}
 
       <div style={{ marginTop: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
-        <button onClick={capturing ? onStop : onStart} disabled={devices.length === 0}>
+        {/* Disabled while a start or stop is in flight: a second click on
+            Start would open a second MediaStream and orphan the first. */}
+        <button
+          onClick={capturing ? onStop : onStart}
+          disabled={devices.length === 0 || busy}
+        >
           {capturing ? 'Stop' : 'Start'}
         </button>
         {sampleRate !== null && (
