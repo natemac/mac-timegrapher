@@ -192,14 +192,38 @@ Criterion 5 is the milestone gate and needs a fixture.
 
 ---
 
-## 8. Open questions — for approval before implementation
+## 8. Decisions
 
-1. **Handle-based API vs. the plan's global state.** Recommended above; it costs
-   one parameter and buys testability.
-2. **Whether `tg_compute.c` is in scope for this milestone at all.** A narrower
-   Milestone 2 could extract only `algo.c` and defer the aggregation layer,
-   getting to a working WASM port sooner and adding rate-over-time afterwards.
-   That would make Milestone 3 arrive earlier at the cost of a second extraction
-   pass later.
-3. **How much C to modernise while in there.** Recommendation: none. Every line
-   changed is a line that could explain a numerical discrepancy.
+These were briefly listed as open questions. They are implementation choices,
+not product choices, and are settled here.
+
+1. **Handle-based API.** Costs one parameter everywhere, buys the ability to
+   process two files in one run and to test without global state teardown.
+
+2. **`computer.c` is in scope, minus two things.** An earlier draft suggested
+   deferring it and reimplementing the aggregation in TypeScript. That was
+   wrong: `compute_results()` is where raw measurements become rate, amplitude
+   and beat error, and `guess_bph()` is what identifies the beat rate. Both are
+   core measurement, not app-layer bookkeeping.
+
+   What stays behind:
+
+   - **The threading** — 16 of 416 lines. In the browser the AudioWorklet
+     already provides the concurrency boundary, so a mutex and condition
+     variable inside the WASM module would be scaffolding around nothing.
+   - **The calibration state machine** — that is build plan §19, a later
+     feature. It needs a reference timebase that does not exist yet, and
+     carrying it now means porting a state machine nothing can exercise.
+
+   The extraction boundary is therefore *measurement* — everything that turns
+   samples into numbers — and nothing else.
+
+3. **No modernisation of the C.** Every line changed is a line that could
+   explain a numerical discrepancy against native `tg`. The port should be
+   boring by design.
+
+### What still needs a human
+
+Only acceptance criterion 5: agreement between the extracted core and native
+`tg` on a real recording. That needs a fixture from the bench. Everything up to
+it — the extraction, the harness, the synthetic tests — proceeds without one.
