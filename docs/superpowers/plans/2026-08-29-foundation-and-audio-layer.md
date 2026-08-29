@@ -289,7 +289,9 @@ Paste the output into the commit message in Step 8. Do not hand-edit version ran
     it under the terms of the GNU General Public License version 2 as
     published by the Free Software Foundation.
 */
-import { defineConfig } from 'vite';
+// Imported from vitest/config, not vite: Vite's own UserConfig type has no
+// `test` property, so `tsc` would reject this file during `npm run build`.
+import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
@@ -809,19 +811,28 @@ Expected: PASS, 15 tests.
 
 The round-trip test only proves the encoder agrees with our own decoder. Confirm an independent tool agrees:
 
+The script must live inside `web/` so that its relative import resolves — ESM
+resolves `./src/...` against the importing file's own directory, not the shell's
+working directory.
+
 ```bash
-cd web && cat > /tmp/wavcheck.mjs <<'EOF'
+cd web && cat > wavcheck.mjs <<'EOF'
 import { encodeWavFloat32 } from './src/audio/wav-recorder.ts';
 import { writeFileSync } from 'node:fs';
 const n = 48000, s = new Float32Array(n);
 for (let i = 0; i < n; i++) s[i] = 0.5 * Math.sin(2 * Math.PI * 440 * i / 48000);
 writeFileSync('/tmp/wavcheck.wav', Buffer.from(encodeWavFloat32({ samples: s, sampleRate: 48000, channelCount: 1 })));
 EOF
-npx tsx /tmp/wavcheck.mjs 2>/dev/null || npx vite-node /tmp/wavcheck.mjs
+npx vite-node wavcheck.mjs || npx tsx wavcheck.mjs
 afinfo /tmp/wavcheck.wav
+rm wavcheck.mjs
 ```
 
 Expected: `afinfo` (built into macOS) reports 48000 Hz, 1 channel, 32-bit float, 1.000 sec. If `afinfo` errors, the header is malformed regardless of what the round-trip test says.
+
+If neither `vite-node` nor `tsx` can run the script, skip this step and say so
+in the report. The round-trip tests remain the primary evidence; this step is
+an independent cross-check, not the gate.
 
 - [ ] **Step 6: Commit**
 
@@ -1289,7 +1300,7 @@ Expected: PASS, 10 tests.
 - [ ] **Step 6: Run the whole suite**
 
 Run: `cd web && npm test`
-Expected: PASS, 37 tests across 5 files.
+Expected: PASS, 47 tests across 5 files (smoke 1 + level-meter 10 + wav-recorder 15 + device-manager 11 + audio-engine 10). The gate is that every test passes; treat a differing count as a prompt to check nothing was dropped, not as a failure in itself.
 
 - [ ] **Step 7: Commit**
 
