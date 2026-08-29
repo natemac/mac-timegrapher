@@ -55,45 +55,66 @@ export async function startCapture(
   onBlock: (block: Float32Array) => void,
 ): Promise<CaptureSession> {
   const stream = await navigator.mediaDevices.getUserMedia(buildAudioConstraints(deviceId));
-  const track = stream.getAudioTracks()[0];
-  const settings = track.getSettings();
-  const warnings = checkAppliedProcessing(settings);
 
-  // Construct at the device's own rate. Omitting this lets the context default
-  // to the system rate and silently resample, which would corrupt fixtures.
-  const context = settings.sampleRate
-    ? new AudioContext({ sampleRate: settings.sampleRate })
-    : new AudioContext();
+  // Everything below can throw partway through setup (unsupported sample
+  // rate, a missing/failed worklet fetch, graph construction). If it does,
+  // the stream and any context already created must be torn down before
+  // rethrowing — otherwise the mic stays open and lit with no session object
+  // for the caller to call stop() on.
+  let context: AudioContext | undefined;
+  try {
+    const track = stream.getAudioTracks()[0];
+    const settings = track.getSettings();
+    const warnings = checkAppliedProcessing(settings);
 
-  await context.resume(); // Safari starts contexts suspended
+    // Construct at the device's own rate. Omitting this lets the context default
+    // to the system rate and silently resample, which would corrupt fixtures.
+    const ctx = settings.sampleRate
+      ? new AudioContext({ sampleRate: settings.sampleRate })
+      : new AudioContext();
+    context = ctx; // tracked outside the try so the catch block can clean it up
 
-  const workletUrl = `${import.meta.env.BASE_URL}capture-worklet.js`;
-  await context.audioWorklet.addModule(workletUrl);
+    await ctx.resume(); // Safari starts contexts suspended
 
-  const source = context.createMediaStreamSource(stream);
-  const node = new AudioWorkletNode(context, 'capture-processor');
-  node.port.onmessage = (event: MessageEvent<Float32Array>) => onBlock(event.data);
+    const workletUrl = `${import.meta.env.BASE_URL}capture-worklet.js`;
+    await ctx.audioWorklet.addModule(workletUrl);
 
-  // A worklet is only pulled when its output reaches the destination, so route
-  // through a muted gain node rather than playing the watch out of the speakers.
-  const silence = context.createGain();
-  silence.gain.value = 0;
-  source.connect(node);
-  node.connect(silence);
-  silence.connect(context.destination);
+    const source = ctx.createMediaStreamSource(stream);
+    const node = new AudioWorkletNode(ctx, 'capture-processor', {
+      channelCount: 1,
+      channelCountMode: 'explicit',
+    });
+    node.port.onmessage = (event: MessageEvent<Float32Array>) => onBlock(event.data);
 
-  return {
-    context,
-    stream,
-    sampleRate: context.sampleRate,
-    warnings,
-    async stop() {
-      node.port.onmessage = null;
-      source.disconnect();
-      node.disconnect();
-      silence.disconnect();
-      for (const t of stream.getTracks()) t.stop();
-      await context.close();
-    },
-  };
+    // A worklet is only pulled when its output reaches the destination, so route
+    // through a muted gain node rather than playing the watch out of the speakers.
+    const silence = ctx.createGain();
+    silence.gain.value = 0;
+    source.connect(node);
+    node.connect(silence);
+    silence.connect(ctx.destination);
+
+    return {
+      context: ctx,
+      stream,
+      sampleRate: ctx.sampleRate,
+      warnings,
+      async stop() {
+        node.port.onmessage = null;
+        source.disconnect();
+        node.disconnect();
+        silence.disconnect();
+        for (const t of stream.getTracks()) t.stop();
+        await ctx.close();
+      },
+    };
+  } catch (err) {
+    for (const t of stream.getTracks()) t.stop();
+    if (context && context.state !== 'closed') {
+      // A cleanup failure here must not hide the original error, and
+      // close() itself can reject if the context is already closed.
+      await context.close().catch(() => {});
+    }
+    throw err;
+  }
 }
