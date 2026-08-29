@@ -58,3 +58,6 @@ Makefile.in
 /web/node_modules
 /web/dist
 /web/coverage
+
+# core build artefacts
+/tg-process

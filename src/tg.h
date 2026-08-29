@@ -16,17 +16,13 @@
     51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <math.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <complex.h>
-#include <fftw3.h>
-#include <stdarg.h>
 #include <gtk/gtk.h>
 #include <pthread.h>
+
+/* The signal-processing structures, constants and declarations live in the
+   core, which builds without GTK, PortAudio or pthread. This header adds the
+   application layer on top. Modified 2026-08-29 by MAC Bespoke Watch Co. */
+#include "../core/tg_core.h"
 
 #ifdef __CYGWIN__
 #define _WIN32
@@ -34,14 +30,6 @@
 
 #define CONFIG_FILE_NAME "tg-timer.ini"
 
-#define FILTER_CUTOFF 3000
-
-#define CAL_DATA_SIZE 900
-
-#define FIRST_STEP 1
-#define FIRST_STEP_LIGHT 0
-
-#define NSTEPS 4
 #define PA_SAMPLE_RATE 44100u
 #define PA_BUFF_SIZE (PA_SAMPLE_RATE << (NSTEPS + FIRST_STEP))
 
@@ -52,75 +40,14 @@
 #define NEGATIVE_SPAN 25
 
 #define EVENTS_COUNT 10000
-#define EVENTS_MAX 100
 #define PAPERSTRIP_ZOOM 10
 #define PAPERSTRIP_ZOOM_CAL 100
 #define PAPERSTRIP_MARGIN .2
 
-#define MIN_BPH 8100
-#define TYP_BPH 12000
-#define MAX_BPH 72000
-#define DEFAULT_BPH 21600
-#define MIN_LA 10 // deg
-#define MAX_LA 90 // deg
-#define DEFAULT_LA 52 // deg
-#define MIN_CAL -1000 // 0.1 s/d
-#define MAX_CAL 1000 // 0.1 s/d
+#define MIN_CAL -1000 /* 0.1 s/d */
+#define MAX_CAL 1000  /* 0.1 s/d */
 #define AUDIO_DEVICE_DEFAULT -1
 
-#define PRESET_BPH { 12000, 14400, 17280, 18000, 19800, 21600, 25200, 28800, 36000, 43200, 72000, 0 };
-
-#ifdef DEBUG
-#define debug(...) print_debug(__VA_ARGS__)
-#else
-#define debug(...) {}
-#endif
-
-#define UNUSED(X) (void)(X)
-
-/* algo.c */
-struct processing_buffers {
-	int sample_rate;
-	int sample_count;
-	float *samples, *samples_sc, *waveform, *waveform_sc, *tic_wf, *slice_wf, *tic_c;
-	fftwf_complex *fft, *sc_fft, *tic_fft, *slice_fft;
-	fftwf_plan plan_a, plan_b, plan_c, plan_d, plan_e, plan_f, plan_g;
-	struct filter *hpf, *lpf;
-	double period,sigma,be,waveform_max,phase,tic_pulse,toc_pulse,amp;
-	double cal_phase;
-	int waveform_max_i;
-	int tic,toc;
-	int ready;
-	uint64_t timestamp, last_tic, last_toc, events_from;
-	uint64_t *events;
-	unsigned char *events_tictoc;
-	float amp_history;
-#ifdef DEBUG
-	int debug_size;
-	float *debug;
-#endif
-};
-
-struct calibration_data {
-	int wp;
-	int size;
-	int state;
-	double calibration;
-	uint64_t start_time;
-	double *times;
-	double *phases;
-	uint64_t *events;
-};
-
-void setup_buffers(struct processing_buffers *b);
-void pb_destroy(struct processing_buffers *b);
-struct processing_buffers *pb_clone(struct processing_buffers *p);
-void pb_destroy_clone(struct processing_buffers *p);
-void process(struct processing_buffers *p, int bph, double la, int light);
-void setup_cal_data(struct calibration_data *cd);
-void cal_data_destroy(struct calibration_data *cd);
-int test_cal(struct processing_buffers *p);
-int process_cal(struct processing_buffers *p, struct calibration_data *cd);
 
 /* audio.c */
 struct processing_data {
@@ -280,7 +207,6 @@ struct main_window {
 	guint save_timeout;
 };
 
-extern int preset_bph[];
 
 #ifdef DEBUG
 extern int testing;

@@ -42,6 +42,13 @@ function parseArgs(argv) {
     amplitude: 0.35,     // peak of each impulse, linear
     decayMs: 3,          // impulse decay time constant
     ringHz: 3000,        // impulse ring frequency
+    // Tick and tock must not be identical. A real escapement's two beats have
+    // different acoustic signatures, and that difference is what lets the
+    // algorithm tell them apart. With tockRatio at 1.0 a 21,600 bph movement
+    // with small beat error is genuinely indistinguishable from a uniform
+    // 43,200 bph train, and BPH detection lands on the latter — correctly.
+    tockRatio: 0.7,      // tock amplitude relative to tick
+    tockRingRatio: 0.8,  // tock ring frequency relative to tick
     out: null,
     seed: 1,
   };
@@ -89,22 +96,34 @@ export function synthesise(opts) {
 
   for (let i = 0; i < total; i++) buf[i] = (rand() * 2 - 1) * noise;
 
-  // Nominal beat period, then stretched or squeezed by the rate offset. A
-  // watch gaining `rate` seconds a day completes its beats proportionally
-  // sooner, so the period shrinks.
-  const beatsPerSecond = bph / 3600;
-  const nominalBeat = 1 / beatsPerSecond;
-  const beatPeriod = nominalBeat * (SECONDS_PER_DAY / (SECONDS_PER_DAY + rate));
+  // BPH counts *beats*, and one full oscillation is two beats — a tick and a
+  // tock. So a 21,600 bph movement ticks 3 times a second, not 6, with a tock
+  // between each pair. tg encodes the same relationship as bph = 7200/period,
+  // where period is the tick-to-tick time in seconds.
+  //
+  // Getting this wrong produces a signal at exactly twice the intended beat
+  // rate, which the algorithm then reports correctly and confusingly.
+  const nominalCycle = 7200 / bph;
+
+  // A watch gaining `rate` seconds a day completes each oscillation
+  // proportionally sooner, so the period shrinks.
+  const beatPeriod = nominalCycle * (SECONDS_PER_DAY / (SECONDS_PER_DAY + rate));
 
   // Beat error is the asymmetry between the tick-to-tock and tock-to-tick
   // intervals. Displacing every tock by `beatError` ms from the midpoint
   // produces exactly that asymmetry.
   const tockOffset = beatPeriod / 2 + beatError / 1000;
 
+  const tockOpts = {
+    ...opts,
+    amplitude: opts.amplitude * opts.tockRatio,
+    ringHz: opts.ringHz * opts.tockRingRatio,
+  };
+
   let beatIndex = 0;
   for (let t = 0; t < seconds; t += beatPeriod, beatIndex++) {
     addImpulse(buf, Math.round(t * sampleRate), opts, rand);
-    addImpulse(buf, Math.round((t + tockOffset) * sampleRate), opts, rand);
+    addImpulse(buf, Math.round((t + tockOffset) * sampleRate), tockOpts, rand);
   }
 
   return { samples: buf, sampleRate, channelCount: 1, beatPeriod, beatIndex };

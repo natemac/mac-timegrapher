@@ -1,0 +1,29 @@
+# Standalone build for the DSP core and its command-line harness.
+# Deliberately separate from the autotools build, which builds the GTK
+# application: this one must not acquire a GTK, PortAudio or pthread
+# dependency, and keeping it in its own file makes that easy to see.
+#
+#   make -f Makefile.core          build tools/tg-process
+#   make -f Makefile.core check    build and run the synthetic-signal tests
+#   make -f Makefile.core clean
+
+CC      ?= cc
+CFLAGS  ?= -O2 -Wall -Wextra -std=c99
+FFTW_CFLAGS := $(shell pkg-config --cflags fftw3f 2>/dev/null)
+FFTW_LIBS   := $(shell pkg-config --libs fftw3f 2>/dev/null || echo -lfftw3f)
+
+CORE_SRC = core/tg_algo.c core/tg_measure.c core/tg_wav.c
+CORE_HDR = core/tg_core.h core/tg_wav.h
+
+all: tg-process
+
+tg-process: $(CORE_SRC) $(CORE_HDR) tools/tg-process.c
+	$(CC) $(CFLAGS) $(FFTW_CFLAGS) -o $@ $(CORE_SRC) tools/tg-process.c $(FFTW_LIBS) -lm
+
+check: tg-process
+	./tests/run-synthetic-tests.sh
+
+clean:
+	rm -f tg-process
+
+.PHONY: all check clean

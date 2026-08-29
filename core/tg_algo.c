@@ -16,7 +16,7 @@
     51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 */
 
-#include "tg.h"
+#include "tg_core.h"
 
 struct filter {
 	double a0,a1,a2,b1,b2;

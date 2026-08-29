@@ -5,14 +5,15 @@ EXTRA_PROGRAMS = tg-timer-dbg \
 		 tg-timer-vlg
 MOSTLYCLEANFILES = $(EXTRA_PROGRAMS)
 
-tg_timer_SOURCES = src/algo.c \
+tg_timer_SOURCES = core/tg_algo.c \
 		   src/audio.c \
 		   src/computer.c \
 		   src/config.c \
 		   src/interface.c \
 		   src/output_panel.c \
 		   src/serializer.c \
-		   src/tg.h
+		   src/tg.h \
+		   core/tg_core.h
 
 tg_timer_dbg_SOURCES = $(tg_timer_SOURCES)
 tg_timer_prf_SOURCES = $(tg_timer_SOURCES)

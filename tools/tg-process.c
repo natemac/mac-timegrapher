@@ -1,0 +1,133 @@
+/*
+    MAC Bespoke Web Timegrapher
+    Copyright (C) 2026 MAC Bespoke Watch Co.
+
+    Command-line harness: reads a WAV, runs the extracted DSP core over it, and
+    prints the measurements. This is what the WebAssembly build is checked
+    against, and what a fixture's expected values are produced from.
+
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License version 2 as
+    published by the Free Software Foundation.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+*/
+
+#include "../core/tg_core.h"
+#include "../core/tg_wav.h"
+
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
+static void usage(const char *argv0)
+{
+	fprintf(stderr,
+		"usage: %s [options] FILE.wav\n"
+		"\n"
+		"  --bph N     beat rate; omit or 0 to detect automatically\n"
+		"  --lift N    lift angle in degrees (default %d)\n"
+		"  --json      emit JSON instead of a human-readable report\n"
+		"  --version   print the core version and exit\n"
+		"\n"
+		"Reads 32-bit float or 16-bit PCM WAV. Multi-channel input is\n"
+		"downmixed to mono.\n",
+		argv0, DEFAULT_LA);
+}
+
+int main(int argc, char **argv)
+{
+	int bph = 0;
+	double lift = DEFAULT_LA;
+	int json = 0;
+	const char *path = NULL;
+
+	for(int i = 1; i < argc; i++) {
+		if(!strcmp(argv[i], "--version")) {
+			printf("%s\n", tg_version());
+			return 0;
+		} else if(!strcmp(argv[i], "--json")) {
+			json = 1;
+		} else if(!strcmp(argv[i], "--bph") && i + 1 < argc) {
+			bph = atoi(argv[++i]);
+		} else if(!strcmp(argv[i], "--lift") && i + 1 < argc) {
+			lift = atof(argv[++i]);
+		} else if(argv[i][0] == '-') {
+			usage(argv[0]);
+			return 2;
+		} else {
+			path = argv[i];
+		}
+	}
+
+	if(!path) { usage(argv[0]); return 2; }
+
+	struct tg_wav wav;
+	char err[512];
+	if(!tg_wav_read(path, &wav, err, sizeof err)) {
+		fprintf(stderr, "error: %s\n", err);
+		return 1;
+	}
+
+	tg_config config = { wav.sample_rate, bph, lift };
+	tg_handle h = tg_init(config);
+	if(!h) {
+		fprintf(stderr, "error: could not initialise core "
+		        "(sample rate %d, bph %d, lift angle %g)\n",
+		        wav.sample_rate, bph, lift);
+		tg_wav_free(&wav);
+		return 1;
+	}
+
+	tg_push_samples(h, wav.samples, (int)wav.frame_count);
+	tg_result r = tg_get_result(h);
+
+	double seconds = (double)wav.frame_count / wav.sample_rate;
+
+	if(json) {
+		printf("{\n");
+		printf("  \"file\": \"%s\",\n", path);
+		printf("  \"sampleRate\": %d,\n", wav.sample_rate);
+		printf("  \"durationSeconds\": %.3f,\n", seconds);
+		printf("  \"valid\": %s,\n", r.valid ? "true" : "false");
+		printf("  \"detectedBph\": %d,\n", r.detected_bph);
+		printf("  \"rate\": %.2f,\n", r.rate);
+		printf("  \"amplitude\": %.1f,\n", r.amplitude);
+		printf("  \"beatError\": %.3f,\n", r.beat_error);
+		printf("  \"signalQuality\": %.2f\n", r.signal_quality);
+		printf("}\n");
+	} else {
+		printf("%s\n", path);
+		printf("  %d Hz, %.1f s, %d ch %s\n", wav.sample_rate, seconds,
+		       wav.channel_count, wav.source_float ? "float32" : "pcm16");
+		printf("\n");
+		if(!r.valid) {
+			printf("  no reliable measurement\n");
+			if(seconds < 2)
+				printf("  (recording is shorter than the 2 s minimum window)\n");
+			else
+				printf("  (no analysis window converged - check the signal has\n"
+				       "   evenly spaced impulse pairs rather than continuous noise)\n");
+		} else {
+			printf("  BPH         %d%s\n", r.detected_bph, bph ? " (given)" : " (detected)");
+			printf("  RATE        %+.1f s/day\n", r.rate);
+			if(r.amplitude > 0)
+				printf("  AMPLITUDE   %.0f deg (lift angle %g)\n", r.amplitude, lift);
+			else
+				printf("  AMPLITUDE   not available\n");
+			printf("  BEAT ERROR  %.2f ms\n", r.beat_error);
+			printf("  SIGNAL      %.0f%%\n", r.signal_quality * 100);
+		}
+	}
+
+	tg_destroy(h);
+	tg_wav_free(&wav);
+	return r.valid ? 0 : 3;
+}
