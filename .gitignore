@@ -2,6 +2,10 @@
 !.gitignore
 !.travis.yml
 !.valgrind.supp
+# Upstream's bare `.*` above also swallows the web app's lint config, which
+# enables react/rules-of-hooks as an error. Without this negation a fresh
+# clone lints against oxlint defaults and silently gets a weaker result.
+!web/.oxlintrc.json
 
 # Object files
 *.o
@@ -49,3 +53,8 @@ Makefile.in
 # build directories
 /deb
 /msi
+
+# web application
+/web/node_modules
+/web/dist
+/web/coverage
