@@ -1,7 +1,7 @@
 # MAC Bespoke Web Timegrapher — Foundation and Audio Layer
 
 **Date:** 2026-08-29
-**Milestone:** 1 of 8 (see `docs/build-plan.md`)
+**Milestone:** 1 of 8 (see `docs/roadmap.md`)
 **Status:** Approved design
 
 ---
@@ -160,7 +160,7 @@ mac-timegrapher/
 ├── wasm/                   Emscripten bindings  (empty until Milestone 3)
 ├── fixtures/               recorded WAVs and expected results
 └── docs/
-    ├── build-plan.md
+    ├── roadmap.md
     ├── licensing.md
     ├── hardware-compatibility.md
     └── superpowers/specs/
