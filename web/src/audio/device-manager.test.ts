@@ -7,7 +7,7 @@
     published by the Free Software Foundation.
 */
 
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   resolveSelection, saveSelection, loadSelection, listAudioInputs, requestPermission,
   type AudioInput,
@@ -62,6 +62,8 @@ describe('selection persistence', () => {
 });
 
 describe('listAudioInputs', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
   it('returns only audio inputs', async () => {
     vi.stubGlobal('navigator', {
       mediaDevices: {
@@ -88,14 +90,18 @@ describe('listAudioInputs', () => {
 });
 
 describe('requestPermission', () => {
-  it('releases the probe stream immediately', async () => {
-    const stop = vi.fn();
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('releases every track of the probe stream', async () => {
+    const stopA = vi.fn();
+    const stopB = vi.fn();
     vi.stubGlobal('navigator', {
-      mediaDevices: { getUserMedia: async () => ({ getTracks: () => [{ stop }] }) },
+      mediaDevices: { getUserMedia: async () => ({ getTracks: () => [{ stop: stopA }, { stop: stopB }] }) },
     });
     await requestPermission();
-    // Holding this stream open would keep the recording indicator lit and can
-    // lock the device on some platforms.
-    expect(stop).toHaveBeenCalledOnce();
+    // Holding any track open keeps the recording indicator lit and can lock the
+    // device, so stopping only the first is not enough.
+    expect(stopA).toHaveBeenCalledOnce();
+    expect(stopB).toHaveBeenCalledOnce();
   });
 });
