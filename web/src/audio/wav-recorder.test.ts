@@ -92,6 +92,16 @@ describe('decodeWavFloat32', () => {
   it('rejects a non-RIFF buffer', () => {
     expect(() => decodeWavFloat32(new ArrayBuffer(64))).toThrow(/RIFF/);
   });
+
+  it('rejects a truncated data chunk by name rather than by RangeError', () => {
+    // A recording interrupted mid-write declares more data than it holds.
+    // Reading it should say so, not surface a bare DataView RangeError.
+    const full = encodeWavFloat32({
+      samples: new Float32Array([0.1, 0.2, 0.3, 0.4]), sampleRate: 48000, channelCount: 1,
+    });
+    const cut = full.slice(0, full.byteLength - 8);
+    expect(() => decodeWavFloat32(cut)).toThrow(/Truncated data chunk/);
+  });
 });
 
 describe('WavRecorder', () => {

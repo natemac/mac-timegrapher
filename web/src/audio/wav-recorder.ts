@@ -54,7 +54,9 @@ export function encodeWavFloat32({ samples, sampleRate, channelCount }: WavData)
 
   writeAscii(view, o, 'fact'); o += 4;
   view.setUint32(o, 4, true); o += 4;
-  view.setUint32(o, channelCount > 0 ? samples.length / channelCount : 0, true); o += 4;
+  // Frames, not samples. Floored explicitly: a partial trailing frame would
+  // otherwise reach setUint32 as a fraction and be silently truncated there.
+  view.setUint32(o, channelCount > 0 ? Math.floor(samples.length / channelCount) : 0, true); o += 4;
 
   writeAscii(view, o, 'data'); o += 4;
   view.setUint32(o, dataBytes, true); o += 4;
@@ -91,6 +93,14 @@ export function decodeWavFloat32(buffer: ArrayBuffer): WavData {
       sampleRate = view.getUint32(body + 4, true);
       bitsPerSample = view.getUint16(body + 14, true);
     } else if (id === 'data') {
+      // Checked before allocating. A truncated file declares a size the buffer
+      // cannot satisfy, and reading past the end throws a bare RangeError from
+      // DataView that says nothing about which file was bad or why.
+      if (size > buffer.byteLength - body) {
+        throw new Error(
+          `Truncated data chunk: declares ${size} bytes but only ${buffer.byteLength - body} remain`,
+        );
+      }
       const count = Math.floor(size / BYTES_PER_SAMPLE);
       samples = new Float32Array(count);
       for (let i = 0; i < count; i++) samples[i] = view.getFloat32(body + i * BYTES_PER_SAMPLE, true);
@@ -112,7 +122,8 @@ export class WavRecorder {
   readonly sampleRate: number;
   readonly channelCount: number;
   private blocks: Float32Array[] = [];
-  private frames = 0;
+  /** Interleaved samples, not frames — matches the sampleCount getter. */
+  private sampleTotal = 0;
 
   constructor(sampleRate: number, channelCount: number) {
     this.sampleRate = sampleRate;
@@ -122,25 +133,25 @@ export class WavRecorder {
   /** Copies the block. The worklet reuses its buffer between render quanta. */
   push(block: Float32Array): void {
     this.blocks.push(new Float32Array(block));
-    this.frames += block.length;
+    this.sampleTotal += block.length;
   }
 
   get sampleCount(): number {
-    return this.frames;
+    return this.sampleTotal;
   }
 
   get durationSeconds(): number {
     const divisor = this.sampleRate * this.channelCount;
-    return divisor > 0 ? this.frames / divisor : 0;
+    return divisor > 0 ? this.sampleTotal / divisor : 0;
   }
 
   reset(): void {
     this.blocks = [];
-    this.frames = 0;
+    this.sampleTotal = 0;
   }
 
   toWav(): ArrayBuffer {
-    const all = new Float32Array(this.frames);
+    const all = new Float32Array(this.sampleTotal);
     let offset = 0;
     for (const block of this.blocks) {
       all.set(block, offset);

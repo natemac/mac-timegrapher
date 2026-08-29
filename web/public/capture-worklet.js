@@ -26,6 +26,14 @@ class CaptureProcessor extends AudioWorkletProcessor {
       this._buffer[this._filled++] = channel[i];
       if (this._filled === CHUNK_FRAMES) {
         // slice() copies: the buffer is reused on the next quantum.
+        //
+        // Only whole chunks are posted, so whatever is left in _buffer when
+        // capture stops — up to CHUNK_FRAMES - 1, i.e. 2047 frames, about
+        // 43 ms at 48 kHz — is discarded and never reaches the recorder.
+        // Harmless for the 30-second fixtures this milestone produces, but
+        // it is a real truncation at the tail of every recording and DSP
+        // work should not have to rediscover it. Flushing the remainder
+        // would need a stop message from the main thread.
         this.port.postMessage(this._buffer.slice(0));
         this._filled = 0;
       }
