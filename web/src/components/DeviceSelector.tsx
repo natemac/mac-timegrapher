@@ -31,6 +31,7 @@ export function DeviceSelector({
         <p className="bad">No audio inputs found. Connect a device and reload.</p>
       ) : (
         <select
+          aria-label="Audio input"
           value={selectedId ?? ''}
           disabled={capturing}
           onChange={(e) => onSelect(e.target.value)}

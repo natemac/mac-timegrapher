@@ -88,6 +88,15 @@ export default function App() {
     return () => navigator.mediaDevices.removeEventListener('devicechange', onChange);
   }, [granted, refreshDevices]);
 
+  // Cleanup-only: release a live capture session if App unmounts mid-capture
+  // (in production App is the singleton root, so this mostly guards against
+  // leaking the MediaStream/AudioContext during Fast Refresh in development).
+  useEffect(() => {
+    return () => {
+      void session.current?.stop();
+    };
+  }, []);
+
   const handleBlock = useCallback((block: Float32Array) => {
     setReading(measureLevel(block));
     setLatest(block);
@@ -113,6 +122,13 @@ export default function App() {
   };
 
   const stop = async () => {
+    // If capture stops while a recording is still in progress, reconcile
+    // hasRecording the same way stopRecording() does — otherwise the
+    // WavRecorder still holds captured audio but the Download button stays
+    // disabled with no way to recover it.
+    if (isRecording.current) {
+      setHasRecording((recorder.current?.sampleCount ?? 0) > 0);
+    }
     isRecording.current = false;
     setRecording(false);
     await session.current?.stop();
@@ -146,7 +162,10 @@ export default function App() {
     a.href = url;
     a.download = `timegrapher-${stamp}.wav`;
     a.click();
-    URL.revokeObjectURL(url);
+    // Deferred: revoking immediately after click() on an anchor never added
+    // to the DOM is fragile on some Safari versions, and Safari on macOS is
+    // an explicit acceptance target for this milestone.
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   };
 
   return (
