@@ -1,0 +1,24 @@
+MAC Bespoke Web Timegrapher
+Copyright (C) 2026 MAC Bespoke Watch Co.
+
+This program is a derivative work of "tg", a desktop timegrapher for
+mechanical watches.
+
+    tg
+    Copyright (C) 2015-2016 Marcello Mamino <vacaboja@gmail.com>
+    https://github.com/vacaboja/tg
+
+Subsequent maintenance of tg was carried out by Alejandro Grigera:
+
+    https://github.com/agrigera/tg
+
+This work was forked from agrigera/tg at commit cdbeee8 on 2026-08-29.
+
+tg is licensed under the GNU General Public License, version 2 only.
+This derivative work is likewise licensed under the GNU General Public
+License, version 2 only. See the LICENSE file for the full text.
+
+The signal-processing core of this program is derived from tg's src/algo.c
+and src/computer.c. A record of modifications is kept in docs/licensing.md,
+and the complete revision history of both the original and this derivative
+work is preserved in this repository's git history.

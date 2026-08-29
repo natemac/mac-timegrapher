@@ -49,3 +49,8 @@ Makefile.in
 # build directories
 /deb
 /msi
+
+# web application
+/web/node_modules
+/web/dist
+/web/coverage
