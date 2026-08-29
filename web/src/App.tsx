@@ -129,12 +129,17 @@ export default function App() {
     isRecording.current = false;
     setRecording(false);
     setCapturing(false);
-    // Every live-updating display has to be cleared, not just the numeric
-    // ones: a frozen waveform and a frozen duration counter both read as
-    // though capture were still running.
+    // Every live-updating display has to be cleared: a frozen waveform and a
+    // frozen level meter both read as though capture were still running.
     setReading(null);
     setLatest(null);
-    setDuration(0);
+    // Duration is the exception. Once a recording has ended it is no longer a
+    // live counter but that recording's final length — the one number a
+    // fixture is judged by. Zeroing it would show "0.0 s" beside an enabled
+    // Download button. Clear it only when there is nothing left to download.
+    if ((recorder.current?.sampleCount ?? 0) === 0) {
+      setDuration(0);
+    }
     setSampleRate(null);
     setRequestedSampleRate(null);
     setWarnings([]);

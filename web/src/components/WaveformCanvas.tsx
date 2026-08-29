@@ -20,7 +20,29 @@ export function WaveformCanvas({ latest }: { latest: Float32Array | null }) {
   const writeIndex = useRef(0);
 
   useEffect(() => {
-    if (!latest) return;
+    const canvasEl = canvasRef.current;
+    const context = canvasEl?.getContext('2d');
+
+    // No block means capture has stopped. Returning early here would leave the
+    // last pre-stop frame painted, which is the frozen display this is meant
+    // to avoid — clearing the state does not clear the pixels. Reset the ring
+    // buffer too, or the next capture's first second draws against this one's
+    // tail.
+    if (!latest) {
+      history.current.fill(0);
+      writeIndex.current = 0;
+      if (canvasEl && context) {
+        const mid = canvasEl.height / 2;
+        context.clearRect(0, 0, canvasEl.width, canvasEl.height);
+        context.strokeStyle = '#262b31';
+        context.beginPath();
+        context.moveTo(0, mid);
+        context.lineTo(canvasEl.width, mid);
+        context.stroke();
+      }
+      return;
+    }
+
     const buf = history.current;
     for (let i = 0; i < latest.length; i++) {
       buf[writeIndex.current] = latest[i];
