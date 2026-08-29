@@ -33,6 +33,19 @@ describe('encodeWavFloat32', () => {
     expect(view.getUint16(34, true)).toBe(32); // bits per sample
   });
 
+  it('writes an 18-byte fmt chunk followed by a fact chunk', () => {
+    // A regression to the 16-byte PCM-style fmt chunk (dropping cbSize and the
+    // fact chunk) would still leave format-code and bits-per-sample assertions
+    // passing, since both sit at the same offset relative to the chunk body
+    // either way. Pin the chunk sizes explicitly so that regression can't hide.
+    const buf = encodeWavFloat32({ samples, sampleRate: 48000, channelCount: 1 });
+    const view = new DataView(buf);
+    expect(ascii(buf, 12, 4)).toBe('fmt ');
+    expect(view.getUint32(16, true)).toBe(18); // fmt chunk body size
+    expect(ascii(buf, 38, 4)).toBe('fact'); // 12 + 8 + 18
+    expect(view.getUint32(42, true)).toBe(4); // fact chunk body size
+  });
+
   it('declares the RIFF size as total length minus eight', () => {
     const buf = encodeWavFloat32({ samples, sampleRate: 48000, channelCount: 1 });
     expect(new DataView(buf).getUint32(4, true)).toBe(buf.byteLength - 8);
@@ -84,7 +97,7 @@ describe('decodeWavFloat32', () => {
 describe('WavRecorder', () => {
   it('starts empty', () => {
     const r = new WavRecorder(48000, 1);
-    expect(r.frameCount).toBe(0);
+    expect(r.sampleCount).toBe(0);
     expect(r.durationSeconds).toBe(0);
   });
 
@@ -119,10 +132,16 @@ describe('WavRecorder', () => {
     expect(r.durationSeconds).toBeCloseTo(0.5, 6);
   });
 
+  it('counts interleaved samples, not frames, for stereo', () => {
+    const r = new WavRecorder(48000, 2);
+    r.push(new Float32Array(2048)); // 1024 frames of 2 channels
+    expect(r.sampleCount).toBe(2048);
+  });
+
   it('clears on reset', () => {
     const r = new WavRecorder(48000, 1);
     r.push(new Float32Array([0.1]));
     r.reset();
-    expect(r.frameCount).toBe(0);
+    expect(r.sampleCount).toBe(0);
   });
 });

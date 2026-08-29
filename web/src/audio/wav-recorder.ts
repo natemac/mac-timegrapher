@@ -125,7 +125,7 @@ export class WavRecorder {
     this.frames += block.length;
   }
 
-  get frameCount(): number {
+  get sampleCount(): number {
     return this.frames;
   }
 
