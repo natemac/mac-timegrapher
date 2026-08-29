@@ -13,6 +13,7 @@ interface Props {
   devices: AudioInput[];
   selectedId: string | null;
   sampleRate: number | null;
+  requestedSampleRate: number | null;
   warnings: ProcessingWarning[];
   capturing: boolean;
   onSelect: (deviceId: string) => void;
@@ -21,8 +22,19 @@ interface Props {
 }
 
 export function DeviceSelector({
-  devices, selectedId, sampleRate, warnings, capturing, onSelect, onStart, onStop,
+  devices, selectedId, sampleRate, requestedSampleRate, warnings, capturing,
+  onSelect, onStart, onStop,
 }: Props) {
+  const applied = warnings.filter((w) => w.state === 'applied');
+  const unreported = warnings.filter((w) => w.state === 'unreported');
+
+  // Only a rate that was actually asked for can be said to have been refused,
+  // so a device that reported no rate of its own cannot produce a mismatch.
+  const rateMismatch =
+    sampleRate !== null && requestedSampleRate !== null && requestedSampleRate !== sampleRate
+      ? { requested: requestedSampleRate, actual: sampleRate }
+      : null;
+
   return (
     <div className="panel">
       <h2 style={{ marginTop: 0 }}>Audio input</h2>
@@ -51,11 +63,33 @@ export function DeviceSelector({
         )}
       </div>
 
-      {warnings.length > 0 && (
+      {rateMismatch && (
+        <p className="bad" style={{ marginBottom: 0 }}>
+          This browser refused the device's own{' '}
+          {rateMismatch.requested.toLocaleString()} Hz and is running at{' '}
+          {rateMismatch.actual.toLocaleString()} Hz, so incoming audio is being
+          resampled before it reaches this page. The waveform and level meter
+          are still useful for checking that the movement is audible, but a WAV
+          recorded in this state is a resampled derivative rather than the
+          device's own samples — do not keep it as a reference fixture.
+        </p>
+      )}
+
+      {applied.length > 0 && (
         <p className="warn" style={{ marginBottom: 0 }}>
-          This browser applied {warnings.map((w) => w.setting).join(', ')} despite
+          This browser applied {applied.map((w) => w.setting).join(', ')} despite
           being asked not to. Tick timing is still usable, but amplitude
           measurement from this input will not be trustworthy.
+        </p>
+      )}
+
+      {unreported.length > 0 && (
+        <p className="dim" style={{ marginBottom: 0, fontSize: 13 }}>
+          This browser does not report whether{' '}
+          {unreported.map((w) => w.setting).join(', ')}{' '}
+          {unreported.length === 1 ? 'is' : 'are'} active. We asked for
+          {unreported.length === 1 ? ' it' : ' them'} to be off, but cannot
+          confirm it from here.
         </p>
       )}
     </div>

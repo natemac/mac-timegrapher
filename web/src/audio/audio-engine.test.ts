@@ -43,30 +43,49 @@ describe('buildAudioConstraints', () => {
 });
 
 describe('checkAppliedProcessing', () => {
+  const applied = (settings: MediaTrackSettings) =>
+    checkAppliedProcessing(settings).filter((w) => w.state === 'applied').map((w) => w.setting);
+  const unreported = (settings: MediaTrackSettings) =>
+    checkAppliedProcessing(settings).filter((w) => w.state === 'unreported').map((w) => w.setting);
+
+  const ALL_OFF: MediaTrackSettings = {
+    echoCancellation: false, autoGainControl: false, noiseSuppression: false,
+  };
+
   it('reports nothing when the browser honoured every constraint', () => {
-    expect(
-      checkAppliedProcessing({ echoCancellation: false, autoGainControl: false, noiseSuppression: false }),
-    ).toEqual([]);
+    // Explicitly false is the only answer that lets the operator conclude a
+    // setting is off, and it is the only one that produces silence.
+    expect(checkAppliedProcessing(ALL_OFF)).toEqual([]);
   });
 
   it('reports a warning when AGC was applied anyway', () => {
-    const warnings = checkAppliedProcessing({ autoGainControl: true });
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0].setting).toBe('autoGainControl');
+    expect(applied({ ...ALL_OFF, autoGainControl: true })).toEqual(['autoGainControl']);
   });
 
   it('reports every setting the browser overrode', () => {
     const warnings = checkAppliedProcessing({
       echoCancellation: true, autoGainControl: true, noiseSuppression: true,
     });
+    expect(warnings.every((w) => w.state === 'applied')).toBe(true);
     expect(warnings.map((w) => w.setting).sort()).toEqual([
       'autoGainControl', 'echoCancellation', 'noiseSuppression',
     ]);
   });
 
-  it('treats an unreported setting as acceptable', () => {
-    // Safari omits keys it does not implement. Absence is not evidence of
-    // processing, so it must not raise a false alarm.
-    expect(checkAppliedProcessing({})).toEqual([]);
+  it('reports an unreported setting as unknown rather than as off', () => {
+    // Safari omits keys it does not implement, including autoGainControl.
+    // Absence is not evidence of processing, so this must not be an alarm —
+    // but it is not evidence of the absence of processing either, and AGC
+    // invalidates amplitude measurement rather than merely degrading it. An
+    // empty settings object therefore means three unknowns, not three
+    // confirmed-off settings.
+    expect(unreported({})).toEqual(['echoCancellation', 'autoGainControl', 'noiseSuppression']);
+    expect(applied({})).toEqual([]);
+  });
+
+  it('separates a confirmed-off setting from an unreported one', () => {
+    const settings: MediaTrackSettings = { echoCancellation: false, noiseSuppression: true };
+    expect(applied(settings)).toEqual(['noiseSuppression']);
+    expect(unreported(settings)).toEqual(['autoGainControl']);
   });
 });

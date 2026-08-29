@@ -9,9 +9,16 @@
 
 const PROCESSED_SETTINGS = ['echoCancellation', 'autoGainControl', 'noiseSuppression'] as const;
 
+/**
+ * `applied`    — the browser reported the setting as on despite being asked
+ *                to turn it off. The measurement is compromised.
+ * `unreported` — the browser did not report the setting at all, so its state
+ *                is unknown. Not evidence of processing, and not evidence of
+ *                its absence either.
+ */
 export interface ProcessingWarning {
   setting: string;
-  actual: boolean;
+  state: 'applied' | 'unreported';
 }
 
 export interface CaptureSession {
@@ -19,6 +26,12 @@ export interface CaptureSession {
   stream: MediaStream;
   /** The rate actually in force, which may differ from the rate requested. */
   sampleRate: number;
+  /**
+   * The rate the context was asked for, i.e. the rate the device reported.
+   * `undefined` when the device reported none and the context was left to
+   * pick its own — in that case there is no request to compare against.
+   */
+  requestedSampleRate: number | undefined;
   warnings: ProcessingWarning[];
   stop(): Promise<void>;
 }
@@ -41,11 +54,28 @@ export function buildAudioConstraints(deviceId: string): MediaStreamConstraints 
   };
 }
 
-/** Report any processing the browser applied despite being asked not to. */
+/**
+ * Classify each processing setting the browser may have applied.
+ *
+ * Three states, not two. A setting explicitly reported as `true` was applied
+ * against our constraint. A setting explicitly reported as `false` was
+ * honoured and is not mentioned. A setting that is absent from
+ * `getSettings()` — Safari omits keys it does not implement, including
+ * `autoGainControl` — is genuinely unknown.
+ *
+ * Absence is not evidence of processing, so `unreported` must not be shown as
+ * an alarm. But it is not evidence of the absence of processing either, and
+ * AGC does not merely degrade amplitude measurement, it invalidates it. So
+ * silently treating the unknown case as "off" would have the operator read a
+ * clean screen as confirmation that a setting is off when the browser never
+ * said so. It is reported as a neutral note instead.
+ */
 export function checkAppliedProcessing(settings: MediaTrackSettings): ProcessingWarning[] {
   const warnings: ProcessingWarning[] = [];
   for (const setting of PROCESSED_SETTINGS) {
-    if (settings[setting] === true) warnings.push({ setting, actual: true });
+    const value = settings[setting];
+    if (value === true) warnings.push({ setting, state: 'applied' });
+    else if (value === undefined) warnings.push({ setting, state: 'unreported' });
   }
   return warnings;
 }
@@ -53,6 +83,7 @@ export function checkAppliedProcessing(settings: MediaTrackSettings): Processing
 export async function startCapture(
   deviceId: string,
   onBlock: (block: Float32Array) => void,
+  onDisconnect?: () => void,
 ): Promise<CaptureSession> {
   const stream = await navigator.mediaDevices.getUserMedia(buildAudioConstraints(deviceId));
 
@@ -69,8 +100,9 @@ export async function startCapture(
 
     // Construct at the device's own rate. Omitting this lets the context default
     // to the system rate and silently resample, which would corrupt fixtures.
-    const ctx = settings.sampleRate
-      ? new AudioContext({ sampleRate: settings.sampleRate })
+    const requestedSampleRate = settings.sampleRate;
+    const ctx = requestedSampleRate
+      ? new AudioContext({ sampleRate: requestedSampleRate })
       : new AudioContext();
     context = ctx; // tracked outside the try so the catch block can clean it up
 
@@ -86,6 +118,18 @@ export async function startCapture(
     });
     node.port.onmessage = (event: MessageEvent<Float32Array>) => onBlock(event.data);
 
+    // The device vanishing mid-capture is otherwise completely silent: blocks
+    // simply stop arriving and every display freezes on its last frame, so a
+    // knocked cable yields a short recording with nothing to say why.
+    // `stopped` keeps a normal stop() from being reported as a disconnect.
+    let stopped = false;
+    const handleEnded = () => {
+      if (stopped) return;
+      stopped = true;
+      onDisconnect?.();
+    };
+    track.addEventListener('ended', handleEnded);
+
     // A worklet is only pulled when its output reaches the destination, so route
     // through a muted gain node rather than playing the watch out of the speakers.
     const silence = ctx.createGain();
@@ -98,8 +142,11 @@ export async function startCapture(
       context: ctx,
       stream,
       sampleRate: ctx.sampleRate,
+      requestedSampleRate,
       warnings,
       async stop() {
+        stopped = true;
+        track.removeEventListener('ended', handleEnded);
         node.port.onmessage = null;
         source.disconnect();
         node.disconnect();

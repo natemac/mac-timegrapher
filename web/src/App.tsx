@@ -45,6 +45,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sampleRate, setSampleRate] = useState<number | null>(null);
+  const [requestedSampleRate, setRequestedSampleRate] = useState<number | null>(null);
   const [warnings, setWarnings] = useState<ProcessingWarning[]>([]);
   const [reading, setReading] = useState<LevelReading | null>(null);
   const [latest, setLatest] = useState<Float32Array | null>(null);
@@ -106,22 +107,11 @@ export default function App() {
     }
   }, []);
 
-  const start = async () => {
-    if (!selectedId) return;
-    setError(null);
-    try {
-      const s = await startCapture(selectedId, handleBlock);
-      session.current = s;
-      setSampleRate(s.sampleRate);
-      setWarnings(s.warnings);
-      setCapturing(true);
-      saveSelection(selectedId);
-    } catch (err) {
-      setError(describeError(err));
-    }
-  };
-
-  const stop = async () => {
+  // Everything a capture teardown has to undo, whether it was asked for or
+  // forced on us by the device disappearing. Kept in one place so the two
+  // paths cannot drift apart.
+  const releaseCaptureState = useCallback(() => {
+    session.current = null;
     // If capture stops while a recording is still in progress, reconcile
     // hasRecording the same way stopRecording() does — otherwise the
     // WavRecorder still holds captured audio but the Download button stays
@@ -131,11 +121,50 @@ export default function App() {
     }
     isRecording.current = false;
     setRecording(false);
-    await session.current?.stop();
-    session.current = null;
     setCapturing(false);
+    // Every live-updating display has to be cleared, not just the numeric
+    // ones: a frozen waveform and a frozen duration counter both read as
+    // though capture were still running.
     setReading(null);
+    setLatest(null);
+    setDuration(0);
     setSampleRate(null);
+    setRequestedSampleRate(null);
+    setWarnings([]);
+  }, []);
+
+  const handleDisconnect = useCallback(() => {
+    setError(
+      'The audio input was disconnected. Reconnect it, or choose another ' +
+      'input, then press Start again. Anything recorded up to that point is ' +
+      'still available to download.',
+    );
+    // The MediaStreamTrack has already ended, but the AudioContext and the
+    // graph built on it have not: run the same teardown a deliberate stop
+    // would, so nothing is left holding the device.
+    void session.current?.stop().catch(() => {});
+    releaseCaptureState();
+  }, [releaseCaptureState]);
+
+  const start = async () => {
+    if (!selectedId) return;
+    setError(null);
+    try {
+      const s = await startCapture(selectedId, handleBlock, handleDisconnect);
+      session.current = s;
+      setSampleRate(s.sampleRate);
+      setRequestedSampleRate(s.requestedSampleRate ?? null);
+      setWarnings(s.warnings);
+      setCapturing(true);
+      saveSelection(selectedId);
+    } catch (err) {
+      setError(describeError(err));
+    }
+  };
+
+  const stop = async () => {
+    await session.current?.stop();
+    releaseCaptureState();
   };
 
   const startRecording = () => {
@@ -201,6 +230,7 @@ export default function App() {
             devices={devices}
             selectedId={selectedId}
             sampleRate={sampleRate}
+            requestedSampleRate={requestedSampleRate}
             warnings={warnings}
             capturing={capturing}
             onSelect={setSelectedId}
