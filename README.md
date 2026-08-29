@@ -13,7 +13,7 @@ locally in the browser; audio never leaves the machine.
 
 Under development. Current milestone: browser audio capture and hardware
 verification. Measurement is not yet implemented — see
-[docs/build-plan.md](docs/build-plan.md) for the roadmap.
+[docs/roadmap.md](docs/roadmap.md) for the roadmap.
 
 ## Relationship to tg
 
