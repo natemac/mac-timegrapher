@@ -513,7 +513,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
   - `interface WavData { samples: Float32Array; sampleRate: number; channelCount: number }`
   - `function encodeWavFloat32(data: WavData): ArrayBuffer`
   - `function decodeWavFloat32(buffer: ArrayBuffer): WavData`
-  - `class WavRecorder` with `push(block)`, `reset()`, `toWav()`, `frameCount`, `durationSeconds`
+  - `class WavRecorder` with `push(block)`, `reset()`, `toWav()`, `sampleCount`, `durationSeconds`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -597,7 +597,7 @@ describe('decodeWavFloat32', () => {
 describe('WavRecorder', () => {
   it('starts empty', () => {
     const r = new WavRecorder(48000, 1);
-    expect(r.frameCount).toBe(0);
+    expect(r.sampleCount).toBe(0);
     expect(r.durationSeconds).toBe(0);
   });
 
@@ -636,7 +636,7 @@ describe('WavRecorder', () => {
     const r = new WavRecorder(48000, 1);
     r.push(new Float32Array([0.1]));
     r.reset();
-    expect(r.frameCount).toBe(0);
+    expect(r.sampleCount).toBe(0);
   });
 });
 ```
@@ -776,7 +776,7 @@ export class WavRecorder {
     this.frames += block.length;
   }
 
-  get frameCount(): number {
+  get sampleCount(): number {
     return this.frames;
   }
 
@@ -1867,7 +1867,7 @@ export default function App() {
   const stopRecording = () => {
     isRecording.current = false;
     setRecording(false);
-    setHasRecording((recorder.current?.frameCount ?? 0) > 0);
+    setHasRecording((recorder.current?.sampleCount ?? 0) > 0);
   };
 
   const download = () => {
