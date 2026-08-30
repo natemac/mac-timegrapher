@@ -40,15 +40,25 @@ export type Settling = 'waiting' | 'moving' | 'settling' | 'settled';
 const WINDOW_SECONDS = 30;
 
 /**
- * A reading is settled when its spread stays inside these bounds. Chosen
- * against what the numbers mean rather than what looks tidy: half a second a
- * day is well inside the tolerance the project validates to, and a tenth of a
- * millisecond of beat error is below what any adjustment can act on.
+ * A reading is settled when its spread stays inside these bounds.
+ *
+ * Calibrated against real bench readings rather than picked for tidiness. A
+ * hand-held sensor on a running NH35 produced rate spreads of 0.8-1.6 s/day and
+ * beat-error spreads of 0.3-0.6 ms; the first attempt at these bounds (0.5 and
+ * 0.1) was below that floor, so the indicator read MOVING permanently and told
+ * the operator nothing.
+ *
+ * The numbers are still meaningful rather than merely achievable. A reading
+ * repeatable to a second a day is far inside the ±10 s/day that decides whether
+ * a watch needs regulating at all, so a settled reading is one you can act on.
+ *
+ * A rigid sensor mount should beat these comfortably; they are the threshold
+ * for a watch held by hand, which is how the tool is actually used.
  */
 export const SETTLED_BOUNDS = {
-  rate: 0.5,        // s/day
-  amplitude: 3,     // degrees
-  beatError: 0.1,   // ms
+  rate: 1.0,        // s/day
+  amplitude: 8,     // degrees
+  beatError: 0.3,   // ms
 };
 
 export class StabilityTracker {

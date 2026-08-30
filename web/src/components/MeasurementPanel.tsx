@@ -9,6 +9,8 @@
 import type { Measurement } from '../timegrapher/tg-engine';
 import type { Settling, Spread } from '../timegrapher/stability';
 import { SettlingIndicator } from './SettlingIndicator';
+import { PanelHead } from './PanelHead';
+import type { Topic } from './guide-content';
 
 interface Props {
   measurement: Measurement | null;
@@ -20,6 +22,7 @@ interface Props {
     amplitude: Spread | null;
     beatError: Spread | null;
   };
+  onHelp: (t: Topic) => void;
 }
 
 /** The shortest analysis window is two seconds. */
@@ -62,7 +65,7 @@ function Reading({
 }
 
 export function MeasurementPanel({
-  measurement, capturing, secondsCaptured, settling, spreads,
+  measurement, capturing, secondsCaptured, settling, spreads, onHelp,
 }: Props) {
   const m = measurement;
   const show = m?.valid ?? false;
@@ -71,7 +74,7 @@ export function MeasurementPanel({
 
   return (
     <div className="panel panel--tight">
-      <div className="eyebrow" style={{ marginBottom: 10 }}>Measurement</div>
+      <PanelHead label="Measurement" topic="measurement" onHelp={onHelp} />
 
       {/* Two by two so all four read at a glance without scrolling. */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 18px' }}>

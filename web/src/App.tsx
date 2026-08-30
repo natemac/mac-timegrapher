@@ -23,6 +23,7 @@ import { TimegrapherEngine, type Measurement, type Beat } from './timegrapher/tg
 import { StabilityTracker, type Settling, type Spread } from './timegrapher/stability';
 import { TraceCanvas } from './components/TraceCanvas';
 import { SettingsSheet, DEFAULT_SETTINGS, type Settings } from './components/SettingsSheet';
+import type { Topic } from './components/guide-content';
 
 function describeError(err: unknown): string {
   if (!(err instanceof Error)) return 'Could not open the audio input.';
@@ -55,7 +56,14 @@ export default function App() {
   const [settling, setSettling] = useState<Settling>('waiting');
   const [spreads, setSpreads] = useState<{ rate: Spread | null; amplitude: Spread | null; beatError: Spread | null }>({ rate: null, amplitude: null, beatError: null });
   const [graph, setGraph] = useState<'trace' | 'waveform'>('trace');
+  // null topic means the full guide; a topic means one section's note.
+  const [helpTopic, setHelpTopic] = useState<Topic | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+
+  const showHelp = useCallback((topic: Topic) => {
+    setHelpTopic(topic);
+    setSheetOpen(true);
+  }, []);
   // Remembered per device: magnification is a matter of taste and of what the
   // operator is doing, and re-picking it every session would be tedious.
   const [settings, setSettings] = useState<Settings>(() => {
@@ -281,7 +289,7 @@ export default function App() {
 
         <button
           className="icon-button"
-          onClick={() => setSheetOpen(true)}
+          onClick={() => { setHelpTopic(null); setSheetOpen(true); }}
           aria-label="Guide and settings"
         >
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
@@ -293,7 +301,9 @@ export default function App() {
 
       <SettingsSheet
         open={sheetOpen}
+        topic={helpTopic}
         onClose={() => setSheetOpen(false)}
+        onShowFullGuide={() => setHelpTopic(null)}
         settings={settings}
         onChange={updateSettings}
       />
@@ -332,6 +342,7 @@ export default function App() {
             onSelect={setSelectedId}
             onStart={start}
             onStop={stop}
+            onHelp={showHelp}
           />
 
           {error && (
@@ -346,9 +357,10 @@ export default function App() {
             secondsCaptured={secondsCaptured}
             settling={settling}
             spreads={spreads}
+            onHelp={showHelp}
           />
 
-          <LevelMeter signal={signal} />
+          <LevelMeter signal={signal} onHelp={showHelp} />
 
           {/* The graph takes whatever height is left, with its selector below
               it: the control belongs next to the thing it changes, and at the
@@ -361,9 +373,10 @@ export default function App() {
                 zoomMs={settings.zoomMs}
                 windowSeconds={settings.traceSeconds}
                 capturing={capturing}
+                onHelp={showHelp}
               />
             ) : (
-              <WaveformCanvas latest={latest} />
+              <WaveformCanvas latest={latest} onHelp={showHelp} />
             )}
           </div>
 

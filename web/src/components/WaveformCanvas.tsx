@@ -7,6 +7,8 @@
     published by the Free Software Foundation.
 */
 import { useEffect, useRef } from 'react';
+import { PanelHead } from './PanelHead';
+import type { Topic } from './guide-content';
 
 const HISTORY_FRAMES = 48_000; // roughly one second at 48 kHz
 
@@ -14,7 +16,7 @@ const HISTORY_FRAMES = 48_000; // roughly one second at 48 kHz
  * Scrolling raw waveform. Watch ticks appear as isolated vertical spikes
  * against a flat floor; that shape is what Phase 0 is looking for.
  */
-export function WaveformCanvas({ latest }: { latest: Float32Array | null }) {
+export function WaveformCanvas({ latest, onHelp }: { latest: Float32Array | null; onHelp: (t: Topic) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const history = useRef(new Float32Array(HISTORY_FRAMES));
   const writeIndex = useRef(0);
@@ -105,10 +107,12 @@ export function WaveformCanvas({ latest }: { latest: Float32Array | null }) {
       className="panel panel--tight"
       style={{ flex: '1 1 auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-        <span className="eyebrow">Waveform</span>
-        <span className="dim mono" style={{ fontSize: 10 }}>1s</span>
-      </div>
+      <PanelHead
+        label="Waveform"
+        topic="waveform"
+        onHelp={onHelp}
+        right={<span className="dim mono" style={{ fontSize: 10 }}>1s</span>}
+      />
       <canvas
         ref={canvasRef}
         width={900}

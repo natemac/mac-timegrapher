@@ -299,3 +299,54 @@ select {
 @media (prefers-reduced-motion: reduce) {
   .sheet { animation: none; }
 }
+
+/* ---------- Panel headers ---------- */
+.panel__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+/* The label itself is the help control. A separate icon in a row of 10px text
+   is both easy to miss and easy to mis-tap; the label is what an operator
+   already points at. The hit area is padded out past the text for thumbs. */
+.panel__help {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: 0;
+  padding: 4px 8px 4px 0;
+  margin: -4px 0 -4px 0;
+  color: var(--text-faint);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+}
+.panel__help:hover { color: var(--text-dim); }
+.panel__help .eyebrow { color: inherit; }
+
+.visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---------- Sheet prose ---------- */
+.prose p { font-size: 13.5px; line-height: 1.6; margin: 0 0 12px; }
+.prose ul { font-size: 13.5px; line-height: 1.6; padding-left: 18px; margin: 0 0 12px; }
+.prose li { margin-bottom: 4px; }
+.prose h3 {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin: 0 0 8px;
+}
+.prose strong { color: var(--text); font-weight: 600; }
+.prose .dim { color: var(--text-dim); }
+.sheet__lede { color: var(--text-dim); }

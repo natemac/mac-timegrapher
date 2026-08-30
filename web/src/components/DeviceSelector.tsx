@@ -7,6 +7,8 @@
     published by the Free Software Foundation.
 */
 import type { AudioInput } from '../audio/device-manager';
+import { PanelHead } from './PanelHead';
+import type { Topic } from './guide-content';
 
 interface Props {
   devices: AudioInput[];
@@ -18,11 +20,12 @@ interface Props {
   onSelect: (deviceId: string) => void;
   onStart: () => void;
   onStop: () => void;
+  onHelp: (t: Topic) => void;
 }
 
 export function DeviceSelector({
   devices, selectedId, sampleRate, requestedSampleRate,
-  capturing, busy, onSelect, onStart, onStop,
+  capturing, busy, onSelect, onStart, onStop, onHelp,
 }: Props) {
   // A rate the browser refused means it resampled, which makes the recording a
   // derivative rather than a reference. Worth surfacing; the applied-processing
@@ -33,14 +36,16 @@ export function DeviceSelector({
 
   return (
     <div className="panel panel--tight">
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-        <span className="eyebrow">Audio input</span>
-        {capturing && sampleRate !== null && (
+      <PanelHead
+        label="Audio input"
+        topic="input"
+        onHelp={onHelp}
+        right={capturing && sampleRate !== null ? (
           <span className="mono dim" style={{ fontSize: 11 }}>
             {sampleRate.toLocaleString()} Hz
           </span>
-        )}
-      </div>
+        ) : undefined}
+      />
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <button

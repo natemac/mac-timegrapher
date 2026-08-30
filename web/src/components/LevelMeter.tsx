@@ -7,6 +7,8 @@
     published by the Free Software Foundation.
 */
 import type { SignalState, SignalStrength } from '../audio/signal-strength';
+import { PanelHead } from './PanelHead';
+import type { Topic } from './guide-content';
 
 /** Map dBFS onto the bar, with a -60 dB floor. */
 function toPercent(db: number): number {
@@ -30,7 +32,7 @@ const STRENGTH_COLOUR: Record<SignalStrength, string> = {
   excellent: 'var(--ok)',
 };
 
-export function LevelMeter({ signal }: { signal: SignalState | null }) {
+export function LevelMeter({ signal, onHelp }: { signal: SignalState | null; onHelp: (t: Topic) => void }) {
   const level = signal ? toPercent(signal.levelDb) : 0;
   const peak = signal ? toPercent(20 * Math.log10(Math.max(signal.peakHold, 1e-6))) : 0;
   const strength: SignalStrength = signal?.strength ?? 'none';
@@ -38,15 +40,11 @@ export function LevelMeter({ signal }: { signal: SignalState | null }) {
 
   return (
     <div className="panel panel--tight">
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'baseline',
-          marginBottom: 8,
-        }}
-      >
-        <span className="eyebrow">Signal</span>
+      <PanelHead
+        label="Signal"
+        topic="signal"
+        onHelp={onHelp}
+        right={
         <span
           className="mono"
           style={{
@@ -57,7 +55,8 @@ export function LevelMeter({ signal }: { signal: SignalState | null }) {
         >
           {clipped ? 'TOO LOUD' : STRENGTH_LABEL[strength]}
         </span>
-      </div>
+        }
+      />
 
       <div
         style={{
