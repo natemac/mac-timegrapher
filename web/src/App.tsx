@@ -125,6 +125,15 @@ export default function App() {
     sessionStore.saveMeta(next);
   }, []);
 
+  /*
+     Stable identities. Both sheets key effects on their close handler, and a
+     fresh arrow on every render re-runs those effects at the rate the app
+     re-renders — twice a second while measuring.
+  */
+  const closeSession = useCallback(() => setSessionOpen(false), []);
+  const closeSheet = useCallback(() => setSheetOpen(false), []);
+  const showFullGuide = useCallback(() => setHelpTopic(null), []);
+
   const showHelp = useCallback((topic: Topic) => {
     setHelpTopic(topic);
     setSheetOpen(true);
@@ -614,7 +623,7 @@ export default function App() {
 
       <SessionSheet
         open={sessionOpen}
-        onClose={() => setSessionOpen(false)}
+        onClose={closeSession}
         readings={readings}
         movementName={movementLabel}
         meta={meta}
@@ -627,8 +636,8 @@ export default function App() {
       <SettingsSheet
         open={sheetOpen}
         topic={helpTopic}
-        onClose={() => setSheetOpen(false)}
-        onShowFullGuide={() => setHelpTopic(null)}
+        onClose={closeSheet}
+        onShowFullGuide={showFullGuide}
         settings={settings}
         onChange={updateSettings}
         mode={mode}

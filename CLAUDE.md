@@ -120,9 +120,16 @@ built standalone with `make -f Makefile.core` and to WebAssembly with
 `wasm/build-wasm.sh`. `fixtures/` is the regression corpus — still empty,
 pending a bench recording.
 
-`startCapture` and the React components other than `SourceFooter` have no
-automated tests **by design** — mocking the Web Audio graph would test the mock.
-They are verified at the bench. Don't "fix" this by adding mocks.
+`startCapture` and the React components that touch audio have no automated
+tests **by design** — mocking the Web Audio graph would test the mock. They are
+verified at the bench. Don't "fix" this by adding mocks.
+
+Components that take only plain props are a different case and *are* tested —
+`SourceFooter` and `SessionSheet`. The latter exists because an effect that
+combined focus-on-open with an Escape listener depended on `onClose`, which the
+parent recreated every render; every keystroke in the certificate fields stole
+focus back to the close button and the field took one character per tap. Keep
+focus effects keyed on what actually opened the thing, never on a callback.
 
 ## Commands
 

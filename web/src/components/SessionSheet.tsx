@@ -41,11 +41,26 @@ export function SessionSheet({
   const [copied, setCopied] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
 
+  /*
+     Focus moves into the sheet when it opens — and only when it opens.
+
+     This used to share an effect with the Escape listener, which depends on
+     `onClose`. The parent passes a fresh arrow for that on every render, so
+     every keystroke in the certificate fields re-ran the effect and pulled
+     focus onto the close button. The field accepted exactly one character per
+     tap, which read as a broken keyboard rather than as stolen focus.
+  */
   useEffect(() => {
     if (!open) return;
     closeRef.current?.focus();
     setCopied(false);
     setConfirmClear(false);
+  }, [open]);
+
+  // Re-registering this when onClose changes identity is harmless: it adds and
+  // removes a listener and touches nothing the operator is looking at.
+  useEffect(() => {
+    if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };

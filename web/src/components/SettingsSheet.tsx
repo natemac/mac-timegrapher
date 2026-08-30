@@ -89,18 +89,27 @@ export function SettingsSheet({
   const closeRef = useRef<HTMLButtonElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
 
-  // Escape closes, and focus moves into the sheet so a keyboard user is not
-  // left behind on the page underneath.
+  /*
+     Focus moves into the sheet, and the body returns to the top, when the sheet
+     opens or changes subject — not whenever the parent re-renders. Keeping this
+     apart from the Escape listener matters: that one depends on `onClose`,
+     which the parent recreates on every render, and re-running a focus call at
+     that rate fights whatever the operator is doing.
+  */
   useEffect(() => {
     if (!open) return;
     closeRef.current?.focus();
     bodyRef.current?.scrollTo({ top: 0 });
+  }, [open, topic]);
+
+  useEffect(() => {
+    if (!open) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, topic, onClose]);
+  }, [open, onClose]);
 
   if (!open) return null;
 
