@@ -43,7 +43,27 @@ Procedure is in `docs/bench-checklist.md`. One 30-second NH35 recording with its
 `.json` metadata is enough to start; more positions and a faulty movement would
 make it much stronger.
 
-## 4. Decide on the settled thresholds
+## 4. Decide what the certificate should say
+
+The certificate deliberately records measurements without grading the watch —
+pass/fail thresholds are business rules that differ by calibre and customer, and
+they belong in the private application rather than a public GPL tool.
+
+Worth deciding before it goes to a customer:
+
+- **Does it need a pass/fail or a grade?** If so, those thresholds should come
+  from the private side, not be hardcoded here.
+- **Wording of the method statement.** It currently says the certificate records
+  measurements and asserts no conformance to a standard. That is honest, and
+  worth keeping unless you intend to certify against something specific.
+- **Amplitude's caveat.** The certificate names the lift angle it used, because
+  amplitude is derived from that rather than measured. Until item 1 is done,
+  amplitude on a customer-facing document is unverified.
+- **Whether to note the regulation state** — as-found versus as-left. A
+  before-and-after pair would be more useful than a single reading, and the
+  session store could hold both.
+
+## 5. Decide on the settled thresholds
 
 `web/src/timegrapher/stability.ts` uses ±1.0 s/day, ±8° and ±0.3 ms, calibrated
 from hand-held bench readings. A rigid sensor mount should do considerably
