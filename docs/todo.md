@@ -24,15 +24,39 @@ watch on a Weishi or equivalent, same position, and compare.
 - Off by a consistent proportion → suspect the lift angle (2).
 - Erratic → the impulse detection needs looking at.
 
-## 2. Confirm the preset lift angles
+## 2. Confirm two remaining lift angles
 
-`web/src/timegrapher/movements.ts` uses commonly-published figures: 53° for the
-NH family, 51° Miyota, 52° PT5000/ST2130, 50° ETA/Sellita.
+The table is now the bench's own figures. Two are still working values and the
+app marks them **unverified** where they are shown:
 
-Amplitude is calculated straight from this. A degree out is about two percent of
-amplitude — enough to move a reading across a healthy/unhealthy line. Worth
-checking against manufacturer service data before a preset-derived amplitude
-goes on a permanent build record.
+- **PT5404** — 50°
+- **ST2130** — 50°
+
+Everything else is taken as confirmed. Worth noting five presets changed when
+the table went in: Miyota 8215 and 8205 from 51 to 49, and PT5000, PT5404 and
+ST2130 from 52 to 50. Any amplitude recorded for those calibres before
+2026-08-30 reads about four percent high.
+
+## 2b. Decide whether quartz needs to work at all
+
+The quartz calibres are listed, and the app correctly refuses to report
+amplitude or beat error for them — a stepper motor has no balance wheel, so
+those are not unknown, they do not exist.
+
+**Rate is the open question.** The DSP looks for an escapement between 8,100 and
+72,000 beats an hour. A seconds hand stepping once a second is 3,600, which is
+under the floor, so for most quartz the app will read nothing at all. A calibre
+that steps upwards of about 2.25 times a second falls inside the range.
+
+Three ways forward, and this is a call rather than a task:
+
+- **Leave it.** The presets name the calibre on an inspection and the document
+  is honest about what was not measured.
+- **Measure one** — put a VK63 or VH31 on the sensor and see whether rate
+  appears. That settles it in five minutes.
+- **Build quartz rate properly.** A stepper interval is a much easier signal
+  than an escapement, but it is a separate measurement path in the C core, not
+  a setting.
 
 ## 3. Run a full six-position inspection on a real watch
 
@@ -46,44 +70,70 @@ worth watching:
 - Does stopping and restarting the microphone each position cause any hitch?
 - Does the run reach **Settled** at all six positions, or stall on some?
 
-## 4. Record a reference fixture
+## 4. Record a reference fixture — optional, and here is why it exists
 
-`fixtures/` is still empty, so there is no regression corpus. Any future DSP
-change is checked only against synthetic signals, which cannot test amplitude at
-all. Procedure in `docs/bench-checklist.md`. One 30-second NH35 recording with
-its `.json` metadata starts it; more positions and a faulty movement make it
-much stronger.
+You asked what this is for. Straight answer: it is insurance against the DSP
+being changed later and quietly breaking.
 
-The WAV recorder still exists in `web/src/audio/wav-recorder.ts` — it was taken
-out of the UI, not deleted. Say the word and it comes back for this.
+Right now the only automated check on the measurement core is synthetic signals
+with known timing. Those prove rate and beat error, and **cannot test amplitude
+at all** — amplitude comes from the shape of a real escapement impulse, and a
+generated square wave does not have one. So if a future change to the core made
+amplitude wrong, nothing in the test suite would notice.
 
-## 5. Decide what the certificate says
+A fixture is one real 30-second recording plus the numbers it should produce.
+Any later change gets run against it.
+
+**It is only worth doing if the DSP is going to change.** If the core is
+finished, this is optional and can be dropped. It becomes worth doing the moment
+someone touches `core/` — including for quartz support (2b), which would.
+
+The WAV recorder still exists in `web/src/audio/wav-recorder.ts` — taken out of
+the UI, not deleted. Say the word and it comes back.
+
+## 5. Decide what the inspection document says
 
 It records measurements and deliberately does not grade the watch: pass/fail
 thresholds are business rules that differ by calibre and customer, and belong in
 the private application rather than a public GPL tool.
 
-Open questions:
+Done since this was written: it is headed **Timing Inspection**, and it prints
+**As found** and **As left** side by side with a before-and-after comparison
+when both passes exist.
+
+Still open:
 
 - **Does it need a grade or pass/fail?** If so, those thresholds come from the
   private side, not hardcoded here.
-- **As-found versus as-left.** A before-and-after pair is more useful than a
-  single reading, and the session store could hold both.
-- **Does it say how it was taken?** An inspection run restarts the average at
-  every position and waits for it to settle — a stronger claim about the numbers
-  than the document currently makes.
-- **Naming.** The mode is called Inspection; the document is still headed
-  "Timing Certificate". One of those should probably move.
+- **Does it say how it was taken?** A run restarts the average at every position
+  and waits for it to settle — a stronger claim about the numbers than the
+  method statement currently makes.
+- **Is a signature line still wanted** now that there is a technician field?
 
-## 6. Settle the thresholds
+## 6. Settle the thresholds — there is now a readout for this
 
-`stability.ts` uses ±1.0 s/day, ±8° and ±0.3 ms, calibrated from hand-held bench
-readings. A rigid mount should beat these comfortably. Watch whether the
-indicator reaches **Settled** in ordinary use: instantly every time means too
-loose, rarely means too tight.
+You said you weren't sure about these. The problem was that nothing showed you
+what your own setup could do, so the numbers were unanchored.
+
+**Settings now prints "Steadiness of this bench"**: the tightest spread each
+reading has held this session, next to the threshold it has to beat.
+
+How to use it: put a known-good, fully wound watch on the sensor and let it run
+a minute or two in one position. Then open the cog and read the left column.
+
+- Left column comfortably under the right, every time → the thresholds are
+  looser than your setup needs. Bring them down towards what you saw, leaving
+  maybe half again as headroom.
+- Never gets there → too tight, or the sensor is not in firm enough contact.
+  Rule out contact first.
+- Rate is the one that matters most; amplitude wanders more by nature.
+
+The thresholds live in `SETTLED_BOUNDS` in `web/src/timegrapher/stability.ts` —
+tell me the numbers you see and I will set them.
 
 `STALL_SECONDS` in `wizard.ts` is 75 — after that the wizard stops promising the
-reading will settle and lets it be recorded anyway. That number is a guess.
+reading will settle and lets it be recorded anyway. Still a guess; the same
+bench session will show whether it is anywhere near right.
 
 ---
 
@@ -91,18 +141,18 @@ reading will settle and lets it be recorded anyway. That number is a guess.
 
 ## Known gaps
 
-- **The guide never mentions the inspection run.** `guide-content.tsx` explains
-  the four readings, the signal meter and both graphs, but nothing tells a
-  newcomer what the six-position flow is for or how to work it. The flow changed
-  under it and the guide did not follow.
 - **The record → stop → next-position handoff has no test.** The state machine
   and the panel are both covered; the orchestration between them lives in
-  `App.tsx` effects and is verified only by reading it. Extracting it would make
-  it testable.
-- **The stopped waveform keeps its last frame** until the next capture starts.
-  Cosmetic, but it reads as though capture were still running.
+  `App.tsx` effects and is verified only by reading it. Extracting it into a
+  hook would make it testable. Next thing I pick up.
+- **`App.tsx` is over 800 lines** and holds capture, the engine, the wizard, the
+  session and the exporter. It has grown past the point where the effects are
+  easy to reason about together — the extraction above is the first slice of
+  fixing that.
 - **No landscape layout.** Portrait-locked in the manifest. A landscape bench
   setup would want two columns.
+- **The certificate has no test.** It is a plain-props component like the
+  others, and it is the one thing a customer sees.
 
 ## Reference build
 
@@ -129,3 +179,7 @@ reading will settle and lets it be recorded anyway. That number is a guess.
   the Web Audio graph would test the mock. Components that take plain props —
   `SourceFooter`, `SessionSheet`, `MeasurementPanel`, `InspectionWizard`,
   settings persistence — are tested, because there is nothing to mock.
+
+---
+
+*235 tests across 17 files as of 2026-08-30.*
