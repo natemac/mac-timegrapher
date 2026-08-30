@@ -36,6 +36,31 @@ export interface Spread {
 
 export type Settling = 'waiting' | 'moving' | 'settling' | 'settled';
 
+/**
+ * The tightest spread seen so far, per reading. null where nothing has
+ * qualified yet.
+ *
+ * This exists to answer a question the thresholds cannot answer for
+ * themselves: what is *this* bench capable of? A hand-held sensor and a rigid
+ * mount are different instruments, and a threshold that suits one is either
+ * unreachable or meaningless on the other. Watching the best figure a session
+ * achieves is how you find out where to put the line.
+ */
+export interface BestSpread {
+  rate: number | null;
+  amplitude: number | null;
+  beatError: number | null;
+}
+
+/**
+ * Samples a window must hold before its spread counts towards the best.
+ *
+ * Two reports a second, so this is ten seconds. A window holding three samples
+ * is trivially tight — it has not had time to disagree with itself yet — and
+ * letting those set the record would suggest a threshold nothing could meet.
+ */
+export const MIN_SAMPLES_FOR_BEST = 20;
+
 /** Seconds of history the spread is taken over. */
 const WINDOW_SECONDS = 30;
 
@@ -63,9 +88,32 @@ export const SETTLED_BOUNDS = {
 
 export class StabilityTracker {
   private samples: { t: number; rate: number; amplitude: number; beatError: number }[] = [];
+  /*
+     Kept across reset() on purpose. The average is thrown away between
+     positions, but what the bench can hold is a property of the bench, and it
+     takes a whole session to see it.
+  */
+  private tightest: BestSpread = { rate: null, amplitude: null, beatError: null };
 
   reset(): void {
     this.samples = [];
+  }
+
+  /** Forget what this bench has managed — a new watch on a new mount. */
+  resetBest(): void {
+    this.tightest = { rate: null, amplitude: null, beatError: null };
+  }
+
+  best(): BestSpread {
+    return { ...this.tightest };
+  }
+
+  private recordBest(field: keyof BestSpread, spread: Spread | null): void {
+    if (!spread || spread.count < MIN_SAMPLES_FOR_BEST) return;
+    const current = this.tightest[field];
+    if (current === null || spread.plusMinus < current) {
+      this.tightest[field] = spread.plusMinus;
+    }
   }
 
   /** `now` is seconds since capture started. */
@@ -73,6 +121,14 @@ export class StabilityTracker {
     this.samples.push({ t: now, rate, amplitude, beatError });
     const cutoff = now - WINDOW_SECONDS;
     while (this.samples.length > 0 && this.samples[0].t < cutoff) this.samples.shift();
+
+    this.recordBest('rate', this.spread('rate'));
+    this.recordBest('beatError', this.spread('beatError'));
+    // Amplitude of 0 is the core saying it could not determine it; a run of
+    // those is not a steady amplitude and must not set the record.
+    if (this.samples.every((s) => s.amplitude > 0)) {
+      this.recordBest('amplitude', this.spread('amplitude'));
+    }
   }
 
   spread(field: 'rate' | 'amplitude' | 'beatError'): Spread | null {

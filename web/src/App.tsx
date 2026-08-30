@@ -20,7 +20,9 @@ import { WaveformCanvas } from './components/WaveformCanvas';
 import { SourceFooter } from './components/SourceFooter';
 import { MeasurementPanel } from './components/MeasurementPanel';
 import { TimegrapherEngine, type Measurement, type Beat } from './timegrapher/tg-engine';
-import { StabilityTracker, type Settling, type Spread } from './timegrapher/stability';
+import {
+  StabilityTracker, type BestSpread, type Settling, type Spread,
+} from './timegrapher/stability';
 import { TraceCanvas } from './components/TraceCanvas';
 import { GraphSwitch, type Graph } from './components/GraphSwitch';
 import { resolveZoom, ZOOM_AUTO } from './timegrapher/trace-zoom';
@@ -77,6 +79,9 @@ export default function App() {
   const [beats, setBeats] = useState<Beat[]>([]);
   const [settling, setSettling] = useState<Settling>('waiting');
   const [spreads, setSpreads] = useState<{ rate: Spread | null; amplitude: Spread | null; beatError: Spread | null }>({ rate: null, amplitude: null, beatError: null });
+  // Read when the settings sheet opens rather than tracked continuously: it is
+  // a slow-moving figure and re-rendering the app for it would be waste.
+  const [bestSpread, setBestSpread] = useState<BestSpread>({ rate: null, amplitude: null, beatError: null });
   /* Waveform by default: it shows something the moment audio arrives, so a
      first-time user can tell the sensor is hearing the watch before any
      reading exists. The trace needs beats before it draws anything at all. */
@@ -150,6 +155,13 @@ export default function App() {
 
   const showHelp = useCallback((topic: Topic) => {
     setHelpTopic(topic);
+    setBestSpread(stability.current.best());
+    setSheetOpen(true);
+  }, []);
+
+  const openSettings = useCallback(() => {
+    setHelpTopic(null);
+    setBestSpread(stability.current.best());
     setSheetOpen(true);
   }, []);
   // Remembered per device: magnification is a matter of taste and of what the
@@ -648,7 +660,7 @@ export default function App() {
 
         <button
           className="icon-button"
-          onClick={() => { setHelpTopic(null); setSheetOpen(true); }}
+          onClick={openSettings}
           aria-label="Guide and settings"
         >
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
@@ -682,6 +694,7 @@ export default function App() {
         onChange={updateSettings}
         movementId={movementId}
         onSelectMovement={selectMovement}
+        best={bestSpread}
       />
 
       {!secure && (

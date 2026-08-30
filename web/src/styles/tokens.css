@@ -968,3 +968,23 @@ select {
   color: var(--text-faint);
   cursor: pointer;
 }
+
+/* What the bench managed, against what it has to beat. */
+.settings__bench {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.settings__bench th {
+  text-align: left;
+  font-weight: 400;
+  color: var(--text-dim);
+  padding: 4px 0;
+}
+.settings__bench td {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  padding: 4px 0 4px 10px;
+  white-space: nowrap;
+}

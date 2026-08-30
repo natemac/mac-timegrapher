@@ -11,6 +11,7 @@ import { GUIDE, GUIDE_ORDER, type Topic } from './guide-content';
 import { ZOOM_STEPS, ZOOM_AUTO } from '../timegrapher/trace-zoom';
 import { SourceFooter } from './SourceFooter';
 import { MOVEMENTS } from '../timegrapher/movements';
+import { SETTLED_BOUNDS, type BestSpread } from '../timegrapher/stability';
 
 export interface Settings {
   /** Milliseconds of drift spanning the trace width. Smaller magnifies more. */
@@ -83,6 +84,8 @@ interface Props {
   onChange: (s: Settings) => void;
   movementId: string | null;
   onSelectMovement: (id: string | null) => void;
+  /** The tightest spread this bench has held, for calibrating the thresholds. */
+  best: BestSpread;
 }
 
 type Tab = 'guide' | 'settings';
@@ -118,7 +121,7 @@ function Choice<T extends number>({
 
 export function SettingsSheet({
   open, topic, onClose, onShowFullGuide, settings, onChange,
-  movementId, onSelectMovement,
+  movementId, onSelectMovement, best,
 }: Props) {
   /* Settings first. The guide is read once; the settings are the reason the
      cog gets pressed again. */
@@ -225,6 +228,47 @@ export function SettingsSheet({
                 Lift angle comes from the calibre and amplitude is calculated
                 straight from it, so the wrong movement gives the wrong
                 amplitude. Beat rate is detected either way.
+              </p>
+
+              {/*
+                Not a setting — a measurement of the bench.
+
+                The settled thresholds are the one number nobody can pick from
+                first principles: they have to sit just above what the setup can
+                actually hold, and that depends on the sensor, the mount and the
+                room. Showing what this session managed turns the question from
+                a guess into a reading.
+              */}
+              <div style={{ marginBottom: 16 }}>
+                <div className="eyebrow" style={{ marginBottom: 8 }}>Steadiness of this bench</div>
+                <table className="settings__bench">
+                  <tbody>
+                    <tr>
+                      <th>Rate</th>
+                      <td>{best.rate === null ? '—' : `±${best.rate.toFixed(2)}`}</td>
+                      <td className="dim">of ±{SETTLED_BOUNDS.rate.toFixed(1)} s/day</td>
+                    </tr>
+                    <tr>
+                      <th>Amplitude</th>
+                      <td>{best.amplitude === null ? '—' : `±${best.amplitude.toFixed(1)}`}</td>
+                      <td className="dim">of ±{SETTLED_BOUNDS.amplitude}°</td>
+                    </tr>
+                    <tr>
+                      <th>Beat error</th>
+                      <td>{best.beatError === null ? '—' : `±${best.beatError.toFixed(3)}`}</td>
+                      <td className="dim">of ±{SETTLED_BOUNDS.beatError} ms</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p className="dim">
+                The tightest each reading has held this session, against the
+                threshold it has to beat to read <strong>Settled</strong>. If
+                the left column is comfortably under the right every time, the
+                thresholds are looser than your setup needs and could come down.
+                If it never gets there, they are too tight — or the sensor is not
+                in firm enough contact. Measure a known-good watch for a minute
+                before deciding.
               </p>
 
               <div style={{ marginBottom: 16 }}>
