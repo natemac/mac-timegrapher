@@ -11,10 +11,11 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SessionSheet } from './SessionSheet';
-import { EMPTY_META, type Reading, type SessionMeta } from '../timegrapher/session';
+import { EMPTY_META, type Phase, type Reading, type SessionMeta } from '../timegrapher/session';
 
 const READING: Reading = {
   position: 'dial-up',
+  phase: 'as-found',
   rate: 12.4,
   amplitude: 248,
   beatError: 1.3,
@@ -29,8 +30,11 @@ const READING: Reading = {
 */
 function Host() {
   const [meta, setMeta] = useState<SessionMeta>(EMPTY_META);
+  const [phase, setPhase] = useState<Phase>('as-found');
   return (
     <SessionSheet
+      phase={phase}
+      onPhaseChange={setPhase}
       open
       onClose={() => {}}
       readings={[READING]}
@@ -117,7 +121,7 @@ describe('SessionSheet header', () => {
     expect(actions).not.toBeNull();
     expect(actions!.querySelector('.sheet__body')).toBeNull();
     expect(document.querySelector('.sheet__body')!.contains(actions)).toBe(false);
-    for (const name of ['Certificate — print or save as PDF', 'Copy the results as text', 'Clear']) {
+    for (const name of ['Timing inspection — print or save as PDF', 'Copy the results as text', 'Clear']) {
       expect(actions!.contains(screen.getByRole('button', { name }))).toBe(true);
     }
   });

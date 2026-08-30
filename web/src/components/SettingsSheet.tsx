@@ -120,7 +120,9 @@ export function SettingsSheet({
   open, topic, onClose, onShowFullGuide, settings, onChange,
   movementId, onSelectMovement,
 }: Props) {
-  const [tab, setTab] = useState<Tab>('guide');
+  /* Settings first. The guide is read once; the settings are the reason the
+     cog gets pressed again. */
+  const [tab, setTab] = useState<Tab>('settings');
   const closeRef = useRef<HTMLButtonElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
 

@@ -27,6 +27,13 @@ interface Props {
   /** Save the reading on screen as an image. Absent while there is none. */
   onSnapshot?: () => void;
   /*
+     A quartz movement. Amplitude and beat error both describe a balance
+     wheel — how far it swings, and whether its two half-turns are even. A
+     stepper motor has neither, so those readings are withheld rather than
+     shown as a number somebody could act on.
+  */
+  quartz?: boolean;
+  /*
      Whether this panel explains itself.
 
      In a certification run the wizard is saying the same thing one step at a
@@ -78,12 +85,12 @@ function Reading({
 
 export function MeasurementPanel({
   measurement, capturing, secondsCaptured, settling, spreads, onHelp, onResetAverage,
-  onSnapshot, guidance = true,
+  onSnapshot, guidance = true, quartz = false,
 }: Props) {
   const m = measurement;
   const show = m?.valid ?? false;
   const warmingUp = capturing && secondsCaptured < MIN_SECONDS;
-  const hasAmplitude = show && m!.amplitude > 0;
+  const hasAmplitude = show && !quartz && m!.amplitude > 0;
 
   return (
     <div className="panel panel--tight">
@@ -130,9 +137,9 @@ export function MeasurementPanel({
         />
         <Reading
           label="Beat error"
-          value={show ? m!.beatError.toFixed(1) : DASH}
-          unit={show ? 'ms' : undefined}
-          spread={show ? spreads.beatError : null}
+          value={show && !quartz ? m!.beatError.toFixed(1) : DASH}
+          unit={show && !quartz ? 'ms' : undefined}
+          spread={show && !quartz ? spreads.beatError : null}
           format={(n) => n.toFixed(2)}
         />
         <Reading
@@ -171,9 +178,13 @@ export function MeasurementPanel({
         </div>
       )}
 
-      {guidance && (
+      {(guidance || quartz) && (
       <div className="panel__foot">
-        {(
+        {quartz ? (
+          <p className="dim panel__foot-note">
+            Quartz: no balance wheel, so amplitude and beat error do not apply.
+          </p>
+        ) : (
           <p className="dim panel__foot-note">
             {!capturing
               ? 'Press Start, then hold the watch against the sensor.'

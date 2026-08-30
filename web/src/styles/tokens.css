@@ -485,6 +485,24 @@ select {
     line-height: 1.45;
   }
 
+  .certificate__phase { margin-bottom: 14pt; }
+
+  .certificate__phase-title {
+    font-size: 10pt;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin: 0 0 5pt;
+  }
+
+  /* Before against after, which is what a regulated watch's document is for. */
+  .certificate__compare th { text-align: left; }
+  .certificate__compare thead th {
+    font-size: 8pt;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
   .certificate__head {
     display: flex;
     align-items: flex-end;
@@ -929,3 +947,10 @@ select {
   margin-top: 10px;
 }
 .panel__settle-bar { flex: 1 1 auto; min-width: 0; }
+
+/* Which pass the session table is showing. */
+.session__phase {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 14px;
+}

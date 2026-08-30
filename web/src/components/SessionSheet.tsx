@@ -8,8 +8,10 @@
 */
 import { useEffect, useRef, useState } from 'react';
 import {
-  POSITIONS, summarise, toTable, sessionTitle, type Reading, type SessionMeta,
+  POSITIONS, PHASES, summarise, toTable, sessionTitle, readingsIn, phasesPresent,
+  comparePhases, type Phase, type Reading, type SessionMeta,
 } from '../timegrapher/session';
+import { SlideSwitch } from './SlideSwitch';
 
 interface Props {
   open: boolean;
@@ -20,6 +22,12 @@ interface Props {
   onChangeMeta: (m: SessionMeta) => void;
   onPrint: () => void;
   onClear: () => void;
+  phase: Phase;
+  onPhaseChange: (p: Phase) => void;
+}
+
+function fmtRate(v: number): string {
+  return `${v >= 0 ? '+' : ''}${v.toFixed(1)}`;
 }
 
 function Row({ label, value, unit }: { label: string; value: string; unit?: string }) {
@@ -36,6 +44,7 @@ function Row({ label, value, unit }: { label: string; value: string; unit?: stri
 
 export function SessionSheet({
   open, onClose, readings, movementName, meta, onChangeMeta, onPrint, onClear,
+  phase, onPhaseChange,
 }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const [copied, setCopied] = useState(false);
@@ -70,9 +79,12 @@ export function SessionSheet({
 
   if (!open) return null;
 
-  const summary = summarise(readings);
-  const byPosition = new Map(readings.map((r) => [r.position, r]));
+  const shown = readingsIn(readings, phase);
+  const summary = summarise(shown);
+  const byPosition = new Map(shown.map((r) => [r.position, r]));
   const title = sessionTitle(meta.reference, movementName);
+  const comparison = comparePhases(readings);
+  const recorded = phasesPresent(readings);
 
   const copy = async () => {
     try {
@@ -99,14 +111,14 @@ export function SessionSheet({
           for.
         */}
         <div className="sheet__actions">
-          {summary && (
+          {readings.length > 0 && (
             <>
               <button
                 onClick={onPrint}
-                aria-label="Certificate — print or save as PDF"
+                aria-label="Timing inspection — print or save as PDF"
                 style={{ flex: '1 1 auto', fontSize: 13 }}
               >
-                Certificate
+                Inspection
               </button>
               <button
                 className="secondary"
@@ -143,6 +155,20 @@ export function SessionSheet({
         </div>
 
         <div className="sheet__body prose">
+          {/*
+            Which pass is on screen. Both are kept — a watch that now runs at
+            +2 means little without the +25 it arrived at — so the table shows
+            one at a time rather than doubling its width on a phone.
+          */}
+          <div className="session__phase">
+            <SlideSwitch
+              value={phase}
+              options={PHASES.map((p) => ({ id: p.id, label: p.name }))}
+              onChange={onPhaseChange}
+              label="Which pass"
+            />
+          </div>
+
           {/* Every position is listed whether measured or not, so what is left
               to do is as visible as what is done. */}
           <table className="session-table">
@@ -193,9 +219,29 @@ export function SessionSheet({
                 will not fix.
               </p>
 
+              {comparison && (
+                <>
+                  <h3 style={{ marginTop: 20 }}>Before and after</h3>
+                  <Row
+                    label="Average rate"
+                    value={`${fmtRate(comparison.rateBefore)} → ${fmtRate(comparison.rateAfter)}`}
+                    unit="s/day"
+                  />
+                  <Row
+                    label="Positional spread"
+                    value={`${comparison.spreadBefore.toFixed(1)} → ${comparison.spreadAfter.toFixed(1)}`}
+                    unit="s/day"
+                  />
+                  <p className="dim" style={{ marginTop: 10 }}>
+                    Over the {comparison.positions} position
+                    {comparison.positions === 1 ? '' : 's'} measured both times.
+                  </p>
+                </>
+              )}
+
               {/* What identifies the watch. A certificate without a reference
                   is a table of numbers that could belong to anything. */}
-              <h3 style={{ marginTop: 20 }}>Certificate details</h3>
+              <h3 style={{ marginTop: 20 }}>Inspection details</h3>
               <div style={{ display: 'grid', gap: 8 }}>
                 <input
                   className="field"
@@ -221,8 +267,10 @@ export function SessionSheet({
             </>
           ) : (
             <p className="dim" style={{ marginTop: 16 }}>
-              Nothing recorded yet. Choose a position, wait for the reading to
-              settle, then press Record.
+              Nothing recorded {phase === 'as-left' ? 'after the work' : 'yet'}.
+              {phase === 'as-left' && recorded.includes('as-found')
+                ? ' Run the set again once the watch has been regulated.'
+                : ' Choose a position, wait for the reading to settle, then press Record.'}
             </p>
           )}
         </div>

@@ -6,7 +6,7 @@
     it under the terms of the GNU General Public License version 2 as
     published by the Free Software Foundation.
 */
-import { positionName } from '../timegrapher/session';
+import { positionName, phaseName, type Phase } from '../timegrapher/session';
 import {
   WIZARD_ORDER, STALL_SECONDS, positionAt, skipped, type WizardState,
 } from '../timegrapher/wizard';
@@ -29,6 +29,12 @@ interface Props {
   state: WizardState;
   /** Whether audio is running. Start and Stop live in the setup panel. */
   capturing: boolean;
+  /*
+     Which pass this is. Named on the panel because a reading recorded into the
+     wrong phase is worse than one not recorded at all — it makes the
+     before-and-after say the opposite of what happened.
+  */
+  phase: Phase;
   settling: Settling;
   valid: boolean;
   /** Seconds since the reading began counting. */
@@ -76,7 +82,7 @@ function Dots({ state, onJump }: { state: WizardState; onJump: (step: number) =>
 }
 
 export function InspectionWizard({
-  state, capturing, settling, valid, seconds, countdown, auto, onAutoChange,
+  state, capturing, phase, settling, valid, seconds, countdown, auto, onAutoChange,
   onCapture, onSkip, onNext, onRetry, onFinish, onRestart, onOpenSummary, onJump,
 }: Props) {
   const position = positionAt(state.step);
@@ -87,7 +93,7 @@ export function InspectionWizard({
     const missed = skipped(state);
     return (
       <div className="panel wizard wizard--done">
-        <div className="eyebrow">Run complete</div>
+        <div className="eyebrow">{phaseName(phase)} · Run complete</div>
         <div className="wizard__headline">
           {state.recorded.length} of {WIZARD_ORDER.length} recorded
         </div>
@@ -110,7 +116,7 @@ export function InspectionWizard({
   return (
     <div className="panel wizard" data-stage={state.stage}>
       <div className="eyebrow">
-        Position {state.step + 1} of {WIZARD_ORDER.length}
+        {phaseName(phase)} · Position {state.step + 1} of {WIZARD_ORDER.length}
       </div>
 
       {/* The position is the largest thing on the panel. It is what the

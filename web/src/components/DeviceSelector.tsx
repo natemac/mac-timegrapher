@@ -9,7 +9,7 @@
 import type { AudioInput } from '../audio/device-manager';
 import { PanelHead } from './PanelHead';
 import type { Topic } from './guide-content';
-import { MOVEMENTS, findMovement, DEFAULT_LIFT_ANGLE } from '../timegrapher/movements';
+import { MOVEMENTS, findMovement, isQuartz, DEFAULT_LIFT_ANGLE } from '../timegrapher/movements';
 
 interface Props {
   devices: AudioInput[];
@@ -91,7 +91,13 @@ export function DeviceSelector({
       */}
       {movement ? (
         <div className="setup__movement mono dim">
-          {movement.maker} {movement.name} · {movement.liftAngle}° lift
+          {movement.maker} {movement.name} ·{' '}
+          {isQuartz(movement)
+            ? 'quartz'
+            : `${movement.liftAngle}° lift`}
+          {/* An unconfirmed angle is a working figure, and amplitude inherits
+              its uncertainty. Better said quietly than not at all. */}
+          {!movement.liftAngleVerified && <span className="warn"> unverified</span>}
         </div>
       ) : (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>

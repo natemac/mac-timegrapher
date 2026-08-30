@@ -28,7 +28,7 @@ import {
   SettingsSheet, DEFAULT_SETTINGS, loadSettings, saveSettings, type Settings,
 } from './components/SettingsSheet';
 import type { Topic } from './components/guide-content';
-import { findMovement, engineConfigFor } from './timegrapher/movements';
+import { findMovement, engineConfigFor, isQuartz } from './timegrapher/movements';
 import { useWakeLock } from './hooks/useWakeLock';
 import { SessionSheet } from './components/SessionSheet';
 import { loadMode, saveMode, type Mode } from './components/ModeSwitch';
@@ -43,7 +43,7 @@ import {
   type SnapshotInput,
 } from './export/snapshot';
 import * as sessionStore from './timegrapher/session';
-import type { PositionId, Reading, SessionMeta } from './timegrapher/session';
+import type { Phase, PositionId, Reading, SessionMeta } from './timegrapher/session';
 import { Certificate } from './components/Certificate';
 import { DEFAULT_LIFT_ANGLE } from './timegrapher/movements';
 
@@ -108,6 +108,13 @@ export default function App() {
   const [sessionOpen, setSessionOpen] = useState(false);
   const [readings, setReadings] = useState<Reading[]>(() => sessionStore.load());
   const [meta, setMeta] = useState<SessionMeta>(() => sessionStore.loadMeta());
+  /*
+     Whether this run is measuring the watch as it arrived or as it is being
+     left. Seeded from what is already recorded — a second pass over a watch is
+     the one after the work — and settable by hand when the session did not go
+     that way.
+  */
+  const [phase, setPhase] = useState<Phase>(() => sessionStore.suggestPhase(sessionStore.load()));
 
   // Which job the operator is here to do. Remembered: a bench that certifies
   // does it all day, and a bench that regulates never opens the wizard.
@@ -220,6 +227,7 @@ export default function App() {
     if (!m?.valid) return;
     const next = sessionStore.upsert(readings, {
       position,
+      phase,
       rate: m.rate,
       amplitude: m.amplitude,
       beatError: m.beatError,
@@ -228,7 +236,7 @@ export default function App() {
     });
     setReadings(next);
     sessionStore.save(next);
-  }, [readings]);
+  }, [readings, phase]);
 
   /*
     Throw away the collected average and the trace, keeping the audio running.
@@ -257,8 +265,9 @@ export default function App() {
 
   const restartWizard = useCallback(() => {
     settledRuns.current = 0;
+    setPhase(sessionStore.suggestPhase(readings));
     setWizard(startWizard());
-  }, []);
+  }, [readings]);
 
   const jumpWizard = useCallback((step: number) => {
     settledRuns.current = 0;
@@ -268,6 +277,7 @@ export default function App() {
   const clearSession = useCallback(() => {
     setReadings([]);
     setMeta(sessionStore.EMPTY_META);
+    setPhase('as-found');
     sessionStore.clear();
     setSessionOpen(false);
   }, []);
@@ -658,6 +668,8 @@ export default function App() {
         onChangeMeta={updateMeta}
         onPrint={printCertificate}
         onClear={clearSession}
+        phase={phase}
+        onPhaseChange={setPhase}
       />
 
 
@@ -743,6 +755,7 @@ export default function App() {
             onResetAverage={resetAverage}
             onSnapshot={saveSnapshot}
             guidance={mode === 'measure'}
+            quartz={isQuartz(chosenMovement)}
           />
 
           {snapshotNote && (
@@ -753,6 +766,7 @@ export default function App() {
             <InspectionWizard
               state={wizard}
               capturing={capturing}
+              phase={phase}
               settling={settling}
               valid={measurement?.valid ?? false}
               seconds={secondsCaptured}
@@ -827,6 +841,7 @@ export default function App() {
       deviceLabel={devices.find((d) => d.deviceId === selectedId)?.label ?? null}
       sampleRate={sampleRate}
       showLogo={settings.showLogo}
+      quartz={isQuartz(chosenMovement)}
     />
     </>
   );

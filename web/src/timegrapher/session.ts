@@ -31,8 +31,29 @@ export const POSITIONS = [
 
 export type PositionId = (typeof POSITIONS)[number]['id'];
 
+/*
+   When a reading was taken relative to the work.
+
+   A single set of numbers says what a watch does. Two sets say what was done
+   to it — and that is the more useful document, because "it now runs at +2"
+   means little without "it arrived at +25". The two are kept side by side
+   rather than one overwriting the other.
+*/
+export const PHASES = [
+  { id: 'as-found', name: 'As found', short: 'Before' },
+  { id: 'as-left', name: 'As left', short: 'After' },
+] as const;
+
+export type Phase = (typeof PHASES)[number]['id'];
+
+export function phaseName(id: Phase): string {
+  return PHASES.find((p) => p.id === id)?.name ?? id;
+}
+
 export interface Reading {
   position: PositionId;
+  /** Before the work or after it. */
+  phase: Phase;
   rate: number;
   amplitude: number;
   beatError: number;
@@ -85,12 +106,80 @@ export function positionName(id: PositionId): string {
   return POSITIONS.find((p) => p.id === id)?.name ?? id;
 }
 
-/** Re-measuring a position replaces its reading rather than adding a second. */
+/**
+ * Re-measuring a position replaces its reading rather than adding a second —
+ * but only within the same phase. An as-left reading must never overwrite the
+ * as-found one it is meant to be compared against.
+ */
 export function upsert(readings: Reading[], next: Reading): Reading[] {
-  const without = readings.filter((r) => r.position !== next.position);
-  return [...without, next].sort(
-    (a, b) => POSITIONS.findIndex((p) => p.id === a.position) - POSITIONS.findIndex((p) => p.id === b.position),
+  const without = readings.filter(
+    (r) => !(r.position === next.position && r.phase === next.phase),
   );
+  return [...without, next].sort((a, b) => {
+    const phase = PHASES.findIndex((p) => p.id === a.phase) - PHASES.findIndex((p) => p.id === b.phase);
+    if (phase !== 0) return phase;
+    return POSITIONS.findIndex((p) => p.id === a.position) - POSITIONS.findIndex((p) => p.id === b.position);
+  });
+}
+
+/** Just the readings from one phase. */
+export function readingsIn(readings: Reading[], phase: Phase): Reading[] {
+  return readings.filter((r) => r.phase === phase);
+}
+
+/** Which phases have anything recorded, in order. */
+export function phasesPresent(readings: Reading[]): Phase[] {
+  return PHASES.map((p) => p.id).filter((id) => readings.some((r) => r.phase === id));
+}
+
+/**
+ * The phase a new run should record into.
+ *
+ * As found until every position has one, then as left — because the second
+ * pass over a watch is the one after the work. It is a starting point, not a
+ * ruling: the phase is shown wherever readings are recorded and can be set by
+ * hand when the session did not go that way.
+ */
+export function suggestPhase(readings: Reading[]): Phase {
+  const found = readingsIn(readings, 'as-found');
+  return found.length >= POSITIONS.length ? 'as-left' : 'as-found';
+}
+
+/**
+ * What the work achieved, where both phases measured the same position.
+ *
+ * Null when there is nothing to compare — one phase missing, or no position
+ * measured in both. A comparison drawn from a different set of positions
+ * before and after would be measuring the positions, not the regulation.
+ */
+export function comparePhases(readings: Reading[]): {
+  positions: number;
+  rateBefore: number;
+  rateAfter: number;
+  spreadBefore: number;
+  spreadAfter: number;
+} | null {
+  const before = readingsIn(readings, 'as-found');
+  const after = readingsIn(readings, 'as-left');
+  const shared = before
+    .filter((b) => after.some((a) => a.position === b.position))
+    .map((b) => b.position);
+
+  if (shared.length === 0) return null;
+
+  const pick = (rs: Reading[]) => rs.filter((r) => shared.includes(r.position)).map((r) => r.rate);
+  const b = pick(before);
+  const a = pick(after);
+  const mean = (v: number[]) => v.reduce((s, n) => s + n, 0) / v.length;
+  const spread = (v: number[]) => Math.max(...v) - Math.min(...v);
+
+  return {
+    positions: shared.length,
+    rateBefore: mean(b),
+    rateAfter: mean(a),
+    spreadBefore: spread(b),
+    spreadAfter: spread(a),
+  };
 }
 
 export function summarise(readings: Reading[]): SessionSummary | null {
@@ -115,7 +204,11 @@ export function load(): Reading[] {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    // Readings saved before phases existed were all taken as found — that is
+    // what a single pass is. Defaulting them keeps a session that was open
+    // across the change rather than discarding it.
+    return parsed.map((r: Reading) => (r.phase ? r : { ...r, phase: 'as-found' as Phase }));
   } catch {
     return [];
   }

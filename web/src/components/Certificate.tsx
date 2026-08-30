@@ -7,7 +7,8 @@
     published by the Free Software Foundation.
 */
 import {
-  POSITIONS, positionName, summarise, type Reading, type SessionMeta,
+  POSITIONS, PHASES, positionName, summarise, readingsIn, phasesPresent,
+  comparePhases, type Phase, type Reading, type SessionMeta,
 } from '../timegrapher/session';
 
 /*
@@ -36,16 +37,80 @@ interface Props {
   sampleRate: number | null;
   /** The mark is branding, not a licence condition; a fork turns it off. */
   showLogo: boolean;
+  /** Amplitude and beat error describe a balance wheel; quartz has none. */
+  quartz: boolean;
 }
 
 function fmtRate(v: number): string {
   return `${v >= 0 ? '+' : ''}${v.toFixed(1)}`;
 }
 
+/** One phase's table. Rendered once, or twice when the watch was regulated. */
+function PhaseTable({
+  readings, phase, label, quartz,
+}: { readings: Reading[]; phase: Phase; label: string; quartz: boolean }) {
+  const rows = readingsIn(readings, phase);
+  if (rows.length === 0) return null;
+
+  const summary = summarise(rows);
+
+  return (
+    <section className="certificate__phase">
+      <h2 className="certificate__phase-title">{label}</h2>
+      <table className="certificate__table">
+        <thead>
+          <tr>
+            <th>Position</th>
+            <th>Rate<span> s/day</span></th>
+            <th>Amplitude<span> degrees</span></th>
+            <th>Beat error<span> ms</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {POSITIONS.filter((p) => rows.some((r) => r.position === p.id)).map((p) => {
+            const r = rows.find((x) => x.position === p.id)!;
+            return (
+              <tr key={p.id}>
+                <td>{positionName(p.id)}</td>
+                <td>{fmtRate(r.rate)}</td>
+                <td>{!quartz && r.amplitude > 0 ? r.amplitude.toFixed(0) : '—'}</td>
+                <td>{quartz ? '—' : r.beatError.toFixed(2)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+
+      {summary && (
+        <table className="certificate__summary">
+          <tbody>
+            <tr>
+              <th>Average rate</th>
+              <td>{fmtRate(summary.averageRate)} s/day</td>
+              <th>Positional spread</th>
+              <td>{summary.positionalSpread.toFixed(1)} s/day</td>
+            </tr>
+            {!quartz && (
+              <tr>
+                <th>Lowest amplitude</th>
+                <td>{summary.minAmplitude > 0 ? `${summary.minAmplitude.toFixed(0)}°` : '—'}</td>
+                <th>Greatest beat error</th>
+                <td>{summary.maxBeatError.toFixed(2)} ms</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      )}
+    </section>
+  );
+}
+
 export function Certificate({
-  readings, meta, movementName, liftAngle, deviceLabel, sampleRate, showLogo,
+  readings, meta, movementName, liftAngle, deviceLabel, sampleRate, showLogo, quartz,
 }: Props) {
-  const summary = summarise(readings);
+  const phases = phasesPresent(readings);
+  const comparison = comparePhases(readings);
+  const regulated = phases.length > 1;
   const measured = readings.length > 0 ? new Date(readings[readings.length - 1].at) : new Date();
   const bph = readings[0]?.bph;
 
@@ -60,7 +125,7 @@ export function Certificate({
             alt="MAC Bespoke Watch Co."
           />
         )}
-        <div className="certificate__title">Timing Certificate</div>
+        <div className="certificate__title">Timing Inspection</div>
       </header>
 
       <dl className="certificate__facts">
@@ -79,7 +144,7 @@ export function Certificate({
           </>
         ) : null}
         <dt>Lift angle</dt>
-        <dd>{liftAngle}°</dd>
+        <dd>{quartz ? 'Not applicable — quartz' : `${liftAngle}°`}</dd>
         <dt>Measured</dt>
         <dd>
           {measured.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
@@ -92,44 +157,37 @@ export function Certificate({
         )}
       </dl>
 
-      <table className="certificate__table">
-        <thead>
-          <tr>
-            <th>Position</th>
-            <th>Rate<span> s/day</span></th>
-            <th>Amplitude<span> degrees</span></th>
-            <th>Beat error<span> ms</span></th>
-          </tr>
-        </thead>
-        <tbody>
-          {POSITIONS.filter((p) => readings.some((r) => r.position === p.id)).map((p) => {
-            const r = readings.find((x) => x.position === p.id)!;
-            return (
-              <tr key={p.id}>
-                <td>{positionName(p.id)}</td>
-                <td>{fmtRate(r.rate)}</td>
-                <td>{r.amplitude > 0 ? r.amplitude.toFixed(0) : '—'}</td>
-                <td>{r.beatError.toFixed(2)}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      {/* One table when a watch was only measured, two when it was regulated:
+          the second is only meaningful next to the first. */}
+      {PHASES.filter((p) => phases.includes(p.id)).map((p) => (
+        <PhaseTable
+          key={p.id}
+          readings={readings}
+          phase={p.id}
+          label={regulated ? p.name : 'Measurements'}
+          quartz={quartz}
+        />
+      ))}
 
-      {summary && (
-        <table className="certificate__summary">
+      {comparison && (
+        <table className="certificate__summary certificate__compare">
+          <thead>
+            <tr>
+              <th />
+              <th>As found</th>
+              <th>As left</th>
+            </tr>
+          </thead>
           <tbody>
             <tr>
               <th>Average rate</th>
-              <td>{fmtRate(summary.averageRate)} s/day</td>
-              <th>Positional spread</th>
-              <td>{summary.positionalSpread.toFixed(1)} s/day</td>
+              <td>{fmtRate(comparison.rateBefore)} s/day</td>
+              <td>{fmtRate(comparison.rateAfter)} s/day</td>
             </tr>
             <tr>
-              <th>Lowest amplitude</th>
-              <td>{summary.minAmplitude > 0 ? `${summary.minAmplitude.toFixed(0)}°` : '—'}</td>
-              <th>Greatest beat error</th>
-              <td>{summary.maxBeatError.toFixed(2)} ms</td>
+              <th>Positional spread</th>
+              <td>{comparison.spreadBefore.toFixed(1)} s/day</td>
+              <td>{comparison.spreadAfter.toFixed(1)} s/day</td>
             </tr>
           </tbody>
         </table>
@@ -163,12 +221,15 @@ export function Certificate({
           {deviceLabel ? ` using ${deviceLabel}` : ''}
           {sampleRate ? ` at ${sampleRate.toLocaleString()} Hz` : ''}. Each figure
           is the reading at the moment of capture, taken once the measurement had
-          stabilised. Amplitude is derived from the stated lift angle; a different
-          lift angle gives a proportionally different amplitude.
+          stabilised.
+          {quartz
+            ? ' This movement is quartz: it has no balance wheel, so amplitude and beat error do not apply and are not reported.'
+            : ' Amplitude is derived from the stated lift angle; a different lift angle gives a proportionally different amplitude.'}
         </p>
         <p>
-          This certificate records measurements. It does not assert conformance
+          This inspection records measurements. It does not assert conformance
           to any standard.
+          {regulated && ' Readings are reported as the watch was received and as it was left.'}
         </p>
         <p>
           Measured with the MAC Bespoke Web Timegrapher, derived from tg by
