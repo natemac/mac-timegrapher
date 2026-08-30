@@ -20,6 +20,8 @@ import { LevelMeter } from './components/LevelMeter';
 import { WaveformCanvas } from './components/WaveformCanvas';
 import { RecorderPanel } from './components/RecorderPanel';
 import { SourceFooter } from './components/SourceFooter';
+import { MeasurementPanel } from './components/MeasurementPanel';
+import { TimegrapherEngine, type Measurement } from './timegrapher/tg-engine';
 
 function describeError(err: unknown): string {
   if (!(err instanceof Error)) return 'Could not open the audio input.';
@@ -48,12 +50,16 @@ export default function App() {
   const [warnings, setWarnings] = useState<ProcessingWarning[]>([]);
   const [reading, setReading] = useState<LevelReading | null>(null);
   const [latest, setLatest] = useState<Float32Array | null>(null);
+  const [measurement, setMeasurement] = useState<Measurement | null>(null);
+  const [secondsCaptured, setSecondsCaptured] = useState(0);
   const [capturing, setCapturing] = useState(false);
   const [recording, setRecording] = useState(false);
   const [duration, setDuration] = useState(0);
   const [hasRecording, setHasRecording] = useState(false);
 
   const session = useRef<CaptureSession | null>(null);
+  const engine = useRef<TimegrapherEngine | null>(null);
+  const samplesPushed = useRef(0);
   const recorder = useRef<WavRecorder | null>(null);
   const isRecording = useRef(false);
   // Guards start/stop against re-entry. A ref rather than `busy` alone
@@ -105,7 +111,22 @@ export default function App() {
     };
   }, []);
 
+  // The analysis re-runs over the whole sixteen-second window each time, so it
+  // is driven on a timer rather than per audio block — running it 23 times a
+  // second would burn CPU for readings that cannot change that fast.
+  useEffect(() => {
+    if (!capturing || sampleRate === null) return;
+    const id = setInterval(() => {
+      setSecondsCaptured(samplesPushed.current / sampleRate);
+      const m = engine.current?.measure();
+      if (m) setMeasurement(m);
+    }, 500);
+    return () => clearInterval(id);
+  }, [capturing, sampleRate]);
+
   const handleBlock = useCallback((block: Float32Array) => {
+    engine.current?.push(block);
+    samplesPushed.current += block.length;
     setReading(measureLevel(block));
     setLatest(block);
     if (isRecording.current && recorder.current) {
@@ -119,6 +140,13 @@ export default function App() {
   // paths cannot drift apart.
   const releaseCaptureState = useCallback(() => {
     session.current = null;
+    // The engine owns FFTW plans and a sixteen-second ring buffer in the wasm
+    // heap. Dropping the reference without destroying it leaks both.
+    engine.current?.destroy();
+    engine.current = null;
+    samplesPushed.current = 0;
+    setMeasurement(null);
+    setSecondsCaptured(0);
     // If capture stops while a recording is still in progress, reconcile
     // hasRecording the same way stopRecording() does — otherwise the
     // WavRecorder still holds captured audio but the Download button stays
@@ -166,6 +194,26 @@ export default function App() {
     try {
       const s = await startCapture(selectedId, handleBlock, handleDisconnect);
       session.current = s;
+
+      // Built at the rate the device actually granted, not the one requested:
+      // the core's period arithmetic is in samples, so a wrong rate here would
+      // scale every reading.
+      try {
+        engine.current = await TimegrapherEngine.create({
+          sampleRate: s.sampleRate,
+          bph: 0,           // detect automatically until movement presets land
+          liftAngle: 52,    // tg's default; per-movement values come with presets
+        });
+      } catch (err) {
+        // Capture still works without the engine — the meter and waveform are
+        // useful on their own — so report and carry on rather than tearing down.
+        setError(
+          err instanceof Error
+            ? `Measurement unavailable: ${err.message}`
+            : 'Measurement unavailable.',
+        );
+      }
+
       setSampleRate(s.sampleRate);
       setRequestedSampleRate(s.requestedSampleRate ?? null);
       setWarnings(s.warnings);
@@ -269,6 +317,11 @@ export default function App() {
             onStop={stop}
           />
           {error && <div className="panel"><p className="bad" style={{ margin: 0 }}>{error}</p></div>}
+          <MeasurementPanel
+            measurement={measurement}
+            capturing={capturing}
+            secondsCaptured={secondsCaptured}
+          />
           <LevelMeter reading={reading} />
           <WaveformCanvas latest={latest} />
           <RecorderPanel

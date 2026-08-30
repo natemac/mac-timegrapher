@@ -110,7 +110,7 @@ if (files.length === 0) {
   process.exit(2);
 }
 
-const factory = (await import(join(ROOT, 'web/src/wasm/tg-core.js'))).default;
+const factory = (await import(join(ROOT, 'wasm/build/node/tg-core.js'))).default;
 const mod = await factory();
 
 console.log(`wasm vs native — ${mod.UTF8ToString(mod._tgw_version())}\n`);
