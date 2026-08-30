@@ -86,10 +86,27 @@ async function runWasm(mod, { samples, sampleRate }, bph, lift) {
   mod._tgw_result(handle, out);
   const r = Array.from({ length: fields }, (_, i) => mod.HEAPF64[(out >> 3) + i]);
   mod._free(out);
+
+  /* Beat events, exercised here because the browser trace depends on them and
+     nothing else in this suite touches HEAPU8. Leaving them untested let a
+     missing EXPORTED_RUNTIME_METHODS entry ship: the TypeScript interface
+     declared HEAPU8, so the compiler was satisfied while the runtime had no
+     such view, and every measurement threw. */
+  const MAX_EVENTS = 100;
+  const timePtr = mod._malloc(MAX_EVENTS * 8);
+  const ticPtr = mod._malloc(MAX_EVENTS);
+  const count = mod._tgw_events(handle, timePtr, ticPtr, MAX_EVENTS);
+  const beats = [];
+  for (let i = 0; i < count; i++) {
+    beats.push({ time: mod.HEAPF64[(timePtr >> 3) + i], isTick: mod.HEAPU8[ticPtr + i] === 1 });
+  }
+  mod._free(timePtr);
+  mod._free(ticPtr);
+
   mod._tgw_destroy(handle);
 
   const [rate, amplitude, beatError, detectedBph, signalQuality, valid] = r;
-  return { rate, amplitude, beatError, detectedBph, signalQuality, valid: !!valid };
+  return { rate, amplitude, beatError, detectedBph, signalQuality, valid: !!valid, beats };
 }
 
 function runNative(path, bph, lift) {
@@ -134,6 +151,21 @@ for (const f of files) {
   ];
 
   const bad = checks.filter(([, a, b, tol]) => Math.abs(a - b) > tol);
+
+  /* A valid reading must come with beats, and they must be ordered and inside
+     the recording. An empty list means the core located no events at all —
+     which is what happens when events_from is left at zero. */
+  if (w.valid) {
+    if (w.beats.length === 0) bad.push(['beats', 0, '>0', 0]);
+    else {
+      const ordered = w.beats.every((b, i) => i === 0 || b.time >= w.beats[i - 1].time);
+      const inRange = w.beats.every((b) => b.time >= 0 && b.time <= wav.samples.length / wav.sampleRate + 1);
+      const bothKinds = w.beats.some((b) => b.isTick) && w.beats.some((b) => !b.isTick);
+      if (!ordered) bad.push(['beats ordered', 'no', 'yes', 0]);
+      if (!inRange) bad.push(['beats in range', 'no', 'yes', 0]);
+      if (!bothKinds) bad.push(['ticks and tocks', 'no', 'yes', 0]);
+    }
+  }
   const status = bad.length === 0 ? 'ok  ' : 'FAIL';
   if (bad.length) fail++;
 
@@ -142,7 +174,8 @@ for (const f of files) {
     `bph ${String(w.detectedBph).padStart(5)}  ` +
     `rate ${w.rate.toFixed(2).padStart(7)}  ` +
     `amp ${w.amplitude.toFixed(0).padStart(4)}  ` +
-    `be ${w.beatError.toFixed(3)}`
+    `be ${w.beatError.toFixed(3)}  ` +
+    `beats ${String(w.beats.length).padStart(3)}`
   );
   for (const [name, a, b] of bad) {
     console.log(`       ${name}: wasm ${a} vs native ${b}`);
