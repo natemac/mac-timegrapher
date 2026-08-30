@@ -133,3 +133,54 @@ describe('SessionSheet header', () => {
     expect(screen.getByRole('button', { name: 'Sure?' })).toBeInTheDocument();
   });
 });
+
+describe('the pre and post regulation fields', () => {
+  it('are editable by hand', async () => {
+    const user = userEvent.setup();
+    render(<Host />);
+
+    const field = screen.getByLabelText('Pre-regulation');
+    await user.click(field);
+    await user.keyboard('+27, uniformly fast');
+
+    expect(field).toHaveValue('+27, uniformly fast');
+    expect(field).toHaveFocus();
+  });
+
+  it('fills from the measured average when asked', async () => {
+    const user = userEvent.setup();
+    render(<Host />);
+
+    await user.click(
+      screen.getByRole('button', { name: 'Fill Post-regulation with the latest measured average' }),
+    );
+    expect(screen.getByLabelText('Post-regulation'))
+      .toHaveValue('+12.4 s/day average over 1 position');
+  });
+
+  /* Fill writes rather than binds: a figure the watchmaker has committed to
+     must not be rewritten by a later reading, or by the other button. */
+  it('leaves the other field alone', async () => {
+    const user = userEvent.setup();
+    render(<Host />);
+
+    await user.click(
+      screen.getByRole('button', { name: 'Fill Pre-regulation with the latest measured average' }),
+    );
+    expect(screen.getByLabelText('Pre-regulation')).not.toHaveValue('');
+    expect(screen.getByLabelText('Post-regulation')).toHaveValue('');
+  });
+
+  it('overwrites a filled value when filled again', async () => {
+    const user = userEvent.setup();
+    render(<Host />);
+
+    const field = screen.getByLabelText('Pre-regulation');
+    await user.click(field);
+    await user.keyboard('typed');
+    await user.click(
+      screen.getByRole('button', { name: 'Fill Pre-regulation with the latest measured average' }),
+    );
+    expect(field).toHaveValue('+12.4 s/day average over 1 position');
+  });
+});

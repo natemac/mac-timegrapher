@@ -81,10 +81,29 @@ export interface SessionMeta {
   reference: string;
   /** Who took the readings. Printed on the certificate. */
   technician: string;
+  /*
+     What the watch was doing before the work and after it, in the
+     watchmaker's own words.
+
+     Free text rather than a computed figure. The tables already carry every
+     number; what these add is the one-line summary someone reads first, and
+     that is a judgement — "+27, uniformly fast" and "+27, all over the place"
+     are the same average and different watches. The Fill button next to each
+     puts the measured average in, so it is a shortcut rather than a form to
+     complete.
+  */
+  preRegulation: string;
+  postRegulation: string;
   notes: string;
 }
 
-export const EMPTY_META: SessionMeta = { reference: '', technician: '', notes: '' };
+export const EMPTY_META: SessionMeta = {
+  reference: '',
+  technician: '',
+  preRegulation: '',
+  postRegulation: '',
+  notes: '',
+};
 
 const STORAGE_KEY = 'mac-timegrapher.session';
 const META_KEY = 'mac-timegrapher.session-meta';
@@ -197,6 +216,40 @@ export function summarise(readings: Reading[]): SessionSummary | null {
     minAmplitude: amplitudes.length > 0 ? Math.min(...amplitudes) : 0,
     maxBeatError: Math.max(...readings.map((r) => r.beatError)),
   };
+}
+
+/**
+ * The average rate of whatever was measured most recently.
+ *
+ * "Most recently" is decided by timestamp rather than by phase, so Fill means
+ * the same thing whichever field it is pressed beside: run the set, fill the
+ * before line, regulate, run it again, fill the after line. It does not need
+ * to know which pass the operator thought they were on.
+ */
+export function latestAverage(readings: Reading[]): {
+  rate: number;
+  positions: number;
+  phase: Phase;
+} | null {
+  if (readings.length === 0) return null;
+
+  const newest = readings.reduce((a, b) => (a.at >= b.at ? a : b));
+  const group = readingsIn(readings, newest.phase);
+  if (group.length === 0) return null;
+
+  return {
+    rate: group.reduce((sum, r) => sum + r.rate, 0) / group.length,
+    positions: group.length,
+    phase: newest.phase,
+  };
+}
+
+/** How Fill writes a measured average into a free-text field. */
+export function formatAverage(a: { rate: number; positions: number }): string {
+  const sign = a.rate >= 0 ? '+' : '';
+  return `${sign}${a.rate.toFixed(1)} s/day average over ${a.positions} position${
+    a.positions === 1 ? '' : 's'
+  }`;
 }
 
 export function load(): Reading[] {

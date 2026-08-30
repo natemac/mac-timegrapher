@@ -503,6 +503,21 @@ select {
     text-transform: uppercase;
   }
 
+  /* The written before-and-after, set like the fact list at the top so the
+     document reads as one thing. */
+  .certificate__regulation {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 3pt 12pt;
+    margin: 0 0 12pt;
+    font-size: 9.5pt;
+  }
+  .certificate__regulation dt {
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .certificate__regulation dd { margin: 0; }
+
   .certificate__head {
     display: flex;
     align-items: flex-end;
@@ -987,4 +1002,17 @@ select {
   text-align: right;
   padding: 4px 0 4px 10px;
   white-space: nowrap;
+}
+
+/* A text field with a shortcut into it. */
+.fillable {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+.fillable .field { flex: 1 1 auto; min-width: 0; }
+.fillable__fill {
+  flex: 0 0 auto;
+  font-size: 12px;
+  padding: 0 12px;
 }

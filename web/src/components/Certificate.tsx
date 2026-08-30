@@ -193,6 +193,26 @@ export function Certificate({
         </table>
       )}
 
+      {/* The watchmaker's own summary of the work, above the notes. Printed
+          only when written — an empty heading on a customer's document reads
+          as something forgotten. */}
+      {(meta.preRegulation || meta.postRegulation) && (
+        <dl className="certificate__regulation">
+          {meta.preRegulation && (
+            <>
+              <dt>Pre-regulation</dt>
+              <dd>{meta.preRegulation}</dd>
+            </>
+          )}
+          {meta.postRegulation && (
+            <>
+              <dt>Post-regulation</dt>
+              <dd>{meta.postRegulation}</dd>
+            </>
+          )}
+        </dl>
+      )}
+
       {meta.notes && (
         <div className="certificate__notes">
           <div className="certificate__notes-label">Notes</div>

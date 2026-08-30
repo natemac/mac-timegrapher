@@ -9,7 +9,8 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   POSITIONS, PHASES, summarise, toTable, sessionTitle, readingsIn, phasesPresent,
-  comparePhases, type Phase, type Reading, type SessionMeta,
+  comparePhases, latestAverage, formatAverage,
+  type Phase, type Reading, type SessionMeta,
 } from '../timegrapher/session';
 import { SlideSwitch } from './SlideSwitch';
 
@@ -28,6 +29,45 @@ interface Props {
 
 function fmtRate(v: number): string {
   return `${v >= 0 ? '+' : ''}${v.toFixed(1)}`;
+}
+
+/*
+   A text field with a shortcut into it.
+
+   Fill writes the average of whatever was measured most recently, which is why
+   the same button sits beside both fields: run the set and fill the before
+   line, regulate, run it again and fill the after line. It writes rather than
+   binds — the text stays editable, and a later reading does not rewrite what
+   the watchmaker already committed to.
+*/
+function FillableField({
+  label, value, fill, onChange,
+}: {
+  label: string;
+  value: string;
+  fill: string | null;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div className="fillable">
+      <input
+        className="field"
+        placeholder={label}
+        aria-label={label}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <button
+        className="secondary fillable__fill"
+        onClick={() => fill && onChange(fill)}
+        disabled={fill === null}
+        aria-label={`Fill ${label} with the latest measured average`}
+        title={fill ?? 'Nothing measured yet'}
+      >
+        Fill
+      </button>
+    </div>
+  );
 }
 
 function Row({ label, value, unit }: { label: string; value: string; unit?: string }) {
@@ -85,6 +125,8 @@ export function SessionSheet({
   const title = sessionTitle(meta.reference, movementName);
   const comparison = comparePhases(readings);
   const recorded = phasesPresent(readings);
+  const latest = latestAverage(readings);
+  const fill = latest ? formatAverage(latest) : null;
 
   const copy = async () => {
     try {
@@ -255,6 +297,25 @@ export function SessionSheet({
                   value={meta.technician}
                   onChange={(e) => onChangeMeta({ ...meta, technician: e.target.value })}
                 />
+                {/*
+                  Before and after, in the watchmaker's own words. Free text,
+                  because "+27, uniformly fast" and "+27, all over the place"
+                  are the same average and different watches — and Fill is a
+                  shortcut into it rather than a form to complete.
+                */}
+                <FillableField
+                  label="Pre-regulation"
+                  value={meta.preRegulation}
+                  fill={fill}
+                  onChange={(preRegulation) => onChangeMeta({ ...meta, preRegulation })}
+                />
+                <FillableField
+                  label="Post-regulation"
+                  value={meta.postRegulation}
+                  fill={fill}
+                  onChange={(postRegulation) => onChangeMeta({ ...meta, postRegulation })}
+                />
+
                 <textarea
                   className="field"
                   placeholder="Notes (optional)"

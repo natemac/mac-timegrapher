@@ -11,6 +11,7 @@ import {
   upsert, summarise, load, save, clear, toTable, positionName, sessionTitle,
   loadMeta, saveMeta, EMPTY_META, POSITIONS,
   readingsIn, phasesPresent, suggestPhase, comparePhases, phaseName,
+  latestAverage, formatAverage,
   type Reading, type PositionId, type Phase,
 } from './session';
 
@@ -139,13 +140,13 @@ describe('session metadata', () => {
   });
 
   it('round trips', () => {
-    saveMeta({ reference: '0042', technician: 'NM', notes: 'after service' });
+    saveMeta({ ...EMPTY_META, reference: '0042', technician: 'NM', notes: 'after service' });
     expect(loadMeta().reference).toBe('0042');
   });
 
   it('fills in fields missing from older stored data', () => {
     localStorage.setItem('mac-timegrapher.session-meta', '{"reference":"0042"}');
-    expect(loadMeta()).toEqual({ reference: '0042', technician: '', notes: '' });
+    expect(loadMeta()).toEqual({ ...EMPTY_META, reference: '0042' });
   });
 
   it('survives corrupt stored metadata', () => {
@@ -156,7 +157,7 @@ describe('session metadata', () => {
   it('is cleared along with the readings', () => {
     // Clearing a session must not leave the previous watch's reference behind
     // to be printed on the next certificate.
-    saveMeta({ reference: '0042', technician: 'NM', notes: '' });
+    saveMeta({ ...EMPTY_META, reference: '0042', technician: 'NM' });
     save([reading('dial-up', 1)]);
     clear();
     expect(loadMeta()).toEqual(EMPTY_META);
@@ -307,5 +308,62 @@ describe('load migration', () => {
     const loaded = load();
     expect(loaded).toHaveLength(1);
     expect(loaded[0].phase).toBe('as-found');
+  });
+});
+
+describe('latestAverage', () => {
+  const at = (iso: string, r: Reading): Reading => ({ ...r, at: iso });
+
+  it('is null with nothing recorded', () => {
+    expect(latestAverage([])).toBeNull();
+  });
+
+  it('averages the readings from the pass that was measured last', () => {
+    const rs = [
+      at('2026-08-30T09:00:00Z', reading('dial-up', 26, 250, 1.5, 'as-found')),
+      at('2026-08-30T09:01:00Z', reading('dial-down', 28, 250, 1.5, 'as-found')),
+      at('2026-08-30T10:00:00Z', reading('dial-up', 2, 265, 0.3, 'as-left')),
+      at('2026-08-30T10:01:00Z', reading('dial-down', 4, 265, 0.3, 'as-left')),
+    ];
+    const a = latestAverage(rs)!;
+    expect(a.phase).toBe('as-left');
+    expect(a.rate).toBe(3);
+    expect(a.positions).toBe(2);
+  });
+
+  /*
+     Fill has to mean the same thing beside either field, so it follows the
+     clock rather than the phase label. Filling the before line after only a
+     first pass must not reach forward into readings that do not exist.
+  */
+  it('follows the clock, not the phase order', () => {
+    const rs = [
+      at('2026-08-30T10:00:00Z', reading('dial-up', 2, 265, 0.3, 'as-left')),
+      at('2026-08-30T09:00:00Z', reading('dial-up', 26, 250, 1.5, 'as-found')),
+    ];
+    expect(latestAverage(rs)!.phase).toBe('as-left');
+  });
+
+  it('handles a single reading', () => {
+    const a = latestAverage([reading('dial-up', 12)])!;
+    expect(a.rate).toBe(12);
+    expect(a.positions).toBe(1);
+  });
+});
+
+describe('formatAverage', () => {
+  it('signs the rate and counts the positions', () => {
+    expect(formatAverage({ rate: 2.53, positions: 6 }))
+      .toBe('+2.5 s/day average over 6 positions');
+  });
+
+  it('signs a losing watch', () => {
+    expect(formatAverage({ rate: -4.2, positions: 3 }))
+      .toBe('-4.2 s/day average over 3 positions');
+  });
+
+  it('does not pluralise one position', () => {
+    expect(formatAverage({ rate: 1, positions: 1 }))
+      .toBe('+1.0 s/day average over 1 position');
   });
 });
