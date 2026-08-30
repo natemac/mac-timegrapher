@@ -6,10 +6,10 @@
     it under the terms of the GNU General Public License version 2 as
     published by the Free Software Foundation.
 */
+import { POSITIONS, positionName, summarise, type Reading } from '../timegrapher/session';
 import {
-  POSITIONS, PHASES, positionName, summarise, readingsIn, phasesPresent,
-  comparePhases, type Phase, type Reading, type SessionMeta,
-} from '../timegrapher/session';
+  phaseName, findPair, orderPair, comparePair, type Inspection,
+} from '../timegrapher/inspections';
 
 /*
    The printable timing certificate.
@@ -28,9 +28,10 @@ import {
 */
 
 interface Props {
-  readings: Reading[];
-  meta: SessionMeta;
-  movementName: string | null;
+  /** The run on screen. */
+  current: Inspection;
+  /** Everything recorded, so the opposite pass for this watch can be found. */
+  saved: Inspection[];
   liftAngle: number;
   /** What the readings were taken with, for the method statement. */
   deviceLabel: string | null;
@@ -46,10 +47,10 @@ function fmtRate(v: number): string {
 }
 
 /** One phase's table. Rendered once, or twice when the watch was regulated. */
-function PhaseTable({
-  readings, phase, label, quartz,
-}: { readings: Reading[]; phase: Phase; label: string; quartz: boolean }) {
-  const rows = readingsIn(readings, phase);
+function RunTable({
+  run, label, quartz,
+}: { run: Inspection; label: string; quartz: boolean }) {
+  const rows: Reading[] = run.readings;
   if (rows.length === 0) return null;
 
   const summary = summarise(rows);
@@ -57,6 +58,7 @@ function PhaseTable({
   return (
     <section className="certificate__phase">
       <h2 className="certificate__phase-title">{label}</h2>
+      {run.summaryText && <p className="certificate__phase-note">{run.summaryText}</p>}
       <table className="certificate__table">
         <thead>
           <tr>
@@ -106,13 +108,23 @@ function PhaseTable({
 }
 
 export function Certificate({
-  readings, meta, movementName, liftAngle, deviceLabel, sampleRate, showLogo, quartz,
+  current, saved, liftAngle, deviceLabel, sampleRate, showLogo, quartz,
 }: Props) {
-  const phases = phasesPresent(readings);
-  const comparison = comparePhases(readings);
-  const regulated = phases.length > 1;
+  /*
+     The other half of the before-and-after, found on the reference alone. It
+     may have been measured weeks earlier with a dozen other watches in
+     between; nothing about order or timing is assumed.
+  */
+  const pair = findPair(saved, current);
+  const runs = orderPair(current, pair);
+  const regulated = runs.length > 1;
+  const comparison = regulated ? comparePair(runs[0], runs[1]) : null;
+
+  const meta = current;
+  const readings = current.readings;
   const measured = readings.length > 0 ? new Date(readings[readings.length - 1].at) : new Date();
   const bph = readings[0]?.bph;
+  const movementName = current.movementName;
 
   return (
     <div className="certificate" aria-hidden="true">
@@ -159,12 +171,11 @@ export function Certificate({
 
       {/* One table when a watch was only measured, two when it was regulated:
           the second is only meaningful next to the first. */}
-      {PHASES.filter((p) => phases.includes(p.id)).map((p) => (
-        <PhaseTable
-          key={p.id}
-          readings={readings}
-          phase={p.id}
-          label={regulated ? p.name : 'Measurements'}
+      {runs.map((run) => (
+        <RunTable
+          key={run.id}
+          run={run}
+          label={regulated ? phaseName(run.phase) : 'Measurements'}
           quartz={quartz}
         />
       ))}
@@ -191,26 +202,6 @@ export function Certificate({
             </tr>
           </tbody>
         </table>
-      )}
-
-      {/* The watchmaker's own summary of the work, above the notes. Printed
-          only when written — an empty heading on a customer's document reads
-          as something forgotten. */}
-      {(meta.preRegulation || meta.postRegulation) && (
-        <dl className="certificate__regulation">
-          {meta.preRegulation && (
-            <>
-              <dt>Pre-regulation</dt>
-              <dd>{meta.preRegulation}</dd>
-            </>
-          )}
-          {meta.postRegulation && (
-            <>
-              <dt>Post-regulation</dt>
-              <dd>{meta.postRegulation}</dd>
-            </>
-          )}
-        </dl>
       )}
 
       {meta.notes && (

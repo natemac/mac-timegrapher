@@ -1124,3 +1124,71 @@ html.is-measuring body { overscroll-behavior-y: none; }
 @media (prefers-reduced-motion: reduce) {
   .sheet { transition: none; }
 }
+
+/* ---------- Identifying a run ----------
+   The reference and the mark together, because between them they decide what
+   this run is and which other run it belongs with. */
+.run-identity {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.run-identity .switch { width: 100%; }
+.run-identity__note {
+  margin: 0;
+  font-size: 12px;
+}
+
+.run-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+}
+.run-actions button { flex: 1 1 0; font-size: 13px; }
+
+/* ---------- Saved runs ---------- */
+.run-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.run-list__item {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  margin: 0;
+}
+.run-list__item.is-current .run-list__open { border-color: var(--accent); }
+
+.run-list__open {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  padding: 9px 11px;
+  font: inherit;
+}
+.run-list__name { font-size: 13px; font-weight: 600; }
+.run-list__meta { font-size: 11px; font-family: var(--mono); }
+
+.run-list__delete {
+  flex: 0 0 auto;
+  font-size: 12px;
+  padding: 0 11px;
+}
+
+/* The written line for a pass, printed beside its own table. */
+@media print {
+  .certificate__phase-note {
+    margin: 0 0 6pt;
+    font-size: 9.5pt;
+    font-style: italic;
+  }
+}

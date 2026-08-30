@@ -11,11 +11,11 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SessionSheet } from './SessionSheet';
-import { EMPTY_META, type Phase, type Reading, type SessionMeta } from '../timegrapher/session';
+import type { Reading } from '../timegrapher/session';
+import { createInspection, type Inspection } from '../timegrapher/inspections';
 
 const READING: Reading = {
   position: 'dial-up',
-  phase: 'as-found',
   rate: 12.4,
   amplitude: 248,
   beatError: 1.3,
@@ -28,21 +28,25 @@ const READING: Reading = {
    sheet, and it passes a fresh arrow for onClose exactly as App did. Both are
    load-bearing — the bug only appears when the parent behaves this way.
 */
-function Host() {
-  const [meta, setMeta] = useState<SessionMeta>(EMPTY_META);
-  const [phase, setPhase] = useState<Phase>('as-found');
+function Host({ saved = [] as Inspection[] }: { saved?: Inspection[] } = {}) {
+  const [current, setCurrent] = useState<Inspection>(() =>
+    createInspection({
+      reference: 'MB-0142',
+      movementName: 'Seiko / TMI NH35',
+      readings: [READING],
+    }));
+
   return (
     <SessionSheet
-      phase={phase}
-      onPhaseChange={setPhase}
       open
       onClose={() => {}}
-      readings={[READING]}
-      movementName="Seiko / TMI NH35"
-      meta={meta}
-      onChangeMeta={setMeta}
+      current={current}
+      saved={saved}
+      onChange={setCurrent}
       onPrint={() => {}}
-      onClear={() => {}}
+      onNew={() => {}}
+      onOpen={() => {}}
+      onDelete={() => {}}
     />
   );
 }
@@ -58,11 +62,11 @@ describe('SessionSheet certificate fields', () => {
     const user = userEvent.setup();
     render(<Host />);
 
-    const field = screen.getByPlaceholderText('Reference or build number');
-    await user.click(field);
-    await user.keyboard('MB-0142');
+    const field = screen.getByLabelText('Reference or build number');
+    await user.clear(field);
+    await user.keyboard('MB-0199');
 
-    expect(field).toHaveValue('MB-0142');
+    expect(field).toHaveValue('MB-0199');
     expect(field).toHaveFocus();
   });
 
@@ -70,7 +74,7 @@ describe('SessionSheet certificate fields', () => {
     const user = userEvent.setup();
     render(<Host />);
 
-    const field = screen.getByPlaceholderText('Measured by');
+    const field = screen.getByLabelText('Measured by');
     await user.click(field);
     await user.keyboard('N. McGraw');
 
@@ -82,7 +86,7 @@ describe('SessionSheet certificate fields', () => {
     const user = userEvent.setup();
     render(<Host />);
 
-    const field = screen.getByPlaceholderText('Notes (optional)');
+    const field = screen.getByLabelText('Notes');
     await user.click(field);
     await user.keyboard('Regulated from +25 s/day.');
 
@@ -97,17 +101,17 @@ describe('SessionSheet certificate fields', () => {
 });
 
 describe('SessionSheet header', () => {
-  it('names the session after the reference as it is typed', async () => {
+  it('names the run after the reference as it is typed', async () => {
     const user = userEvent.setup();
     render(<Host />);
 
-    expect(screen.getByText('Session — Seiko / TMI NH35')).toBeInTheDocument();
+    expect(screen.getAllByText('MB-0142').length).toBeGreaterThan(0);
 
-    await user.click(screen.getByPlaceholderText('Reference or build number'));
-    await user.keyboard('MB-0142');
+    const field = screen.getByLabelText('Reference or build number');
+    await user.clear(field);
+    await user.keyboard('MB-0199');
 
-    expect(screen.getByText('MB-0142 — Seiko / TMI NH35')).toBeInTheDocument();
-    expect(screen.queryByText('Session — Seiko / TMI NH35')).not.toBeInTheDocument();
+    expect(screen.getAllByText('MB-0199').length).toBeGreaterThan(0);
   });
 
   /*
@@ -121,25 +125,19 @@ describe('SessionSheet header', () => {
     expect(actions).not.toBeNull();
     expect(actions!.querySelector('.sheet__body')).toBeNull();
     expect(document.querySelector('.sheet__body')!.contains(actions)).toBe(false);
-    for (const name of ['Timing inspection — print or save as PDF', 'Copy the results as text', 'Clear']) {
+    for (const name of ['Export inspection — print or save as PDF', 'Copy the results as text']) {
       expect(actions!.contains(screen.getByRole('button', { name }))).toBe(true);
     }
   });
 
-  it('asks twice before clearing', async () => {
-    const user = userEvent.setup();
-    render(<Host />);
-    await user.click(screen.getByRole('button', { name: 'Clear' }));
-    expect(screen.getByRole('button', { name: 'Sure?' })).toBeInTheDocument();
-  });
 });
 
-describe('the pre and post regulation fields', () => {
-  it('are editable by hand', async () => {
+describe('the run summary line', () => {
+  it('is editable by hand', async () => {
     const user = userEvent.setup();
     render(<Host />);
 
-    const field = screen.getByLabelText('Pre-regulation');
+    const field = screen.getByLabelText('As found summary');
     await user.click(field);
     await user.keyboard('+27, uniformly fast');
 
@@ -147,40 +145,63 @@ describe('the pre and post regulation fields', () => {
     expect(field).toHaveFocus();
   });
 
-  it('fills from the measured average when asked', async () => {
+  /* This run's own average, which is unambiguous now that a run is one pass
+     over one watch — it used to mean "whatever was measured most recently". */
+  it('fills from this run\'s average', async () => {
     const user = userEvent.setup();
     render(<Host />);
 
-    await user.click(
-      screen.getByRole('button', { name: 'Fill Post-regulation with the latest measured average' }),
-    );
-    expect(screen.getByLabelText('Post-regulation'))
+    await user.click(screen.getByRole('button', { name: "Fill with this run's measured average" }));
+    expect(screen.getByLabelText('As found summary'))
       .toHaveValue('+12.4 s/day average over 1 position');
   });
 
-  /* Fill writes rather than binds: a figure the watchmaker has committed to
-     must not be rewritten by a later reading, or by the other button. */
-  it('leaves the other field alone', async () => {
+  it('follows the mark, so it asks for the pass it is on', async () => {
     const user = userEvent.setup();
     render(<Host />);
 
-    await user.click(
-      screen.getByRole('button', { name: 'Fill Pre-regulation with the latest measured average' }),
-    );
-    expect(screen.getByLabelText('Pre-regulation')).not.toHaveValue('');
-    expect(screen.getByLabelText('Post-regulation')).toHaveValue('');
+    await user.click(screen.getByRole('button', { name: 'As left' }));
+    expect(screen.getByLabelText('As left summary')).toBeInTheDocument();
+    expect(screen.queryByLabelText('As found summary')).not.toBeInTheDocument();
+  });
+});
+
+describe('marking a run', () => {
+  it('starts as found and can be marked as left', async () => {
+    const user = userEvent.setup();
+    render(<Host />);
+
+    expect(screen.getByRole('button', { name: 'As found' })).toHaveAttribute('aria-pressed', 'true');
+    await user.click(screen.getByRole('button', { name: 'As left' }));
+    expect(screen.getByRole('button', { name: 'As left' })).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('overwrites a filled value when filled again', async () => {
+  /*
+     The point of the whole model: a run pairs with the opposite pass for the
+     same reference, whenever it happened.
+  */
+  it('says when it has found the other half of a before-and-after', async () => {
+    const user = userEvent.setup();
+    const earlier = createInspection({
+      reference: 'MB-0142',
+      phase: 'as-left',
+      readings: [READING],
+      updatedAt: '2026-08-01T09:00:00.000Z',
+    });
+    render(<Host saved={[earlier]} />);
+
+    expect(screen.getByText(/paired with the as left run/i)).toBeInTheDocument();
+
+    // Marking this run as-left too leaves nothing to pair with.
+    await user.click(screen.getByRole('button', { name: 'As left' }));
+    expect(screen.getByText(/no as found run for this reference yet/i)).toBeInTheDocument();
+  });
+
+  it('explains that a run needs a reference before it can pair', async () => {
     const user = userEvent.setup();
     render(<Host />);
 
-    const field = screen.getByLabelText('Pre-regulation');
-    await user.click(field);
-    await user.keyboard('typed');
-    await user.click(
-      screen.getByRole('button', { name: 'Fill Pre-regulation with the latest measured average' }),
-    );
-    expect(field).toHaveValue('+12.4 s/day average over 1 position');
+    await user.clear(screen.getByLabelText('Reference or build number'));
+    expect(screen.getByText(/give it a reference/i)).toBeInTheDocument();
   });
 });

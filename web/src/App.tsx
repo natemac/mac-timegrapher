@@ -45,8 +45,12 @@ import {
   type SnapshotInput,
 } from './export/snapshot';
 import { DiagnosticsLog, diagnosticsFilename } from './export/diagnostics';
-import * as sessionStore from './timegrapher/session';
-import type { Phase, PositionId, Reading, SessionMeta } from './timegrapher/session';
+import type { PositionId } from './timegrapher/session';
+import {
+  createInspection, upsertReading, putInspection, removeInspection,
+  loadInspections, saveInspections, loadCurrentId, saveCurrentId,
+  type Inspection, type Phase,
+} from './timegrapher/inspections';
 import { Certificate } from './components/Certificate';
 import { DEFAULT_LIFT_ANGLE } from './timegrapher/movements';
 
@@ -113,15 +117,18 @@ export default function App() {
   const [helpTopic, setHelpTopic] = useState<Topic | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sessionOpen, setSessionOpen] = useState(false);
-  const [readings, setReadings] = useState<Reading[]>(() => sessionStore.load());
-  const [meta, setMeta] = useState<SessionMeta>(() => sessionStore.loadMeta());
   /*
-     Whether this run is measuring the watch as it arrived or as it is being
-     left. Seeded from what is already recorded — a second pass over a watch is
-     the one after the work — and settable by hand when the session did not go
-     that way.
+     Runs are records of their own, kept as a list, because a bench does not
+     measure one watch at a time from start to finish. `current` is the one
+     being added to; everything else is history that a before-and-after can be
+     paired against.
   */
-  const [phase, setPhase] = useState<Phase>(() => sessionStore.suggestPhase(sessionStore.load()));
+  const [saved, setSaved] = useState<Inspection[]>(loadInspections);
+  const [current, setCurrent] = useState<Inspection>(() => {
+    const all = loadInspections();
+    const id = loadCurrentId();
+    return all.find((i) => i.id === id) ?? createInspection();
+  });
 
   // Which job the operator is here to do. Remembered: a bench that certifies
   // does it all day, and a bench that regulates never opens the wizard.
@@ -141,9 +148,16 @@ export default function App() {
     saveAutoCapture(next);
   }, []);
 
-  const updateMeta = useCallback((next: SessionMeta) => {
-    setMeta(next);
-    sessionStore.saveMeta(next);
+  /* One place that writes: the run, its position in the list, and which run is
+     open all have to move together or a reload finds them disagreeing. */
+  const updateCurrent = useCallback((next: Inspection) => {
+    setCurrent(next);
+    setSaved((all) => {
+      const merged = putInspection(all, next);
+      saveInspections(merged);
+      return merged;
+    });
+    saveCurrentId(next.id);
   }, []);
 
   /*
@@ -222,6 +236,10 @@ export default function App() {
   const signalRef = useRef<SignalState | null>(null);
   // Read by start(), which is declared above where the label is computed.
   const movementLabelRef = useRef<string | null>(null);
+  const movementIdRef = useRef<string | null>(null);
+  // Read by capture(), which must not be rebuilt every time a detail is typed
+  // — it is a dependency of the auto-record effect, which runs twice a second.
+  const currentRef = useRef(current);
 
   useEffect(() => {
     traceSecondsRef.current = settings.traceSeconds;
@@ -230,6 +248,10 @@ export default function App() {
   useEffect(() => {
     wizardRef.current = wizard;
   }, [wizard]);
+
+  useEffect(() => {
+    currentRef.current = current;
+  }, [current]);
 
   useEffect(() => {
     stopRef.current = stop;
@@ -262,22 +284,24 @@ export default function App() {
   const capture = useCallback((position: PositionId) => {
     const m = measurementRef.current;
     if (!m?.valid) return;
-    const next = sessionStore.upsert(readings, {
-      position,
-      phase,
-      rate: m.rate,
-      amplitude: m.amplitude,
-      beatError: m.beatError,
-      bph: m.detectedBph,
-      at: new Date().toISOString(),
-    });
-    setReadings(next);
-    sessionStore.save(next);
+
+    updateCurrent(upsertReading(
+      { ...currentRef.current, movementId: movementIdRef.current, movementName: movementLabelRef.current },
+      {
+        position,
+        rate: m.rate,
+        amplitude: m.amplitude,
+        beatError: m.beatError,
+        bph: m.detectedBph,
+        at: new Date().toISOString(),
+      },
+    ));
+
     diagnostics.current.event(
       'recorded',
-      `${position} (${phase})  rate ${m.rate.toFixed(1)}  amp ${m.amplitude.toFixed(0)}  beat ${m.beatError.toFixed(2)}`,
+      `${position} (${currentRef.current.phase})  rate ${m.rate.toFixed(1)}  amp ${m.amplitude.toFixed(0)}  beat ${m.beatError.toFixed(2)}`,
     );
-  }, [readings, phase]);
+  }, [updateCurrent]);
 
   /*
     Throw away the collected average and the trace, keeping the audio running.
@@ -307,21 +331,60 @@ export default function App() {
 
   const restartWizard = useCallback(() => {
     settledRuns.current = 0;
-    setPhase(sessionStore.suggestPhase(readings));
     setWizard(startWizard());
-  }, [readings]);
+  }, []);
 
   const jumpWizard = useCallback((step: number) => {
     settledRuns.current = 0;
     setWizard((w) => jumpTo(w, step));
   }, []);
 
-  const clearSession = useCallback(() => {
-    setReadings([]);
-    setMeta(sessionStore.EMPTY_META);
-    setPhase('as-found');
-    sessionStore.clear();
+  /*
+     Begin a fresh run.
+
+     The technician and the calibre carry over, because the next watch is
+     usually measured by the same person on the same bench. The reference does
+     not: it is what identifies the watch, and inheriting it would silently
+     pair the new run with the old one's opposite pass.
+  */
+  const startNewInspection = useCallback((phase: Phase) => {
+    const next = createInspection({
+      phase,
+      technician: currentRef.current.technician,
+      movementId: movementIdRef.current,
+      movementName: movementLabelRef.current,
+    });
+    updateCurrent(next);
+    settledRuns.current = 0;
+    setWizard(startWizard());
     setSessionOpen(false);
+  }, [updateCurrent]);
+
+  const openInspection = useCallback((id: string) => {
+    const found = saved.find((i) => i.id === id);
+    if (!found) return;
+    setCurrent(found);
+    saveCurrentId(found.id);
+    settledRuns.current = 0;
+    setWizard(startWizard());
+  }, [saved]);
+
+  const deleteInspection = useCallback((id: string) => {
+    setSaved((all) => {
+      const next = removeInspection(all, id);
+      saveInspections(next);
+      return next;
+    });
+    // Deleting the open run leaves nothing to add to, so start a fresh one.
+    if (currentRef.current.id === id) {
+      const fresh = createInspection({
+        technician: currentRef.current.technician,
+        movementId: movementIdRef.current,
+        movementName: movementLabelRef.current,
+      });
+      setCurrent(fresh);
+      saveCurrentId(fresh.id);
+    }
   }, []);
 
   /*
@@ -496,6 +559,7 @@ export default function App() {
   const chosenMovement = findMovement(movementId);
   const movementLabel = chosenMovement ? `${chosenMovement.maker} ${chosenMovement.name}` : null;
   movementLabelRef.current = movementLabel;
+  movementIdRef.current = movementId;
 
   /*
      Save the reading on screen as an image.
@@ -516,7 +580,7 @@ export default function App() {
       spreads,
       movementName: movementLabel,
       position: mode === 'inspection' ? positionAt(wizard.step) : null,
-      reference: meta.reference,
+      reference: current.reference,
       at: new Date(),
       showLogo: settings.showLogo,
     };
@@ -535,7 +599,7 @@ export default function App() {
       if (err instanceof Error && err.name === 'AbortError') return;
       setSnapshotNote('Could not save the image.');
     }
-  }, [spreads, movementLabel, mode, wizard.step, meta.reference, settings.showLogo]);
+  }, [spreads, movementLabel, mode, wizard.step, current.reference, settings.showLogo]);
 
   /*
      Hand over the session log.
@@ -741,12 +805,14 @@ export default function App() {
         <button
           className="icon-button"
           onClick={() => setSessionOpen(true)}
-          aria-label={`Session — ${readings.length} of 6 positions recorded`}
+          aria-label={`Inspection — ${current.readings.length} of 6 positions recorded`}
         >
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
             <path d="M4 5.5h16M4 12h16M4 18.5h16" strokeLinecap="round" />
           </svg>
-          {readings.length > 0 && <span className="icon-button__badge">{readings.length}</span>}
+          {current.readings.length > 0 && (
+            <span className="icon-button__badge">{current.readings.length}</span>
+          )}
         </button>
 
         <button
@@ -765,14 +831,13 @@ export default function App() {
       <SessionSheet
         open={sessionOpen}
         onClose={closeSession}
-        readings={readings}
-        movementName={movementLabel}
-        meta={meta}
-        onChangeMeta={updateMeta}
+        current={current}
+        saved={saved}
+        onChange={updateCurrent}
         onPrint={printCertificate}
-        onClear={clearSession}
-        phase={phase}
-        onPhaseChange={setPhase}
+        onNew={startNewInspection}
+        onOpen={openInspection}
+        onDelete={deleteInspection}
       />
 
 
@@ -872,7 +937,7 @@ export default function App() {
             <InspectionWizard
               state={wizard}
               capturing={capturing}
-              phase={phase}
+              phase={current.phase}
               settling={settling}
               valid={measurement?.valid ?? false}
               seconds={secondsCaptured}
@@ -941,9 +1006,8 @@ export default function App() {
       produced a blank page.
     */}
     <Certificate
-      readings={readings}
-      meta={meta}
-      movementName={movementLabel}
+      current={current}
+      saved={saved}
       liftAngle={findMovement(movementId)?.liftAngle ?? DEFAULT_LIFT_ANGLE}
       deviceLabel={devices.find((d) => d.deviceId === selectedId)?.label ?? null}
       sampleRate={sampleRate}

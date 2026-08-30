@@ -6,7 +6,8 @@
     it under the terms of the GNU General Public License version 2 as
     published by the Free Software Foundation.
 */
-import { positionName, phaseName, type Phase } from '../timegrapher/session';
+import { positionName } from '../timegrapher/session';
+import { phaseName, type Phase } from '../timegrapher/inspections';
 import {
   WIZARD_ORDER, STALL_SECONDS, positionAt, skipped, type WizardState,
 } from '../timegrapher/wizard';
