@@ -192,7 +192,7 @@ export function SessionSheet({
 
         {/* The reference becomes the name as soon as one is typed, so the
             sheet says which job it is rather than "Session". */}
-        <div className="sheet__head">
+        <div className="sheet__head sheet__head--title">
           <span style={{ fontWeight: 600, fontSize: 15 }}>{title}</span>
         </div>
 

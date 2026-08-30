@@ -249,6 +249,14 @@ select {
 .sheet__scrim {
   position: fixed;
   inset: 0;
+  /* A sheet is modal, so a drag on it must not reach the app underneath. The
+     scrim itself never scrolls, and without this iOS hands the gesture to the
+     nearest scrollable ancestor — which is `.app` — and the screen behind the
+     sheet slides about. `contain` stops the chaining; `touch-action: none`
+     stops a drag on the scrim or the header doing anything at all. The body
+     opts back in to vertical panning below. */
+  overscroll-behavior: contain;
+  touch-action: none;
   background: color-mix(in srgb, var(--ink) 72%, transparent);
   display: flex;
   align-items: flex-end;
@@ -295,15 +303,25 @@ select {
   justify-content: space-between;
   align-items: center;
   gap: 10px;
-  padding: 2px 14px 11px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--line);
   flex: 0 0 auto;
 }
+
+/* The session sheet's name sits under its own row of actions, so it needs the
+   top padding taken off rather than doubled. A modifier rather than a change to
+   the shared rule: the settings sheet's tabs are the first thing in that sheet
+   and want the full inset above them. */
+.sheet__head--title { padding-top: 0; }
 
 .sheet__body {
   padding: 16px 14px calc(20px + env(safe-area-inset-bottom));
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  /* The one place inside a sheet that scrolls, and only along its own axis.
+     `contain` keeps reaching its end from scrolling the app behind it. */
+  overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
 .sheet__body h3 { color: var(--text-dim); }
