@@ -29,7 +29,16 @@ import type { Topic } from './components/guide-content';
 import { findMovement, engineConfigFor } from './timegrapher/movements';
 import { useWakeLock } from './hooks/useWakeLock';
 import { SessionSheet } from './components/SessionSheet';
-import { CaptureBar } from './components/CaptureBar';
+import { ModeSwitch, loadMode, saveMode, type Mode } from './components/ModeSwitch';
+import { CertifyWizard } from './components/CertifyWizard';
+import {
+  startWizard, begin, captured, advance, finish, retry, jumpTo, positionAt,
+  shouldAutoCapture, loadAutoCapture, saveAutoCapture, type WizardState,
+} from './timegrapher/wizard';
+import {
+  drawSnapshot, dataUrlToBytes, snapshotFilename, loadSnapshotLogo, deliverSnapshot,
+  type SnapshotInput,
+} from './export/snapshot';
 import * as sessionStore from './timegrapher/session';
 import type { PositionId, Reading, SessionMeta } from './timegrapher/session';
 import { Certificate } from './components/Certificate';
@@ -92,9 +101,24 @@ export default function App() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [sessionOpen, setSessionOpen] = useState(false);
   const [readings, setReadings] = useState<Reading[]>(() => sessionStore.load());
-  const [position, setPosition] = useState<PositionId>('dial-up');
-  const [justCaptured, setJustCaptured] = useState(false);
   const [meta, setMeta] = useState<SessionMeta>(() => sessionStore.loadMeta());
+
+  // Which job the operator is here to do. Remembered: a bench that certifies
+  // does it all day, and a bench that regulates never opens the wizard.
+  const [mode, setMode] = useState<Mode>(loadMode);
+  const [wizard, setWizard] = useState<WizardState>(startWizard);
+  const [autoCapture, setAutoCapture] = useState(loadAutoCapture);
+  const [snapshotNote, setSnapshotNote] = useState<string | null>(null);
+
+  const selectMode = useCallback((next: Mode) => {
+    setMode(next);
+    saveMode(next);
+  }, []);
+
+  const changeAutoCapture = useCallback((next: boolean) => {
+    setAutoCapture(next);
+    saveAutoCapture(next);
+  }, []);
 
   const updateMeta = useCallback((next: SessionMeta) => {
     setMeta(next);
@@ -149,16 +173,38 @@ export default function App() {
   // settings directly from it would pin whatever they were at that moment.
   // A ref keeps it current when they change mid-capture.
   const traceSecondsRef = useRef(DEFAULT_SETTINGS.traceSeconds);
+  /*
+    Consecutive settled reports. `settling()` is already conservative, but it
+    is evaluated twice a second and a reading can graze the bounds for a single
+    report on its way through — an unattended capture must not fire on that.
+  */
+  const settledRuns = useRef(0);
+  // Read by wizardCapture, which must not be rebuilt on every step change:
+  // it is a dependency of the auto-capture effect, which runs twice a second.
+  const wizardRef = useRef(wizard);
+  // Decoded ahead of time. iOS only honours navigator.share while it can still
+  // see the tap, and waiting on an image load inside the handler loses it.
+  const snapshotLogo = useRef<HTMLImageElement | null>(null);
 
   useEffect(() => {
     traceSecondsRef.current = settings.traceSeconds;
   }, [settings.traceSeconds]);
 
+  useEffect(() => {
+    wizardRef.current = wizard;
+  }, [wizard]);
+
+  useEffect(() => {
+    void loadSnapshotLogo(import.meta.env.BASE_URL).then((img) => {
+      snapshotLogo.current = img;
+    });
+  }, []);
+
   // Readings take half a minute to settle and the operator's hands are on a
   // watch, not the screen.
   useWakeLock(capturing);
 
-  const capture = useCallback(() => {
+  const capture = useCallback((position: PositionId) => {
     const m = measurementRef.current;
     if (!m?.valid) return;
     const next = sessionStore.upsert(readings, {
@@ -171,16 +217,7 @@ export default function App() {
     });
     setReadings(next);
     sessionStore.save(next);
-    setJustCaptured(true);
-  }, [readings, position]);
-
-  // The 'Captured' flash clears itself, and cancels cleanly if capture stops
-  // or the operator captures again before it has finished.
-  useEffect(() => {
-    if (!justCaptured) return;
-    const id = window.setTimeout(() => setJustCaptured(false), 1400);
-    return () => window.clearTimeout(id);
-  }, [justCaptured]);
+  }, [readings]);
 
   /*
     Throw away the collected average and the trace, keeping the audio running.
@@ -198,6 +235,37 @@ export default function App() {
     setSpreads({ rate: null, amplitude: null, beatError: null });
     setSettling('waiting');
     engine.current?.reset();
+  }, []);
+
+  /*
+     The wizard's Go.
+
+     Restarting the average is the whole point of the button: the operator has
+     just had a hand on the watch, and that handling noise is sitting in the
+     window. Everything measured from here was recorded after the watch went
+     still.
+  */
+  const wizardGo = useCallback(() => {
+    settledRuns.current = 0;
+    resetAverage();
+    setWizard(begin);
+  }, [resetAverage]);
+
+  const wizardCapture = useCallback(() => {
+    const p = positionAt(wizardRef.current.step);
+    if (!p) return;
+    capture(p);
+    setWizard(captured);
+  }, [capture]);
+
+  const restartWizard = useCallback(() => {
+    settledRuns.current = 0;
+    setWizard(startWizard());
+  }, []);
+
+  const jumpWizard = useCallback((step: number) => {
+    settledRuns.current = 0;
+    setWizard((w) => jumpTo(w, step));
   }, []);
 
   const clearSession = useCallback(() => {
@@ -218,6 +286,46 @@ export default function App() {
     window.setTimeout(() => window.print(), 60);
   }, []);
 
+
+  /*
+     Count consecutive settled reports.
+
+     Declared before the effect that reads it, because effects run in
+     declaration order and the auto-capture check has to see this update's
+     count rather than the previous one's. `secondsCaptured` is in the
+     dependencies because it is the only value that changes on every report —
+     `settling` alone would run this on transitions only.
+  */
+  useEffect(() => {
+    settledRuns.current = settling === 'settled' ? settledRuns.current + 1 : 0;
+  }, [settling, secondsCaptured]);
+
+  useEffect(() => {
+    if (mode !== 'certify') return;
+    if (
+      !shouldAutoCapture({
+        stage: wizard.stage,
+        auto: autoCapture,
+        valid: measurement?.valid ?? false,
+        settling,
+        settledRuns: settledRuns.current,
+      })
+    ) {
+      return;
+    }
+    wizardCapture();
+  }, [mode, wizard.stage, autoCapture, measurement, settling, secondsCaptured, wizardCapture]);
+
+  /*
+     Move on by itself, but only when the operator asked not to be involved.
+     Long enough to read which position was recorded before it is replaced by
+     the instruction for the next one.
+  */
+  useEffect(() => {
+    if (mode !== 'certify' || wizard.stage !== 'captured' || !autoCapture) return;
+    const id = window.setTimeout(() => setWizard(advance), 1600);
+    return () => window.clearTimeout(id);
+  }, [mode, wizard.stage, wizard.step, autoCapture]);
 
   // The engine is built from the movement, so it is created by an effect rather
   // than inside start(): changing the movement mid-capture has to rebuild it,
@@ -286,6 +394,51 @@ export default function App() {
 
   const chosenMovement = findMovement(movementId);
   const movementLabel = chosenMovement ? `${chosenMovement.maker} ${chosenMovement.name}` : null;
+
+  /*
+     Save the reading on screen as an image.
+
+     Everything up to the share call is synchronous on purpose: iOS Safari only
+     opens the share sheet while it can still attribute the call to the tap
+     that started it, and an awaited toBlob is enough of a gap to lose that.
+  */
+  const saveSnapshot = useCallback(async () => {
+    const m = measurementRef.current;
+    if (!m?.valid) return;
+
+    const input: SnapshotInput = {
+      rate: m.rate,
+      amplitude: m.amplitude,
+      beatError: m.beatError,
+      bph: m.detectedBph,
+      spreads,
+      movementName: movementLabel,
+      position: mode === 'certify' ? positionAt(wizard.step) : null,
+      reference: meta.reference,
+      at: new Date(),
+    };
+
+    try {
+      const canvas = document.createElement('canvas');
+      drawSnapshot(canvas, input, snapshotLogo.current);
+      const bytes = dataUrlToBytes(canvas.toDataURL('image/png'));
+      const name = snapshotFilename(input);
+      const file = new File([bytes], name, { type: 'image/png' });
+      const outcome = await deliverSnapshot(file);
+      setSnapshotNote(outcome === 'shared' ? 'Image shared.' : `Saved as ${name}`);
+    } catch (err) {
+      // Dismissing the share sheet rejects with AbortError. That is the
+      // operator changing their mind, not a failure to report.
+      if (err instanceof Error && err.name === 'AbortError') return;
+      setSnapshotNote('Could not save the image.');
+    }
+  }, [spreads, movementLabel, mode, wizard.step, meta.reference]);
+
+  useEffect(() => {
+    if (!snapshotNote) return;
+    const id = window.setTimeout(() => setSnapshotNote(null), 3200);
+    return () => window.clearTimeout(id);
+  }, [snapshotNote]);
 
   const secure = window.isSecureContext;
   const supported = typeof AudioWorkletNode !== 'undefined';
@@ -520,6 +673,12 @@ export default function App() {
             </div>
           )}
 
+          {/* What the screen is for. Above the readings because it changes
+              what everything below it means. */}
+          <div className="app__mode">
+            <ModeSwitch value={mode} onChange={selectMode} />
+          </div>
+
           <MeasurementPanel
             measurement={measurement}
             capturing={capturing}
@@ -528,17 +687,32 @@ export default function App() {
             spreads={spreads}
             onHelp={showHelp}
             onResetAverage={resetAverage}
+            onSnapshot={saveSnapshot}
+            guidance={mode === 'measure'}
           />
 
-          {capturing && (
-            <CaptureBar
-              position={position}
-              onSelectPosition={setPosition}
+          {snapshotNote && (
+            <p className="dim app__note" role="status">{snapshotNote}</p>
+          )}
+
+          {mode === 'certify' && (
+            <CertifyWizard
+              state={wizard}
+              capturing={capturing}
               settling={settling}
-              canCapture={measurement?.valid ?? false}
-              readings={readings}
-              onCapture={capture}
-              justCaptured={justCaptured}
+              valid={measurement?.valid ?? false}
+              seconds={secondsCaptured}
+              auto={autoCapture}
+              onAutoChange={changeAutoCapture}
+              onGo={wizardGo}
+              onCapture={wizardCapture}
+              onSkip={() => setWizard(advance)}
+              onNext={() => setWizard(advance)}
+              onRetry={() => setWizard(retry)}
+              onFinish={() => setWizard(finish)}
+              onRestart={restartWizard}
+              onOpenSummary={() => setSessionOpen(true)}
+              onJump={jumpWizard}
             />
           )}
 

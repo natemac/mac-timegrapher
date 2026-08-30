@@ -142,7 +142,7 @@ select {
   max-width: 720px;
   margin: 0 auto;
   padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
-  gap: 10px;
+  gap: 8px;
 }
 
 .app__masthead {
@@ -201,9 +201,17 @@ select {
    a large toolbar — the fixed panels leave the graph almost nothing, and a
    40-pixel trace is worse than no trace. Below the floor the app scrolls
    instead of crushing it. */
+/*
+   The one elastic block. Everything above it is a fixed cost — a masthead, a
+   setup panel, four readings, a meter — so the trace is what absorbs whatever
+   is left, and the floor is set low enough that it can still do that in
+   Certify mode, where the wizard takes a panel's worth of height the manual
+   view does not need. A short trace beats a scrolling app: the rule is one
+   view, and a strip that has to be scrolled to is a strip nobody watches.
+*/
 .app__graph {
   flex: 1 1 auto;
-  min-height: 150px;
+  min-height: 96px;
   display: flex;
   flex-direction: column;
   margin-bottom: 0;
@@ -625,8 +633,8 @@ select {
   position: absolute;
   top: 2px;
   bottom: 2px;
-  left: 2px;
-  width: calc(50% - 2px);
+  /* left and width come from the component, computed from the selected index:
+     the switch does not have to know what it is switching between. */
   background: var(--accent);
   border-radius: calc(var(--radius-sm) - 1px);
   /* Animating `left` rather than transform. A percentage transform would be
@@ -635,7 +643,6 @@ select {
      the percentage resolves against. */
   transition: left 260ms cubic-bezier(0.22, 1, 0.36, 1);
 }
-.switch[data-active='waveform'] .switch__thumb { left: 50%; }
 
 .switch__option {
   position: relative;   /* above the thumb */
@@ -665,4 +672,172 @@ select {
 
 @media (prefers-reduced-motion: reduce) {
   .switch__thumb, .switch__option { transition: none; }
+}
+
+
+/* ---------- Mode switch ----------
+   The primary control: it decides what the whole screen is for, so it is wider
+   and taller than the graph switch inside a panel header, and centred on its
+   own row where it reads as a heading for everything below it. */
+.app__mode {
+  display: flex;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.switch--mode {
+  width: 100%;
+  max-width: 300px;
+}
+
+.switch--mode .switch__option {
+  padding: 6px 14px;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+}
+
+/* ---------- Certification wizard ----------
+   One instruction, one action. Everything the operator needs at this moment is
+   on one line, because they are looking at a watch rather than at the screen. */
+.wizard {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* Tighter than a reading panel: it is one instruction and one button, and
+     every pixel here comes out of the trace. */
+  padding: 10px 12px;
+}
+
+.wizard__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.wizard__text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.wizard__line {
+  margin: 3px 0 0;
+  font-size: 12.5px;
+  line-height: 1.35;
+  color: var(--text-dim);
+}
+.wizard__line--good { color: var(--ok); }
+
+.wizard__actions {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.wizard__actions button {
+  font-size: 13px;
+  padding: 8px 13px;
+}
+
+/* Go restarts the average, which is the one irreversible thing in the run —
+   it is worth being the biggest target on the panel. */
+.wizard__go { min-width: 74px; }
+
+.wizard__foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.wizard__dots {
+  display: flex;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+/* A tap target rather than a 7px dot: the visible mark is drawn by ::after so
+   the button can be finger-sized without the row growing to match. */
+.wizard__dot {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  margin: -6px -3px;
+  padding: 0;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  border-radius: 50%;
+}
+.wizard__dot::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border-radius: 50%;
+  background: var(--panel-3);
+  transition: background 200ms ease, transform 200ms ease;
+}
+.wizard__dot[data-state='done']::after { background: var(--ok); }
+.wizard__dot[data-state='current']::after {
+  background: var(--accent);
+  transform: scale(1.35);
+}
+
+.wizard__auto {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.wizard__auto input { margin: 0; accent-color: var(--accent); }
+
+.wizard__finish {
+  background: none;
+  border: 0;
+  padding: 4px 0;
+  margin: 0;
+  color: var(--text-faint);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  flex: 0 0 auto;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.wizard__finish:hover { color: var(--text-dim); }
+
+@media (prefers-reduced-motion: reduce) {
+  .wizard__dot::after { transition: none; }
+}
+
+/* The two modes, named on the welcome screen so the switch on the next one is
+   already familiar. */
+.gate__modes {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 6px;
+}
+.gate__modes p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.gate__modes strong { color: var(--text); font-weight: 600; }
+
+/* Transient confirmation under the readings — it replaces nothing and pushes
+   nothing, because it is gone in three seconds. */
+.app__note {
+  margin: 0;
+  font-size: 12px;
+  text-align: center;
+  flex: 0 0 auto;
 }

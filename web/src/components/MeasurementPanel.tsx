@@ -24,6 +24,17 @@ interface Props {
   };
   onHelp: (t: Topic) => void;
   onResetAverage: () => void;
+  /** Save the reading on screen as an image. Absent while there is none. */
+  onSnapshot?: () => void;
+  /*
+     Whether this panel explains itself.
+
+     In a certification run the wizard is saying the same thing one step at a
+     time — and saying it better, because it knows which position is being
+     measured. Two lines of advice under one reading is one line too many in a
+     view that must not scroll.
+  */
+  guidance?: boolean;
 }
 
 /** The shortest analysis window is two seconds. */
@@ -67,6 +78,7 @@ function Reading({
 
 export function MeasurementPanel({
   measurement, capturing, secondsCaptured, settling, spreads, onHelp, onResetAverage,
+  onSnapshot, guidance = true,
 }: Props) {
   const m = measurement;
   const show = m?.valid ?? false;
@@ -80,23 +92,42 @@ export function MeasurementPanel({
         topic="measurement"
         onHelp={onHelp}
         right={capturing ? (
-          /*
-            Repositioning the watch makes a burst of noise the spread cannot
-            tell from the movement misbehaving, and it would otherwise sit in
-            the window for the next thirty seconds. This throws the average
-            away and starts again without stopping capture.
-          */
-          <button
-            className="panel__help-icon"
-            onClick={onResetAverage}
-            aria-label="Restart the average"
-            title="Restart the average"
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <path d="M3 12a9 9 0 1 0 2.6-6.4" strokeLinecap="round" />
-              <path d="M3 4v5h5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
+          <div style={{ display: 'flex', gap: 2 }}>
+            {/* Only once there is something worth saving — an image of four
+                dashes is not a reading. */}
+            {show && onSnapshot && (
+              <button
+                className="panel__help-icon"
+                onClick={onSnapshot}
+                aria-label="Save this reading as an image"
+                title="Save this reading as an image"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <rect x="3" y="6" width="18" height="14" rx="2.5" />
+                  <circle cx="12" cy="13" r="3.4" />
+                  <path d="M8.5 6l1.4-2.2h4.2L15.5 6" strokeLinejoin="round" />
+                </svg>
+              </button>
+            )}
+
+            {/*
+              Repositioning the watch makes a burst of noise the spread cannot
+              tell from the movement misbehaving, and it would otherwise sit in
+              the window for the next thirty seconds. This throws the average
+              away and starts again without stopping capture.
+            */}
+            <button
+              className="panel__help-icon"
+              onClick={onResetAverage}
+              aria-label="Restart the average"
+              title="Restart the average"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M3 12a9 9 0 1 0 2.6-6.4" strokeLinecap="round" />
+                <path d="M3 4v5h5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          </div>
         ) : undefined}
       />
 
@@ -141,6 +172,7 @@ export function MeasurementPanel({
         </div>
       )}
 
+      {guidance && (
       <p className="dim" style={{ fontSize: 12, marginBottom: 0, marginTop: 6 }}>
         {!capturing
           ? 'Press Start, then hold the watch against the sensor.'
@@ -152,6 +184,7 @@ export function MeasurementPanel({
                 ? 'Readings have stopped moving.'
                 : 'Still moving. Give it a few more seconds.'}
       </p>
+      )}
     </div>
   );
 }
