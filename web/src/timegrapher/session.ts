@@ -50,7 +50,23 @@ export interface SessionSummary {
   maxBeatError: number;
 }
 
+/*
+   What identifies the watch, rather than what was measured. Kept beside the
+   readings because a certificate without a reference is just a table of
+   numbers — it has to say which watch it describes.
+*/
+export interface SessionMeta {
+  /** Build number, movement serial, job number — whatever the shop uses. */
+  reference: string;
+  /** Who took the readings. Printed on the certificate. */
+  technician: string;
+  notes: string;
+}
+
+export const EMPTY_META: SessionMeta = { reference: '', technician: '', notes: '' };
+
 const STORAGE_KEY = 'mac-timegrapher.session';
+const META_KEY = 'mac-timegrapher.session-meta';
 
 export function positionName(id: PositionId): string {
   return POSITIONS.find((p) => p.id === id)?.name ?? id;
@@ -101,9 +117,29 @@ export function save(readings: Reading[]): void {
   }
 }
 
+export function loadMeta(): SessionMeta {
+  try {
+    const raw = localStorage.getItem(META_KEY);
+    if (!raw) return EMPTY_META;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? { ...EMPTY_META, ...parsed } : EMPTY_META;
+  } catch {
+    return EMPTY_META;
+  }
+}
+
+export function saveMeta(meta: SessionMeta): void {
+  try {
+    localStorage.setItem(META_KEY, JSON.stringify(meta));
+  } catch {
+    /* nothing to do */
+  }
+}
+
 export function clear(): void {
   try {
     localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(META_KEY);
   } catch {
     /* nothing to do */
   }

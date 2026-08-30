@@ -8,7 +8,7 @@
 */
 import { useEffect, useRef, useState } from 'react';
 import {
-  POSITIONS, summarise, toTable, type Reading,
+  POSITIONS, summarise, toTable, type Reading, type SessionMeta,
 } from '../timegrapher/session';
 
 interface Props {
@@ -16,6 +16,9 @@ interface Props {
   onClose: () => void;
   readings: Reading[];
   movementName: string | null;
+  meta: SessionMeta;
+  onChangeMeta: (m: SessionMeta) => void;
+  onPrint: () => void;
   onClear: () => void;
 }
 
@@ -31,7 +34,9 @@ function Row({ label, value, unit }: { label: string; value: string; unit?: stri
   );
 }
 
-export function SessionSheet({ open, onClose, readings, movementName, onClear }: Props) {
+export function SessionSheet({
+  open, onClose, readings, movementName, meta, onChangeMeta, onPrint, onClear,
+}: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const [copied, setCopied] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
@@ -136,8 +141,36 @@ export function SessionSheet({ open, onClose, readings, movementName, onClear }:
                 will not fix.
               </p>
 
+              {/* What identifies the watch. A certificate without a reference
+                  is a table of numbers that could belong to anything. */}
+              <h3 style={{ marginTop: 20 }}>Certificate details</h3>
+              <div style={{ display: 'grid', gap: 8 }}>
+                <input
+                  className="field"
+                  placeholder="Reference or build number"
+                  value={meta.reference}
+                  onChange={(e) => onChangeMeta({ ...meta, reference: e.target.value })}
+                />
+                <input
+                  className="field"
+                  placeholder="Measured by"
+                  value={meta.technician}
+                  onChange={(e) => onChangeMeta({ ...meta, technician: e.target.value })}
+                />
+                <textarea
+                  className="field"
+                  placeholder="Notes (optional)"
+                  rows={2}
+                  value={meta.notes}
+                  onChange={(e) => onChangeMeta({ ...meta, notes: e.target.value })}
+                />
+              </div>
+
               <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
-                <button onClick={copy} style={{ flex: '1 1 auto', fontSize: 13 }}>
+                <button onClick={onPrint} style={{ flex: '1 1 100%', fontSize: 13 }}>
+                  Certificate — print or save as PDF
+                </button>
+                <button className="secondary" onClick={copy} style={{ flex: '1 1 auto', fontSize: 13 }}>
                   {copied ? 'Copied' : 'Copy results'}
                 </button>
                 <button

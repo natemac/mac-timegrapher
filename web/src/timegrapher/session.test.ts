@@ -9,6 +9,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   upsert, summarise, load, save, clear, toTable, positionName,
+  loadMeta, saveMeta, EMPTY_META,
   type Reading, type PositionId,
 } from './session';
 
@@ -122,5 +123,38 @@ describe('toTable', () => {
 describe('positionName', () => {
   it('gives the bench name', () => {
     expect(positionName('crown-down')).toBe('Crown down');
+  });
+});
+
+describe('session metadata', () => {
+  beforeEach(() => clear());
+
+  it('starts empty', () => {
+    expect(loadMeta()).toEqual(EMPTY_META);
+  });
+
+  it('round trips', () => {
+    saveMeta({ reference: '0042', technician: 'NM', notes: 'after service' });
+    expect(loadMeta().reference).toBe('0042');
+  });
+
+  it('fills in fields missing from older stored data', () => {
+    localStorage.setItem('mac-timegrapher.session-meta', '{"reference":"0042"}');
+    expect(loadMeta()).toEqual({ reference: '0042', technician: '', notes: '' });
+  });
+
+  it('survives corrupt stored metadata', () => {
+    localStorage.setItem('mac-timegrapher.session-meta', 'not json');
+    expect(loadMeta()).toEqual(EMPTY_META);
+  });
+
+  it('is cleared along with the readings', () => {
+    // Clearing a session must not leave the previous watch's reference behind
+    // to be printed on the next certificate.
+    saveMeta({ reference: '0042', technician: 'NM', notes: '' });
+    save([reading('dial-up', 1)]);
+    clear();
+    expect(loadMeta()).toEqual(EMPTY_META);
+    expect(load()).toEqual([]);
   });
 });

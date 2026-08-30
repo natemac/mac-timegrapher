@@ -29,7 +29,9 @@ import { useWakeLock } from './hooks/useWakeLock';
 import { SessionSheet } from './components/SessionSheet';
 import { CaptureBar } from './components/CaptureBar';
 import * as sessionStore from './timegrapher/session';
-import type { PositionId, Reading } from './timegrapher/session';
+import type { PositionId, Reading, SessionMeta } from './timegrapher/session';
+import { Certificate } from './components/Certificate';
+import { DEFAULT_LIFT_ANGLE } from './timegrapher/movements';
 
 function describeError(err: unknown): string {
   if (!(err instanceof Error)) return 'Could not open the audio input.';
@@ -90,6 +92,12 @@ export default function App() {
   const [readings, setReadings] = useState<Reading[]>(() => sessionStore.load());
   const [position, setPosition] = useState<PositionId>('dial-up');
   const [justCaptured, setJustCaptured] = useState(false);
+  const [meta, setMeta] = useState<SessionMeta>(() => sessionStore.loadMeta());
+
+  const updateMeta = useCallback((next: SessionMeta) => {
+    setMeta(next);
+    sessionStore.saveMeta(next);
+  }, []);
 
   const showHelp = useCallback((topic: Topic) => {
     setHelpTopic(topic);
@@ -174,8 +182,20 @@ export default function App() {
 
   const clearSession = useCallback(() => {
     setReadings([]);
+    setMeta(sessionStore.EMPTY_META);
     sessionStore.clear();
     setSessionOpen(false);
+  }, []);
+
+  /*
+    Close the sheet before printing. The print stylesheet hides it anyway, but
+    a modal left open behind the print dialog is disorienting when it returns —
+    and on iOS the dialog is a full-screen takeover, so the app underneath
+    should be in a sensible state when it comes back.
+  */
+  const printCertificate = useCallback(() => {
+    setSessionOpen(false);
+    window.setTimeout(() => window.print(), 60);
   }, []);
 
 
@@ -235,6 +255,9 @@ export default function App() {
       setSettling('waiting');
     };
   }, [capturing, sampleRate, movementId]);
+
+  const chosenMovement = findMovement(movementId);
+  const movementLabel = chosenMovement ? `${chosenMovement.maker} ${chosenMovement.name}` : null;
 
   const secure = window.isSecureContext;
   const supported = typeof AudioWorkletNode !== 'undefined';
@@ -362,6 +385,7 @@ export default function App() {
   };
 
   return (
+    <>
     <div className={granted ? 'app app--measuring' : 'app'}>
       <header className="app__masthead">
         <img
@@ -404,9 +428,13 @@ export default function App() {
         open={sessionOpen}
         onClose={() => setSessionOpen(false)}
         readings={readings}
-        movementName={findMovement(movementId) ? `${findMovement(movementId)!.maker} ${findMovement(movementId)!.name}` : null}
+        movementName={movementLabel}
+        meta={meta}
+        onChangeMeta={updateMeta}
+        onPrint={printCertificate}
         onClear={clearSession}
       />
+
 
       <SettingsSheet
         open={sheetOpen}
@@ -520,5 +548,20 @@ export default function App() {
         </>
       )}
     </div>
+
+    {/*
+      Outside .app on purpose. The print stylesheet hides .app, and a hidden
+      parent hides its children however they are styled — nested here, printing
+      produced a blank page.
+    */}
+    <Certificate
+      readings={readings}
+      meta={meta}
+      movementName={movementLabel}
+      liftAngle={findMovement(movementId)?.liftAngle ?? DEFAULT_LIFT_ANGLE}
+      deviceLabel={devices.find((d) => d.deviceId === selectedId)?.label ?? null}
+      sampleRate={sampleRate}
+    />
+    </>
   );
 }

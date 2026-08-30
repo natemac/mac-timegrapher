@@ -407,3 +407,170 @@ select {
   text-align: center;
 }
 .icon-button { position: absolute; }
+
+/* ---------- Timing certificate ----------
+   Hidden on screen, revealed only for print. The browser's own "Save as PDF"
+   turns it into a document with selectable text and real page geometry, which
+   is better output than a canvas-based PDF library would give and costs
+   nothing in the bundle. */
+.certificate { display: none; }
+
+@media print {
+  /* Only the certificate prints. The app is a dark, viewport-height instrument
+     panel; printing it would waste a cartridge and read as nothing useful. */
+  .app,
+  .sheet__scrim { display: none !important; }
+
+  html, body {
+    background: #fff;
+    color: #000;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 18mm 16mm;
+  }
+
+  .certificate {
+    display: block;
+    font-family: var(--font);
+    color: #000;
+    /* Print colour management varies; state black explicitly rather than
+       relying on inherited theme tokens, which may be light-on-dark. */
+    background: #fff;
+    font-size: 10.5pt;
+    line-height: 1.45;
+  }
+
+  .certificate__head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    border-bottom: 1.5pt solid #000;
+    padding-bottom: 8pt;
+    margin-bottom: 16pt;
+  }
+
+  .certificate__logo { width: 46mm; height: auto; }
+
+  .certificate__title {
+    font-size: 13pt;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+
+  .certificate__facts {
+    display: grid;
+    grid-template-columns: max-content 1fr max-content 1fr;
+    gap: 4pt 10pt;
+    margin: 0 0 18pt;
+  }
+  .certificate__facts dt {
+    font-size: 8pt;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #555;
+    align-self: baseline;
+  }
+  .certificate__facts dd { margin: 0; font-weight: 500; }
+
+  .certificate__table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 14pt;
+  }
+  .certificate__table th {
+    text-align: right;
+    font-size: 8pt;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 600;
+    border-bottom: 0.75pt solid #000;
+    padding: 0 0 4pt;
+  }
+  .certificate__table th span {
+    display: block;
+    font-weight: 400;
+    color: #666;
+    letter-spacing: 0.04em;
+  }
+  .certificate__table th:first-child,
+  .certificate__table td:first-child { text-align: left; }
+  .certificate__table td {
+    text-align: right;
+    padding: 5pt 0;
+    border-bottom: 0.25pt solid #bbb;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .certificate__summary {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 16pt;
+  }
+  .certificate__summary th {
+    text-align: left;
+    font-size: 8pt;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #555;
+    font-weight: 400;
+    padding: 3pt 8pt 3pt 0;
+    width: 1%;
+    white-space: nowrap;
+  }
+  .certificate__summary td {
+    padding: 3pt 18pt 3pt 0;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .certificate__notes { margin-bottom: 16pt; }
+  .certificate__notes-label {
+    font-size: 8pt;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #555;
+    margin-bottom: 3pt;
+  }
+  .certificate__notes p { margin: 0; }
+
+  .certificate__sign {
+    display: flex;
+    gap: 16mm;
+    margin: 22pt 0 16pt;
+  }
+  .certificate__sign-line { flex: 1; }
+  .certificate__sign-line span {
+    display: block;
+    border-top: 0.75pt solid #000;
+    padding-top: 3pt;
+    font-size: 8pt;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #555;
+  }
+
+  .certificate__method {
+    border-top: 0.25pt solid #bbb;
+    padding-top: 8pt;
+    font-size: 7.5pt;
+    line-height: 1.5;
+    color: #444;
+  }
+  .certificate__method p { margin: 0 0 4pt; }
+  .certificate__method strong { color: #000; }
+}
+
+.field {
+  font: inherit;
+  font-size: 14px;
+  width: 100%;
+  padding: 10px;
+  background: var(--panel-3);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  resize: vertical;
+}
+.field::placeholder { color: var(--text-faint); }
