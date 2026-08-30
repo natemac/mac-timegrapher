@@ -61,3 +61,6 @@ Makefile.in
 
 # core build artefacts
 /tg-process
+
+# wasm toolchain build tree (FFTW source + objects, rebuilt by wasm/build-fftw.sh)
+/wasm/build/
