@@ -36,12 +36,14 @@ interface WasmModule {
   _tgw_init(sampleRate: number, bph: number, liftAngle: number): number;
   _tgw_push(handle: number, ptr: number, count: number): void;
   _tgw_result(handle: number, ptr: number): void;
+  _tgw_events(handle: number, timePtr: number, tictocPtr: number, max: number): number;
   _tgw_destroy(handle: number): void;
   _tgw_result_fields(): number;
   _malloc(bytes: number): number;
   _free(ptr: number): void;
   HEAPF32: Float32Array;
   HEAPF64: Float64Array;
+  HEAPU8: Uint8Array;
 }
 
 let mod: WasmModule | null = null;
@@ -49,6 +51,11 @@ let handle = 0;
 let scratch = 0;
 let scratchSamples = 0;
 let resultPtr = 0;
+let eventTimePtr = 0;
+let eventTicTocPtr = 0;
+
+/** Matches EVENTS_MAX in core/tg_core.h. */
+const MAX_EVENTS = 100;
 let timer: ReturnType<typeof setInterval> | null = null;
 let sampleRate = 0;
 let samplesSeen = 0;
@@ -62,11 +69,15 @@ function release() {
     mod._tgw_destroy(handle);
     if (scratch) mod._free(scratch);
     if (resultPtr) mod._free(resultPtr);
+    if (eventTimePtr) mod._free(eventTimePtr);
+    if (eventTicTocPtr) mod._free(eventTicTocPtr);
   }
   handle = 0;
   scratch = 0;
   scratchSamples = 0;
   resultPtr = 0;
+  eventTimePtr = 0;
+  eventTicTocPtr = 0;
   samplesSeen = 0;
 }
 
@@ -75,8 +86,20 @@ function emitMeasurement() {
   mod._tgw_result(handle, resultPtr);
   const base = resultPtr >> 3;
   const h = mod.HEAPF64;
+
+  // Beat positions for the trace. Absolute seconds since capture started, so
+  // the main thread can dedupe across the overlapping windows each call reports.
+  const count = mod._tgw_events(handle, eventTimePtr, eventTicTocPtr, MAX_EVENTS);
+  const times = new Float64Array(count);
+  const isTick = new Uint8Array(count);
+  for (let i = 0; i < count; i++) {
+    times[i] = mod.HEAPF64[(eventTimePtr >> 3) + i];
+    isTick[i] = mod.HEAPU8[eventTicTocPtr + i];
+  }
+
   self.postMessage({
     type: 'result',
+    beats: { times, isTick },
     measurement: {
       rate: h[base + R_RATE],
       amplitude: h[base + R_AMPLITUDE],
@@ -109,6 +132,8 @@ self.onmessage = async (event: MessageEvent) => {
           return;
         }
         resultPtr = mod._malloc(mod._tgw_result_fields() * 8);
+        eventTimePtr = mod._malloc(MAX_EVENTS * 8);
+        eventTicTocPtr = mod._malloc(MAX_EVENTS);
         timer = setInterval(emitMeasurement, MEASURE_INTERVAL_MS);
         self.postMessage({ type: 'ready' });
         break;

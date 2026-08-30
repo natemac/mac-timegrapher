@@ -12,7 +12,7 @@ import {
   type AudioInput,
 } from './audio/device-manager';
 import { startCapture, type CaptureSession, type ProcessingWarning } from './audio/audio-engine';
-import { measureLevel, type LevelReading } from './audio/level-meter';
+import { SignalMeter, type SignalState } from './audio/signal-strength';
 import { WavRecorder } from './audio/wav-recorder';
 import { PermissionGate } from './components/PermissionGate';
 import { DeviceSelector } from './components/DeviceSelector';
@@ -21,7 +21,9 @@ import { WaveformCanvas } from './components/WaveformCanvas';
 import { RecorderPanel } from './components/RecorderPanel';
 import { SourceFooter } from './components/SourceFooter';
 import { MeasurementPanel } from './components/MeasurementPanel';
-import { TimegrapherEngine, type Measurement } from './timegrapher/tg-engine';
+import { TimegrapherEngine, type Measurement, type Beat } from './timegrapher/tg-engine';
+import { StabilityTracker, type Settling, type Spread } from './timegrapher/stability';
+import { TraceCanvas } from './components/TraceCanvas';
 
 function describeError(err: unknown): string {
   if (!(err instanceof Error)) return 'Could not open the audio input.';
@@ -48,9 +50,13 @@ export default function App() {
   const [sampleRate, setSampleRate] = useState<number | null>(null);
   const [requestedSampleRate, setRequestedSampleRate] = useState<number | null>(null);
   const [warnings, setWarnings] = useState<ProcessingWarning[]>([]);
-  const [reading, setReading] = useState<LevelReading | null>(null);
+  const [signal, setSignal] = useState<SignalState | null>(null);
   const [latest, setLatest] = useState<Float32Array | null>(null);
   const [measurement, setMeasurement] = useState<Measurement | null>(null);
+  const [beats, setBeats] = useState<Beat[]>([]);
+  const [settling, setSettling] = useState<Settling>('waiting');
+  const [spreads, setSpreads] = useState<{ rate: Spread | null; amplitude: Spread | null; beatError: Spread | null }>({ rate: null, amplitude: null, beatError: null });
+  const [graph, setGraph] = useState<'trace' | 'waveform'>('trace');
   const [secondsCaptured, setSecondsCaptured] = useState(0);
   const [capturing, setCapturing] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -59,6 +65,11 @@ export default function App() {
 
   const session = useRef<CaptureSession | null>(null);
   const engine = useRef<TimegrapherEngine | null>(null);
+  const meter = useRef(new SignalMeter());
+  const stability = useRef(new StabilityTracker());
+  // Beats accumulate across calls; the core re-reports overlapping windows,
+  // so they are keyed by time to dedupe.
+  const beatStore = useRef(new Map<number, Beat>());
   const recorder = useRef<WavRecorder | null>(null);
   const isRecording = useRef(false);
   // Guards start/stop against re-entry. A ref rather than `busy` alone
@@ -112,7 +123,7 @@ export default function App() {
 
   const handleBlock = useCallback((block: Float32Array) => {
     engine.current?.push(block);
-    setReading(measureLevel(block));
+    setSignal(meter.current.push(block, block.length / (session.current?.sampleRate ?? 48000)));
     setLatest(block);
     if (isRecording.current && recorder.current) {
       recorder.current.push(block);
@@ -143,7 +154,13 @@ export default function App() {
     setCapturing(false);
     // Every live-updating display has to be cleared: a frozen waveform and a
     // frozen level meter both read as though capture were still running.
-    setReading(null);
+    setSignal(null);
+    meter.current.reset();
+    stability.current.reset();
+    beatStore.current.clear();
+    setBeats([]);
+    setSettling('waiting');
+    setSpreads({ rate: null, amplitude: null, beatError: null });
     setLatest(null);
     // Duration is the exception. Once a recording has ended it is no longer a
     // live counter but that recording's final length — the one number a
@@ -188,9 +205,27 @@ export default function App() {
         sampleRate: s.sampleRate,
         bph: 0,           // detect automatically until movement presets land
         liftAngle: 52,    // tg's default; per-movement values come with presets
-        onMeasurement: (m, seconds) => {
+        onMeasurement: (m, seconds, newBeats) => {
           setMeasurement(m);
           setSecondsCaptured(seconds);
+
+          for (const b of newBeats) beatStore.current.set(b.time, b);
+          // Keep a minute of beats; the trace shows thirty seconds of them.
+          const cutoff = seconds - 60;
+          for (const key of beatStore.current.keys()) {
+            if (key < cutoff) beatStore.current.delete(key);
+          }
+          setBeats([...beatStore.current.values()].sort((a, b) => a.time - b.time));
+
+          if (m.valid) {
+            stability.current.push(seconds, m.rate, m.amplitude, m.beatError);
+            setSpreads({
+              rate: stability.current.spread('rate'),
+              amplitude: stability.current.spread('amplitude'),
+              beatError: stability.current.spread('beatError'),
+            });
+          }
+          setSettling(stability.current.settling(seconds));
         },
         // Capture still works without measurement — the meter, waveform and
         // recorder are useful on their own — so report and carry on.
@@ -304,9 +339,33 @@ export default function App() {
             measurement={measurement}
             capturing={capturing}
             secondsCaptured={secondsCaptured}
+            settling={settling}
+            spreads={spreads}
           />
-          <LevelMeter reading={reading} />
-          <WaveformCanvas latest={latest} />
+          <LevelMeter signal={signal} />
+
+          <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+            {(['trace', 'waveform'] as const).map((g) => (
+              <button
+                key={g}
+                className={graph === g ? undefined : 'secondary'}
+                style={{ fontSize: 13, padding: '7px 14px', textTransform: 'capitalize' }}
+                onClick={() => setGraph(g)}
+              >
+                {g}
+              </button>
+            ))}
+          </div>
+
+          {graph === 'trace' ? (
+            <TraceCanvas
+              beats={beats}
+              bph={measurement?.detectedBph ?? 0}
+              capturing={capturing}
+            />
+          ) : (
+            <WaveformCanvas latest={latest} />
+          )}
           <RecorderPanel
             recording={recording}
             duration={duration}

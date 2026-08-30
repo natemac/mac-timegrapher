@@ -21,12 +21,19 @@ export interface Measurement {
   valid: boolean;
 }
 
+/** One detected beat: when it happened, and whether it was a tick or a tock. */
+export interface Beat {
+  /** Seconds since capture started. */
+  time: number;
+  isTick: boolean;
+}
+
 export interface EngineOptions {
   sampleRate: number;
   /** 0 to detect the beat rate automatically. */
   bph: number;
   liftAngle: number;
-  onMeasurement: (m: Measurement, secondsCaptured: number) => void;
+  onMeasurement: (m: Measurement, secondsCaptured: number, beats: Beat[]) => void;
   onError: (message: string) => void;
 }
 
@@ -50,7 +57,12 @@ export class TimegrapherEngine {
 
     worker.onmessage = (event: MessageEvent) => {
       const msg = event.data;
-      if (msg.type === 'result') this.onMeasurement(msg.measurement, msg.secondsCaptured);
+      if (msg.type === 'result') {
+        const { times, isTick } = msg.beats as { times: Float64Array; isTick: Uint8Array };
+        const beats: Beat[] = new Array(times.length);
+        for (let i = 0; i < times.length; i++) beats[i] = { time: times[i], isTick: isTick[i] === 1 };
+        this.onMeasurement(msg.measurement, msg.secondsCaptured, beats);
+      }
       else if (msg.type === 'error') this.onError(msg.message);
     };
     worker.onerror = () => this.onError('The measurement engine stopped unexpectedly.');

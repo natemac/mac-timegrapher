@@ -78,6 +78,12 @@ void tgw_result(tg_handle h, double *out)
 }
 
 EMSCRIPTEN_KEEPALIVE
+int tgw_events(tg_handle h, double *out_time, unsigned char *out_tictoc, int max)
+{
+	return tg_get_events(h, out_time, out_tictoc, max);
+}
+
+EMSCRIPTEN_KEEPALIVE
 void tgw_reset(tg_handle h)
 {
 	tg_reset(h);

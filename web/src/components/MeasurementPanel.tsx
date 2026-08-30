@@ -7,75 +7,150 @@
     published by the Free Software Foundation.
 */
 import type { Measurement } from '../timegrapher/tg-engine';
+import type { Settling, Spread } from '../timegrapher/stability';
 
 interface Props {
   measurement: Measurement | null;
   capturing: boolean;
   secondsCaptured: number;
+  settling: Settling;
+  spreads: {
+    rate: Spread | null;
+    amplitude: Spread | null;
+    beatError: Spread | null;
+  };
 }
 
 /** The shortest analysis window is two seconds; nothing is shown before that. */
 const MIN_SECONDS = 2;
 
-function Reading({ label, value, unit }: { label: string; value: string; unit?: string }) {
+/** An em dash, not a zero: an untrustworthy reading must not look measured. */
+const DASH = '—';
+
+const SETTLING_LABEL: Record<Settling, string> = {
+  waiting: 'Listening',
+  moving: 'Moving',
+  settling: 'Settling',
+  settled: 'Settled',
+};
+
+function Reading({
+  label,
+  value,
+  unit,
+  spread,
+  format,
+}: {
+  label: string;
+  value: string;
+  unit?: string;
+  spread: Spread | null;
+  format?: (n: number) => string;
+}) {
   return (
-    <div style={{ flex: '1 1 140px', minWidth: 140 }}>
-      <div className="dim" style={{ fontSize: 12, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+    <div style={{ flex: '1 1 150px', minWidth: 150 }}>
+      <div
+        className="dim"
+        style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase' }}
+      >
         {label}
       </div>
-      <div className="mono" style={{ fontSize: 34, lineHeight: 1.15, fontWeight: 500 }}>
+      <div
+        className="mono"
+        style={{ fontSize: 36, lineHeight: 1.1, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}
+      >
         {value}
-        {unit && <span className="dim" style={{ fontSize: 15, marginLeft: 5 }}>{unit}</span>}
+        {unit && <span className="dim" style={{ fontSize: 14, marginLeft: 5 }}>{unit}</span>}
+      </div>
+      {/* The spread is the point: a number without it cannot be judged. */}
+      <div className="mono dim" style={{ fontSize: 12, minHeight: 17 }}>
+        {spread && format ? `±${format(spread.plusMinus)} over ${Math.round(spread.count / 2)}s` : ''}
       </div>
     </div>
   );
 }
 
-export function MeasurementPanel({ measurement, capturing, secondsCaptured }: Props) {
-  const warmingUp = capturing && secondsCaptured < MIN_SECONDS;
+export function MeasurementPanel({
+  measurement,
+  capturing,
+  secondsCaptured,
+  settling,
+  spreads,
+}: Props) {
   const m = measurement;
   const show = m?.valid ?? false;
-
-  // An em dash rather than a zero: a reading that is not yet trustworthy must
-  // not look like a measured value of zero.
-  const dash = '—';
+  const warmingUp = capturing && secondsCaptured < MIN_SECONDS;
+  const hasAmplitude = show && m!.amplitude > 0;
 
   return (
     <div className="panel">
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20 }}>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'baseline',
+          marginBottom: 14,
+        }}
+      >
+        <h2 style={{ margin: 0, fontSize: 15 }}>Measurement</h2>
+        {capturing && (
+          <span
+            className="mono"
+            style={{
+              fontSize: 11,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              color: settling === 'settled' ? 'var(--ok)' : 'var(--text-dim)',
+            }}
+          >
+            {SETTLING_LABEL[settling]}
+          </span>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 22 }}>
         <Reading
           label="Rate"
-          value={show ? `${m!.rate >= 0 ? '+' : ''}${m!.rate.toFixed(1)}` : dash}
+          value={show ? `${m!.rate >= 0 ? '+' : ''}${m!.rate.toFixed(1)}` : DASH}
           unit={show ? 's/day' : undefined}
+          spread={show ? spreads.rate : null}
+          format={(n) => n.toFixed(1)}
         />
         <Reading
           label="Amplitude"
-          value={show && m!.amplitude > 0 ? m!.amplitude.toFixed(0) : dash}
-          unit={show && m!.amplitude > 0 ? '°' : undefined}
+          value={hasAmplitude ? m!.amplitude.toFixed(0) : DASH}
+          unit={hasAmplitude ? '°' : undefined}
+          spread={hasAmplitude ? spreads.amplitude : null}
+          format={(n) => n.toFixed(0)}
         />
         <Reading
           label="Beat error"
-          value={show ? m!.beatError.toFixed(1) : dash}
+          value={show ? m!.beatError.toFixed(1) : DASH}
           unit={show ? 'ms' : undefined}
+          spread={show ? spreads.beatError : null}
+          format={(n) => n.toFixed(2)}
         />
         <Reading
           label="Beat rate"
-          value={show ? m!.detectedBph.toLocaleString() : dash}
+          value={show ? m!.detectedBph.toLocaleString() : DASH}
           unit={show ? 'bph' : undefined}
+          spread={null}
         />
       </div>
 
-      <p className="dim" style={{ fontSize: 13, marginBottom: 0, marginTop: 16 }}>
+      <p className="dim" style={{ fontSize: 13, marginBottom: 0, marginTop: 6 }}>
         {!capturing
           ? 'Press Start, then hold the watch against the sensor.'
           : warmingUp
             ? `Listening… ${secondsCaptured.toFixed(0)} s of the ${MIN_SECONDS} s needed for a first reading.`
-            : show
-              ? `Signal ${(m!.signalQuality * 100).toFixed(0)}% · readings settle over about 30 seconds.`
-              : 'No stable reading yet. Check the watch is in firm contact with the sensor.'}
+            : !show
+              ? 'No stable reading yet. Check the watch is in firm contact with the sensor.'
+              : settling === 'settled'
+                ? 'Readings have stopped moving. Safe to record.'
+                : 'Readings are still moving. Give it a few more seconds.'}
       </p>
 
-      {show && m!.amplitude === 0 && (
+      {show && !hasAmplitude && (
         <p className="warn" style={{ fontSize: 13, marginBottom: 0 }}>
           Amplitude is outside the measurable range. Rate and beat error are still valid.
         </p>

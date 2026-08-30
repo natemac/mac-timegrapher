@@ -37,6 +37,10 @@ struct tg_state {
 	int      ring_size;
 	int      write_pos;
 	uint64_t total_pushed;
+
+	/* The window whose analysis was accepted by the last tg_get_result, so
+	   tg_get_events can read the beat positions it found. NULL until then. */
+	struct processing_buffers *selected;
 };
 
 /*
@@ -153,7 +157,16 @@ tg_result tg_get_result(tg_handle h)
 		if((uint64_t)h->steps[i].sample_count > h->total_pushed) break;
 		fill_step(h, &h->steps[i]);
 		h->steps[i].last_tic = 0;
-		h->steps[i].events_from = 0;
+		/* locate_events() sizes a stack array from (timestamp - events_from)
+		   and gives up entirely if that spans more than EVENTS_MAX beats, so
+		   this window has to stay short. Four seconds is at most ~82 events
+		   even at 72000 bph, comfortably inside the limit, and the caller
+		   polls far more often than that. Leaving it at 0 means the core
+		   silently reports no beats at all. */
+		h->steps[i].events_from =
+			h->steps[i].timestamp > (uint64_t)(4 * h->config.sample_rate)
+				? h->steps[i].timestamp - (uint64_t)(4 * h->config.sample_rate)
+				: 0;
 		process(&h->steps[i], h->config.bph, h->config.lift_angle, 0);
 		if(!h->steps[i].ready) break;
 		ready++;
@@ -165,11 +178,13 @@ tg_result tg_get_result(tg_handle h)
 	for(; i >= 0 && h->steps[i].sigma > h->steps[i].period / 10000; i--);
 
 	if(i < 0) {
+		h->selected = NULL;
 		r.detected_bph = h->config.bph ? h->config.bph : DEFAULT_BPH;
 		return r;
 	}
 
 	struct processing_buffers *p = &h->steps[i];
+	h->selected = p;
 	double sample_rate = h->config.sample_rate;
 
 	/* The conversions below are compute_results() verbatim, minus the
@@ -188,9 +203,30 @@ tg_result tg_get_result(tg_handle h)
 	return r;
 }
 
+int tg_get_events(tg_handle h, double *out_time, unsigned char *out_tictoc, int max)
+{
+	if(!h || !h->selected || !out_time || !out_tictoc || max <= 0) return 0;
+
+	struct processing_buffers *p = h->selected;
+	double rate = h->config.sample_rate;
+	int n = 0;
+
+	/* p->events is a 0-terminated list of absolute sample positions. Returned
+	   as seconds since capture started: the trace plots beats against time,
+	   and a double holds that exactly for far longer than any session. */
+	for(int i = 0; i < EVENTS_MAX && n < max; i++) {
+		if(p->events[i] == 0) break;
+		out_time[n] = (double)p->events[i] / rate;
+		out_tictoc[n] = p->events_tictoc[i];
+		n++;
+	}
+	return n;
+}
+
 void tg_reset(tg_handle h)
 {
 	if(!h) return;
+	h->selected = NULL;
 	memset(h->ring, 0, h->ring_size * sizeof(float));
 	h->write_pos = 0;
 	h->total_pushed = 0;

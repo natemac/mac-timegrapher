@@ -156,6 +156,14 @@ void tg_push_samples(tg_handle h, const float *samples, int count);
 /* Runs the analysis over the samples pushed so far. */
 tg_result tg_get_result(tg_handle h);
 
+/*
+   Beat positions found by the most recent tg_get_result, as seconds since
+   capture started, with 1 for a tick and 0 for a tock. Returns how many were
+   written. This is what a paper-strip trace plots: each beat is a mark, and
+   the slope of the resulting line is the rate.
+*/
+int tg_get_events(tg_handle h, double *out_time, unsigned char *out_tictoc, int max);
+
 /* Discards accumulated audio, keeping the configuration. */
 void tg_reset(tg_handle h);
 
