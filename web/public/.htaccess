@@ -1,0 +1,13 @@
+# MAC Bespoke Web Timegrapher
+# Copyright (C) 2026 MAC Bespoke Watch Co.
+# Licensed under the GNU General Public License version 2.
+#
+# Scoped to this directory only. The site root's .htaccess owns the HTTPS
+# redirect and security headers and is deliberately not touched here.
+#
+# Without this the host serves .wasm as text/plain, and because the site sends
+# X-Content-Type-Options: nosniff the browser refuses to instantiate it.
+# WebAssembly.instantiateStreaming requires application/wasm exactly.
+<IfModule mod_mime.c>
+    AddType application/wasm .wasm
+</IfModule>

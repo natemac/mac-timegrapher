@@ -64,3 +64,6 @@ Makefile.in
 
 # wasm toolchain build tree (FFTW source + objects, rebuilt by wasm/build-fftw.sh)
 /wasm/build/
+
+# the app ships its own scoped .htaccess; upstream .gitignore hides dotfiles
+!/web/public/.htaccess

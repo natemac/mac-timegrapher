@@ -95,6 +95,13 @@ source directly available to anyone running it.
 `assets/`. It is fetched at runtime by `AudioWorklet.addModule` from
 `${BASE_URL}capture-worklet.js`, so a bundler-hashed name would break it.
 
+`dist/.htaccess` must be uploaded too. The host serves `.wasm` as `text/plain`,
+and because the site sends `X-Content-Type-Options: nosniff` the browser then
+refuses to instantiate it — `WebAssembly.instantiateStreaming` requires
+`application/wasm` exactly. That file is scoped to this directory and adds only
+the MIME type; the site root's `.htaccess`, which owns the HTTPS redirect and
+security headers, is deliberately left alone.
+
 Finally, clear the CDN cache (`hosting_clearWebsiteCacheV1`).
 
 ## Verify
@@ -103,10 +110,12 @@ Finally, clear the CDN cache (`hosting_clearWebsiteCacheV1`).
 curl -sI https://macwatches.com/tools/timegrapher/ | head -3
 curl -s https://macwatches.com/tools/timegrapher/ | grep -o '/tools/timegrapher/assets/[^"]*'
 curl -sI https://macwatches.com/tools/timegrapher/capture-worklet.js | head -1
+curl -sI https://macwatches.com/tools/timegrapher/assets/tg-core-*.wasm | grep -i content-type
 ```
 
-Expect `HTTP/2 200`, asset paths under `/tools/timegrapher/assets/`, and a 200
-for the worklet. Then open the page and confirm the microphone permission
+Expect `HTTP/2 200`, asset paths under `/tools/timegrapher/assets/`, a 200 for
+the worklet, and **`content-type: application/wasm`** — `text/plain` there means
+the `.htaccess` did not upload and the measurement engine will not start. Then open the page and confirm the microphone permission
 prompt appears — if it does not, the secure-context check failed.
 
 ## Why this needs no server configuration
