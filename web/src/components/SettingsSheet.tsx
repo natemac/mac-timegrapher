@@ -20,9 +20,10 @@ export interface Settings {
      Whether the MAC mark appears — in the app, on the certificate and on a
      saved reading.
 
-     Branding is not covered by the GPL the way the code is, so a fork or
-     another shop running this has every reason to turn it off. The source link
-     in the footer is a licence obligation and is not affected by this.
+     Off by default. Branding is not covered by the GPL the way the code is,
+     and almost nobody running this is MAC — a stranger's logo on your own
+     timing certificate is worse than no logo at all. The source link in the
+     footer is a licence obligation and is not affected by this.
   */
   showLogo: boolean;
 }
@@ -32,12 +33,44 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   zoomMs: ZOOM_AUTO,
   traceSeconds: 30,
-  showLogo: true,
+  showLogo: false,
 };
 
 /* Magnification in the units a watchmaker already thinks in, plus Auto. */
 const ZOOM_CHOICES = [ZOOM_AUTO, ...ZOOM_STEPS];
 const HISTORY_STEPS = [15, 30, 60];
+
+const STORAGE_KEY = 'mac-timegrapher.settings';
+
+/**
+ * Stored settings merged over the defaults.
+ *
+ * Merged rather than replaced so a preference saved before a setting existed
+ * keeps working, and so turning the mark back on is done once — the stored
+ * value wins over the default, which is the whole point of the default being
+ * off.
+ */
+export function loadSettings(): Settings {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return DEFAULT_SETTINGS;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object'
+      ? { ...DEFAULT_SETTINGS, ...parsed }
+      : DEFAULT_SETTINGS;
+  } catch {
+    return DEFAULT_SETTINGS;
+  }
+}
+
+export function saveSettings(settings: Settings): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+  } catch {
+    // Private browsing or a full quota. A forgotten preference is not worth
+    // failing over.
+  }
+}
 
 interface Props {
   open: boolean;
@@ -177,9 +210,11 @@ export function SettingsSheet({
                 </label>
               </div>
               <p className="dim">
-                Hides the logo in the app, on the certificate and on a saved
-                reading. The open-source notice in the footer stays either way —
-                that one is a licence condition, not branding.
+                Off unless you turn it on, because most people running this are
+                not MAC. It covers the app, the certificate and a saved reading,
+                and it is remembered on this device. The open-source notice in
+                the footer stays either way — that one is a licence condition,
+                not branding.
               </p>
 
               <Choice

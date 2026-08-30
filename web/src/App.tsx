@@ -24,7 +24,9 @@ import { StabilityTracker, type Settling, type Spread } from './timegrapher/stab
 import { TraceCanvas } from './components/TraceCanvas';
 import { GraphSwitch, type Graph } from './components/GraphSwitch';
 import { resolveZoom, ZOOM_AUTO } from './timegrapher/trace-zoom';
-import { SettingsSheet, DEFAULT_SETTINGS, type Settings } from './components/SettingsSheet';
+import {
+  SettingsSheet, DEFAULT_SETTINGS, loadSettings, saveSettings, type Settings,
+} from './components/SettingsSheet';
 import type { Topic } from './components/guide-content';
 import { findMovement, engineConfigFor } from './timegrapher/movements';
 import { useWakeLock } from './hooks/useWakeLock';
@@ -142,24 +144,12 @@ export default function App() {
   }, []);
   // Remembered per device: magnification is a matter of taste and of what the
   // operator is doing, and re-picking it every session would be tedious.
-  const [settings, setSettings] = useState<Settings>(() => {
-    try {
-      const raw = localStorage.getItem('mac-timegrapher.settings');
-      return raw ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } : DEFAULT_SETTINGS;
-    } catch {
-      return DEFAULT_SETTINGS;
-    }
-  });
+  const [settings, setSettings] = useState<Settings>(loadSettings);
 
   const updateSettings = useCallback((next: Settings) => {
     setSettings(next);
     traceSecondsRef.current = next.traceSeconds;
-    try {
-      localStorage.setItem('mac-timegrapher.settings', JSON.stringify(next));
-    } catch {
-      // Private browsing or a full quota. A forgotten preference is not worth
-      // failing over.
-    }
+    saveSettings(next);
   }, []);
   const [secondsCaptured, setSecondsCaptured] = useState(0);
   const [capturing, setCapturing] = useState(false);
