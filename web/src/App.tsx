@@ -171,6 +171,64 @@ export default function App() {
     setSessionOpen(false);
   }, []);
 
+
+  // The engine is built from the movement, so it is created by an effect rather
+  // than inside start(): changing the movement mid-capture has to rebuild it,
+  // and previously that silently did nothing — the operator picked the right
+  // calibre, saw amplitude not move, and had no way to know why.
+  //
+  // Runs in a Worker. The analysis sweeps a sixteen-second window through seven
+  // FFTs, which visibly stutters the UI on the main thread.
+  useEffect(() => {
+    if (!capturing || sampleRate === null) return;
+
+    const { bph, liftAngle } = engineConfigFor(findMovement(movementId));
+    const built = TimegrapherEngine.create({
+      sampleRate,
+      bph,
+      liftAngle,
+      onMeasurement: (m, seconds, newBeats) => {
+        setMeasurement(m);
+        measurementRef.current = m;
+        setSecondsCaptured(seconds);
+
+        for (const b of newBeats) beatStore.current.set(b.time, b);
+        const cutoff = seconds - Math.max(60, traceSecondsRef.current + 10);
+        for (const key of beatStore.current.keys()) {
+          if (key < cutoff) beatStore.current.delete(key);
+        }
+        setBeats([...beatStore.current.values()].sort((a, b) => a.time - b.time));
+
+        if (m.valid) {
+          stability.current.push(seconds, m.rate, m.amplitude, m.beatError);
+          setSpreads({
+            rate: stability.current.spread('rate'),
+            amplitude: stability.current.spread('amplitude'),
+            beatError: stability.current.spread('beatError'),
+          });
+        }
+        setSettling(stability.current.settling(seconds));
+      },
+      // Capture still works without measurement — the meter, waveform and trace
+      // are useful on their own — so report and carry on.
+      onError: (message) => setError(`Measurement unavailable: ${message}`),
+    });
+    engine.current = built;
+
+    return () => {
+      built.destroy();
+      if (engine.current === built) engine.current = null;
+      // A changed calibre invalidates everything derived from the old one.
+      stability.current.reset();
+      beatStore.current.clear();
+      setBeats([]);
+      setMeasurement(null);
+      measurementRef.current = null;
+      setSpreads({ rate: null, amplitude: null, beatError: null });
+      setSettling('waiting');
+    };
+  }, [capturing, sampleRate, movementId]);
+
   const secure = window.isSecureContext;
   const supported = typeof AudioWorkletNode !== 'undefined';
 
@@ -224,10 +282,6 @@ export default function App() {
   // paths cannot drift apart.
   const releaseCaptureState = useCallback(() => {
     session.current = null;
-    // The engine owns FFTW plans and a sixteen-second ring buffer in the wasm
-    // heap. Dropping the reference without destroying it leaks both.
-    engine.current?.destroy();
-    engine.current = null;
     setMeasurement(null);
     measurementRef.current = null;
     setSecondsCaptured(0);
@@ -267,44 +321,9 @@ export default function App() {
       const s = await startCapture(selectedId, handleBlock, handleDisconnect);
       session.current = s;
 
-      // Built at the rate the device actually granted, not the one requested:
-      // the core's period arithmetic is in samples, so a wrong rate here would
-      // scale every reading.
-      // Runs in a Worker: the analysis sweeps a sixteen-second window through
-      // seven FFTs, which visibly stutters the waveform if done on this thread.
-      const { bph, liftAngle } = engineConfigFor(findMovement(movementId));
-      engine.current = TimegrapherEngine.create({
-        sampleRate: s.sampleRate,
-        bph,
-        liftAngle,
-        onMeasurement: (m, seconds, newBeats) => {
-          setMeasurement(m);
-          measurementRef.current = m;
-          setSecondsCaptured(seconds);
-
-          for (const b of newBeats) beatStore.current.set(b.time, b);
-          // Keep a minute of beats; the trace shows thirty seconds of them.
-          const cutoff = seconds - Math.max(60, traceSecondsRef.current + 10);
-          for (const key of beatStore.current.keys()) {
-            if (key < cutoff) beatStore.current.delete(key);
-          }
-          setBeats([...beatStore.current.values()].sort((a, b) => a.time - b.time));
-
-          if (m.valid) {
-            stability.current.push(seconds, m.rate, m.amplitude, m.beatError);
-            setSpreads({
-              rate: stability.current.spread('rate'),
-              amplitude: stability.current.spread('amplitude'),
-              beatError: stability.current.spread('beatError'),
-            });
-          }
-          setSettling(stability.current.settling(seconds));
-        },
-        // Capture still works without measurement — the meter, waveform and
-        // recorder are useful on their own — so report and carry on.
-        onError: (message) => setError(`Measurement unavailable: ${message}`),
-      });
-
+      // The rate the device actually granted, not the one requested. The core's
+      // period arithmetic is in samples, so a wrong figure here would scale
+      // every reading; the engine effect builds from this value.
       setSampleRate(s.sampleRate);
       setRequestedSampleRate(s.requestedSampleRate ?? null);
       setCapturing(true);

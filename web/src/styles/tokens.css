@@ -187,14 +187,21 @@ select {
   text-indent: 0.34em;
 }
 
-/* The graph is the only element that grows. min-height:0 is what lets a flex
-   child actually shrink inside a fixed-height column. */
+/* The graph is the only element that grows.
+   
+   It also has a floor. On a tall phone everything fits and nothing scrolls,
+   which is the point of the layout. On a short one — an SE, or a browser with
+   a large toolbar — the fixed panels leave the graph almost nothing, and a
+   40-pixel trace is worse than no trace. Below the floor the app scrolls
+   instead of crushing it. */
 .app__graph {
   flex: 1 1 auto;
-  min-height: 0;
+  min-height: 150px;
   display: flex;
   flex-direction: column;
 }
+
+.app { overflow-y: auto; -webkit-overflow-scrolling: touch; }
 
 .panel--tight {
   padding: 12px 14px;
