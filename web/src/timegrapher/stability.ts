@@ -67,23 +67,47 @@ const WINDOW_SECONDS = 30;
 /**
  * A reading is settled when its spread stays inside these bounds.
  *
- * Calibrated against real bench readings rather than picked for tidiness. A
- * hand-held sensor on a running NH35 produced rate spreads of 0.8-1.6 s/day and
- * beat-error spreads of 0.3-0.6 ms; the first attempt at these bounds (0.5 and
- * 0.1) was below that floor, so the indicator read MOVING permanently and told
- * the operator nothing.
+ * Measured, not chosen. A USB pickup on a running NH35 with an excellent
+ * signal — 29 dB above the room — holds:
  *
- * The numbers are still meaningful rather than merely achievable. A reading
- * repeatable to a second a day is far inside the ±10 s/day that decides whether
- * a watch needs regulating at all, so a settled reading is one you can act on.
+ *     rate         ±0.2 to ±0.5 s/day
+ *     amplitude    ±9 to ±12 degrees
+ *     beat error   ±0.82 to ±0.89 ms
  *
- * A rigid sensor mount should beat these comfortably; they are the threshold
- * for a watch held by hand, which is how the tool is actually used.
+ * The three are not equally steady, and the earlier bounds treated them as
+ * though they were. Rate was given ±1.0, which that bench beats twice over;
+ * beat error was given ±0.3, which it cannot reach at all. A watch on a good
+ * sensor read MOVING for ever, and an automatic inspection never recorded
+ * anything.
+ *
+ * Why beat error is the loose one is worth stating, because it looks like the
+ * measurement being poor. It is the opposite. Beat error is the asymmetry
+ * between a tic and a toc, reported as a magnitude, so it cannot go below
+ * zero — and its noise does not shrink as the true value approaches zero. A
+ * watch that is genuinely well in beat therefore reads 0.2, then 1.7, then
+ * 0.7, jumping about the floor of what can be resolved. Demanding tight
+ * *stability* there punishes exactly the watches that deserve it most.
+ *
+ * Rate is the signal that proves the lock is good. Holding ±0.2 s/day is two
+ * parts per million of timing — no acoustic lock that loose could produce it.
+ * So rate is the criterion that matters, and the other two are sanity bounds
+ * set from what the bench actually manages, with headroom.
+ *
+ * Read them against "Steadiness of this bench" in the settings sheet, which
+ * prints the tightest each has held this session.
  */
 export const SETTLED_BOUNDS = {
-  rate: 1.0,        // s/day
-  amplitude: 8,     // degrees
-  beatError: 0.3,   // ms
+  /* The criterion. Comfortably beaten by a decent sensor, and still a reading
+     repeatable to a second a day — far inside the ±10 that decides whether a
+     watch needs regulating at all. */
+  rate: 1.0,        // s/day  (bench: ±0.2 to ±0.5)
+  /* Derived from impulse shape rather than timing, so inherently noisier.
+     15° on a 240° reading is six percent — it still answers the question
+     amplitude is asked, which is whether the swing is healthy. */
+  amplitude: 15,    // degrees (bench: ±9 to ±12)
+  /* A sanity bound, not a criterion. See above: near zero this figure is at
+     its resolution floor and will not sit still, however good the watch. */
+  beatError: 1.5,   // ms      (bench: ±0.82 to ±0.89)
 };
 
 export class StabilityTracker {
@@ -172,11 +196,15 @@ export class StabilityTracker {
 
     if (within) return secondsCaptured >= 20 ? 'settled' : 'settling';
 
-    // Loosely within bounds counts as settling, so the label does not flap
-    // between "moving" and "settled" on a borderline reading.
-    const nearly =
-      rate.plusMinus <= SETTLED_BOUNDS.rate * 3 &&
-      beatError.plusMinus <= SETTLED_BOUNDS.beatError * 3;
+    /*
+       Loosely within counts as settling, so the label does not flap on a
+       borderline reading.
+
+       Only rate is loosened. Beat error is already a sanity bound rather than
+       a criterion, and multiplying it further would let genuinely unstable
+       audio read as though it were converging.
+    */
+    const nearly = rate.plusMinus <= SETTLED_BOUNDS.rate * 3;
     return nearly ? 'settling' : 'moving';
   }
 }

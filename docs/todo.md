@@ -110,30 +110,28 @@ Still open:
   method statement currently makes.
 - **Is a signature line still wanted** now that there is a technician field?
 
-## 6. Settle the thresholds — there is now a readout for this
+## 6. Settled thresholds — done, from your bench data
 
-You said you weren't sure about these. The problem was that nothing showed you
-what your own setup could do, so the numbers were unanchored.
+Recalibrated 2026-08-30 against a USB pickup on a running NH35 at 29 dB above
+the room:
 
-**Settings now prints "Steadiness of this bench"**: the tightest spread each
-reading has held this session, next to the threshold it has to beat.
+| | bench holds | bound was | bound now |
+|---|---|---|---|
+| Rate | ±0.2 to ±0.5 s/day | ±1.0 | ±1.0 |
+| Amplitude | ±9 to ±12° | ±8 | ±15 |
+| Beat error | ±0.82 to ±0.89 ms | ±0.3 | ±1.5 |
 
-How to use it: put a known-good, fully wound watch on the sensor and let it run
-a minute or two in one position. Then open the cog and read the left column.
+Beat error was the blocker — three times tighter than the bench can hold — so
+nothing ever settled and automatic inspection never recorded. Rate is now the
+criterion; the other two are sanity bounds. The three real readings are
+replayed as tests.
 
-- Left column comfortably under the right, every time → the thresholds are
-  looser than your setup needs. Bring them down towards what you saw, leaving
-  maybe half again as headroom.
-- Never gets there → too tight, or the sensor is not in firm enough contact.
-  Rule out contact first.
-- Rate is the one that matters most; amplitude wanders more by nature.
+**Still worth watching in use:** whether Settled now arrives too easily. If it
+fires within a second or two of every Go, rate wants tightening towards ±0.6.
+"Steadiness of this bench" in settings prints what each has held.
 
-The thresholds live in `SETTLED_BOUNDS` in `web/src/timegrapher/stability.ts` —
-tell me the numbers you see and I will set them.
-
-`STALL_SECONDS` in `wizard.ts` is 75 — after that the wizard stops promising the
-reading will settle and lets it be recorded anyway. Still a guess; the same
-bench session will show whether it is anywhere near right.
+`STALL_SECONDS` in `wizard.ts` is 75. It should now be reached far less often;
+if it never is, it can come down.
 
 ---
 

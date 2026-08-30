@@ -150,3 +150,59 @@ describe('best spread', () => {
     expect(t.best().rate).not.toBeNull();
   });
 });
+
+/*
+   Replays what a USB pickup on a running NH35 actually produced, at 29 dB
+   above the room. Every one of these read MOVING for ever under the earlier
+   bounds, so an automatic inspection could never record a position — beat
+   error was allowed ±0.3 against a bench that holds ±0.85.
+*/
+describe('a real bench reading', () => {
+  /** Spreads are half the peak-to-peak range, so the swing is twice this. */
+  function bench(t: StabilityTracker, spread: { rate: number; amp: number; beat: number }) {
+    for (let i = 0; i < 60; i++) {
+      const sign = i % 2 ? 1 : -1;
+      t.push(
+        i * 0.5,
+        14.5 + sign * spread.rate,
+        232 + sign * spread.amp,
+        1.0 + sign * spread.beat,
+      );
+    }
+  }
+
+  it.each([
+    ['live view',  { rate: 0.5, amp: 9, beat: 0.88 }],
+    ['capture one', { rate: 0.2, amp: 10, beat: 0.82 }],
+    ['capture two', { rate: 0.2, amp: 12, beat: 0.89 }],
+  ])('settles: %s', (_label, spread) => {
+    const t = new StabilityTracker();
+    bench(t, spread);
+    expect(t.settling(30)).toBe('settled');
+  });
+
+  /*
+     The point of the loosened beat-error bound is that it stops gating, not
+     that nothing gates. Audio that is genuinely wandering must still read
+     MOVING, and rate is what catches it.
+  */
+  it('still refuses a reading whose rate is wandering', () => {
+    const t = new StabilityTracker();
+    bench(t, { rate: 6, amp: 10, beat: 0.85 });
+    expect(t.settling(30)).toBe('moving');
+  });
+
+  it('still refuses an amplitude that is swinging wildly', () => {
+    const t = new StabilityTracker();
+    bench(t, { rate: 0.3, amp: 40, beat: 0.85 });
+    expect(t.settling(30)).not.toBe('settled');
+  });
+
+  /* A beat error that will not sit still at all is a different fault from one
+     resolving near zero, and is worth withholding a Settled on. */
+  it('still refuses a beat error far beyond the bench floor', () => {
+    const t = new StabilityTracker();
+    bench(t, { rate: 0.3, amp: 10, beat: 4 });
+    expect(t.settling(30)).not.toBe('settled');
+  });
+});

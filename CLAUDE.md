@@ -107,9 +107,16 @@ web/src/components/      one panel each; guide-content.tsx holds every explanati
   exercises the event path for exactly this reason.
 - **Service workers do not register in the in-app browser pane.** They work on
   the deployed site. Verify PWA behaviour there, not locally.
-- **Settled thresholds in `stability.ts` are calibrated against real bench
-  readings**, not chosen for tidiness. The first values were below the
-  achievable floor for a hand-held sensor and the indicator never fired.
+- **Settled thresholds in `stability.ts` are measured, not chosen.** They come
+  from what a USB pickup on a running NH35 actually holds. Two rounds of this
+  have now been got wrong by guessing, so: **rate is the criterion; amplitude
+  and beat error are sanity bounds.** Beat error especially — it is a magnitude
+  that cannot go below zero and whose noise does not shrink as the true value
+  approaches it, so a watch that is *well* in beat reads 0.2, 1.7, 0.7 around
+  the resolution floor. Demanding tight stability there blocks exactly the
+  watches that deserve to pass, which is what stopped automatic inspections
+  recording anything. Rate holding ±0.2 s/day is two parts per million and is
+  the real proof the acoustic lock is good.
 
 ## Upstream C
 
