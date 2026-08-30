@@ -137,37 +137,6 @@ export function SessionSheet({
           they decide what this run is. The reference is the only thing that
           ties a before to an after — a run without one pairs with nothing.
         */}
-        <div className="run-identity">
-          <fieldset className="phase-choice">
-            <legend className="visually-hidden">Before or after regulation</legend>
-            {PHASES.map((ph) => (
-              <label key={ph.id} className="phase-choice__option">
-                <input
-                  type="radio"
-                  name="phase"
-                  checked={current.phase === ph.id}
-                  onChange={() => set({ phase: ph.id })}
-                />
-                <span>{ph.id === 'pre' ? 'Pre' : 'Post'}</span>
-              </label>
-            ))}
-            <span className="phase-choice__label">Regulation</span>
-          </fieldset>
-
-          {/*
-            Said only when there is one. A note promising that a matching
-            reading will turn up would be promising that the browser keeps
-            things, and it does not — a cleared cache or another device and it
-            is gone.
-          */}
-          {pair && (
-            <p className="dim run-identity__note">
-              Paired with the {phaseShort(pair.phase).toLowerCase()} reading of{' '}
-              {new Date(pair.updatedAt).toLocaleDateString()}.
-            </p>
-          )}
-        </div>
-
         {/* Every position is listed whether measured or not, so what is left
             to do is as visible as what is done. */}
         <table className="session-table">
@@ -243,6 +212,35 @@ export function SessionSheet({
 
         <h3 style={{ marginTop: 20 }}>Inspection details</h3>
         <div style={{ display: 'grid', gap: 8 }}>
+          <fieldset className="phase-choice">
+            <legend className="visually-hidden">Before or after regulation</legend>
+            {PHASES.map((ph) => (
+              <label key={ph.id} className="phase-choice__option">
+                <input
+                  type="radio"
+                  name="phase"
+                  checked={current.phase === ph.id}
+                  onChange={() => set({ phase: ph.id })}
+                />
+                <span>{ph.id === 'pre' ? 'Pre' : 'Post'}</span>
+              </label>
+            ))}
+            <span className="phase-choice__label">Regulation</span>
+          </fieldset>
+
+          {/*
+            Said only when there is one. A note promising that a matching
+            reading will turn up would be promising that the browser keeps
+            things, and it does not — a cleared cache or another device and it
+            is gone.
+          */}
+          {pair && (
+            <p className="dim run-identity__note">
+              Paired with the {phaseShort(pair.phase).toLowerCase()} reading of{' '}
+              {new Date(pair.updatedAt).toLocaleDateString()}.
+            </p>
+          )}
+
           <input
             className="field"
             placeholder="Measured by"

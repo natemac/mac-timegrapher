@@ -1166,15 +1166,7 @@ html.is-measuring body { overscroll-behavior-y: none; }
   .sheet { transition: none; }
 }
 
-/* ---------- Identifying a run ----------
-   The reference and the mark together, because between them they decide what
-   this run is and which other run it belongs with. */
-.run-identity {
-  display: grid;
-  gap: 8px;
-  margin-bottom: 18px;
-}
-.run-identity .switch { width: 100%; }
+/* The pairing note, beside the mark that decides what it pairs with. */
 .run-identity__note {
   margin: 0;
   font-size: 12px;
@@ -1263,7 +1255,7 @@ html.is-measuring body { overscroll-behavior-y: none; }
   gap: 14px;
   border: 0;
   margin: 0;
-  padding: 0;
+  padding: 2px 0 4px;
 }
 
 .phase-choice__option {
