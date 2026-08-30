@@ -146,45 +146,52 @@ select {
 }
 
 .app__masthead {
-  display: flex;
-  flex-direction: column;
+  /* One row: mark, product name, controls. Three columns with equal flexible
+     sides so the name is optically centred regardless of how wide the mark or
+     the buttons are — centring it inside a flex row would push it off as soon
+     as one side grew. */
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  /* The logo already ends in a letter-spaced line ("WATCH CO."), so the product
-     name needs real separation or it reads as a fourth line of the mark. */
-  gap: 14px;
-  padding-top: max(2px, env(safe-area-inset-top));
-  padding-bottom: 2px;
+  gap: 10px;
+  /* Room for the session badge, which overhangs its button. */
+  padding-top: max(8px, env(safe-area-inset-top));
   flex: 0 0 auto;
 }
 
 .app__logo {
-  width: 148px;
-  max-width: 46vw;
+  width: 84px;
   height: auto;
   display: block;
-  transition: width 220ms ease;
+  justify-self: start;
 }
 
 /* Once measuring, the identity has done its job and the readings need the
    room. The mark shrinks rather than disappearing — it is still a MAC
    instrument, just not the thing you are looking at. */
-.app--measuring .app__masthead { gap: 8px; padding-bottom: 0; }
-.app--measuring .app__logo { width: 96px; }
-.app--measuring .app__wordmark { font-size: 9px; }
-
-@media (prefers-reduced-motion: reduce) {
-  .app__logo { transition: none; }
+.app--measuring .app__masthead {
+  /* One row: mark, product name, controls. Three columns with equal flexible
+     sides so the name is optically centred regardless of how wide the mark or
+     the buttons are — centring it inside a flex row would push it off as soon
+     as one side grew. */
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+  /* Room for the session badge, which overhangs its button. */
+  padding-top: max(8px, env(safe-area-inset-top));
+  flex: 0 0 auto;
 }
 
 .app__wordmark {
   font-family: var(--mono);
   font-size: 10px;
-  letter-spacing: 0.3em;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
   color: var(--text-dim);
-  /* The letter-spacing pushes the block right; pull it back so it optically
-     centres under the logo. */
-  text-indent: 0.34em;
+  white-space: nowrap;
+  /* The tracking adds a trailing gap; pull it back so the glyphs sit centred. */
+  text-indent: 0.28em;
 }
 
 /* The graph is the only element that grows.
@@ -287,12 +294,26 @@ select {
 
 /* The cog sits in the masthead's top-right without pushing the logo
    off-centre, which is why the masthead is positioned rather than flowed. */
-.app__masthead { position: relative; }
+.app__masthead {
+  /* One row: mark, product name, controls. Three columns with equal flexible
+     sides so the name is optically centred regardless of how wide the mark or
+     the buttons are — centring it inside a flex row would push it off as soon
+     as one side grew. */
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+  /* Room for the session badge, which overhangs its button. */
+  padding-top: max(8px, env(safe-area-inset-top));
+  flex: 0 0 auto;
+}
+/* Outlined, not filled: these sit beside the mark and must not compete with
+   Start, which is the one filled control on the screen.
 
+   position: relative is load-bearing — the unread badge is absolutely
+   positioned against it. Without it the badge resolves against the viewport
+   and, in a header at the very top of the screen, lands off it. */
 .icon-button {
-  position: absolute;
-  top: max(2px, env(safe-area-inset-top));
-  right: 0;
   background: transparent;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
@@ -300,6 +321,7 @@ select {
   padding: 7px 9px;
   line-height: 0;
   cursor: pointer;
+  position: relative;
 }
 .icon-button:hover { color: var(--text); border-color: var(--text-faint); }
 
@@ -389,12 +411,16 @@ select {
 
 /* The session control sits to the left of the cog. Both are absolute so the
    logo stays optically centred regardless of what is beside it. */
-.icon-button--left { right: 44px; }
+.app__controls {
+  display: flex;
+  gap: 6px;
+  justify-self: end;
+}
 
 .icon-button__badge {
   position: absolute;
-  top: -5px;
-  right: -5px;
+  top: -6px;
+  right: -6px;
   min-width: 16px;
   height: 16px;
   padding: 0 4px;
@@ -406,7 +432,6 @@ select {
   line-height: 16px;
   text-align: center;
 }
-.icon-button { position: absolute; }
 
 /* ---------- Timing certificate ----------
    Hidden on screen, revealed only for print. The browser's own "Save as PDF"
