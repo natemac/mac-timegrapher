@@ -19,7 +19,11 @@ import type { ReactNode } from 'react';
 
 export type Topic =
   | 'modes' | 'input' | 'measurement' | 'settling' | 'signal' | 'trace'
-  | 'waveform' | 'inspection';
+  | 'waveform' | 'inspection'
+  // Settings. Explained here rather than beside the controls, so the settings
+  // page is a list of controls and not a wall of prose.
+  | 'setting-movement' | 'setting-steadiness' | 'setting-branding'
+  | 'setting-magnification' | 'setting-history';
 
 export interface GuideEntry {
   title: string;
@@ -29,6 +33,117 @@ export interface GuideEntry {
 }
 
 export const GUIDE: Record<Topic, GuideEntry> = {
+  'setting-movement': {
+    title: 'Movement',
+    lede: 'Which calibre is on the sensor. It decides the lift angle, and the lift angle decides amplitude.',
+    body: (
+      <>
+        <p>
+          Beat rate the app can work out for itself. Lift angle it cannot — that
+          is escapement geometry, not something you can hear — and amplitude is
+          calculated directly from it. A degree out is about two percent of
+          amplitude, so the wrong calibre gives a confidently wrong number.
+        </p>
+        <p>
+          The setup panel shows this as a dropdown until you pick one, then
+          collapses it to a line of text. A bench works through a batch of one
+          calibre, so this is where it gets changed afterwards.
+        </p>
+        <p>
+          Quartz calibres are listed so an inspection can name them, but the
+          analysis does not apply: a stepper motor has no balance wheel, so
+          amplitude and beat error are withheld rather than shown as numbers you
+          could act on.
+        </p>
+      </>
+    ),
+  },
+
+  'setting-steadiness': {
+    title: 'Steadiness of this bench',
+    lede: 'Not a setting — a measurement of your setup, for deciding where the Settled threshold belongs.',
+    body: (
+      <>
+        <p>
+          The left column is the tightest each reading has held this session. The
+          right is the threshold it has to beat to read <strong>Settled</strong>.
+        </p>
+        <p>
+          These thresholds are the one number nobody can pick from first
+          principles. They have to sit just above what a setup can actually hold,
+          and a hand-held sensor and a rigid mount are different instruments — a
+          figure that suits one is either unreachable or meaningless on the
+          other.
+        </p>
+        <p>
+          To use it: put a known-good, fully wound watch on the sensor and let it
+          run a minute or two in one position, then read the left column.
+        </p>
+        <ul>
+          <li>
+            Comfortably under the right every time — the thresholds are looser
+            than your setup needs and could come down.
+          </li>
+          <li>
+            Never gets there — too tight, or the sensor is not in firm enough
+            contact. Rule out contact first.
+          </li>
+        </ul>
+        <p>
+          Rate is the one that matters most; amplitude wanders more by nature.
+        </p>
+      </>
+    ),
+  },
+
+  'setting-branding': {
+    title: 'Branding',
+    lede: 'Whether the MAC mark appears in the app, on the inspection and on a saved reading.',
+    body: (
+      <>
+        <p>
+          Off unless you turn it on, because most people running this are not
+          MAC — a stranger's logo on your own inspection document is worse than
+          no logo at all. Turning it on is remembered on this device, so it is
+          done once.
+        </p>
+        <p>
+          The open-source notice in the footer stays either way. That one is a
+          licence condition rather than branding, and it is not affected by this.
+        </p>
+      </>
+    ),
+  },
+
+  'setting-magnification': {
+    title: 'Trace magnification',
+    lede: 'How much drift spans the width of the trace.',
+    body: (
+      <>
+        <p>
+          A smaller number magnifies more, so a small rate error leans further.
+          <strong> Auto</strong> keeps the lean as steep as it can while the line
+          still fits on the strip, and is usually what you want.
+        </p>
+        <p>
+          Lines running off one edge and reappearing on the other mean the
+          magnification is tighter than the watch's error needs.
+        </p>
+      </>
+    ),
+  },
+
+  'setting-history': {
+    title: 'Trace history',
+    lede: 'How far back the trace remembers.',
+    body: (
+      <p>
+        Longer shows the trend more clearly; shorter reacts faster when you move
+        the regulator.
+      </p>
+    ),
+  },
+
   modes: {
     title: 'Measure or Inspection',
     lede: 'Two jobs. You choose which one you are doing before the watch goes on the sensor.',

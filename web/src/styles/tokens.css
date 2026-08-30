@@ -1016,3 +1016,32 @@ select {
   font-size: 12px;
   padding: 0 12px;
 }
+
+/* ---------- One setting ----------
+   Name, a ? for the explanation, then the control. The prose is asked for
+   rather than imposed, so the page reads as a list of things you can change. */
+.setting {
+  margin-bottom: 18px;
+}
+
+.setting__head {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: 0;
+  padding: 0 0 8px;
+  margin: 0;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+.setting__head:hover { color: var(--text-dim); }
+.setting__head .eyebrow { color: inherit; }
+
+.setting__note {
+  margin-bottom: 10px;
+  padding-left: 10px;
+  border-left: 2px solid var(--line);
+}
+.setting__note > :first-child { margin-top: 0; }
+.setting__note > :last-child { margin-bottom: 0; }
