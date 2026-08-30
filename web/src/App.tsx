@@ -32,8 +32,9 @@ import { SessionSheet } from './components/SessionSheet';
 import { loadMode, saveMode, type Mode } from './components/ModeSwitch';
 import { InspectionWizard } from './components/InspectionWizard';
 import {
-  startWizard, begin, captured, advance, finish, retry, jumpTo, positionAt,
-  shouldAutoCapture, loadAutoCapture, saveAutoCapture, type WizardState,
+  startWizard, begin, armed, abort, captured, advance, finish, retry, jumpTo,
+  positionAt, shouldAutoCapture, loadAutoCapture, saveAutoCapture,
+  COUNTDOWN_SECONDS, type WizardState,
 } from './timegrapher/wizard';
 import {
   drawSnapshot, dataUrlToBytes, snapshotFilename, loadSnapshotLogo, deliverSnapshot,
@@ -108,6 +109,7 @@ export default function App() {
   const [mode, setMode] = useState<Mode>(loadMode);
   const [wizard, setWizard] = useState<WizardState>(startWizard);
   const [autoCapture, setAutoCapture] = useState(loadAutoCapture);
+  const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
   const [snapshotNote, setSnapshotNote] = useState<string | null>(null);
 
   const selectMode = useCallback((next: Mode) => {
@@ -194,6 +196,9 @@ export default function App() {
   // Decoded ahead of time. iOS only honours navigator.share while it can still
   // see the tap, and waiting on an image load inside the handler loses it.
   const snapshotLogo = useRef<HTMLImageElement | null>(null);
+  // stop() is declared below the effects that end a position; a ref lets them
+  // call it without being rebuilt every time its closure changes.
+  const stopRef = useRef<(() => Promise<void>) | null>(null);
 
   useEffect(() => {
     traceSecondsRef.current = settings.traceSeconds;
@@ -202,6 +207,10 @@ export default function App() {
   useEffect(() => {
     wizardRef.current = wizard;
   }, [wizard]);
+
+  useEffect(() => {
+    stopRef.current = stop;
+  });
 
   useEffect(() => {
     void loadSnapshotLogo(import.meta.env.BASE_URL).then((img) => {
@@ -245,20 +254,6 @@ export default function App() {
     setSettling('waiting');
     engine.current?.reset();
   }, []);
-
-  /*
-     The wizard's Go.
-
-     Restarting the average is the whole point of the button: the operator has
-     just had a hand on the watch, and that handling noise is sitting in the
-     window. Everything measured from here was recorded after the watch went
-     still.
-  */
-  const wizardGo = useCallback(() => {
-    settledRuns.current = 0;
-    resetAverage();
-    setWizard(begin);
-  }, [resetAverage]);
 
   const wizardCapture = useCallback(() => {
     const p = positionAt(wizardRef.current.step);
@@ -326,15 +321,44 @@ export default function App() {
   }, [mode, wizard.stage, autoCapture, measurement, settling, secondsCaptured, wizardCapture]);
 
   /*
-     Move on by itself, but only when the operator asked not to be involved.
-     Long enough to read which position was recorded before it is replaced by
-     the instruction for the next one.
+     The get-clear grace.
+
+     Audio is already running — it has to be, or the first seconds of the
+     reading would be spent opening the device. What the grace buys is the
+     right to throw those seconds away: the operator's hand was on the watch
+     when they reached for Start, and letting go of it is itself a noise. When
+     it expires the average restarts, so nothing heard during it can reach a
+     reading.
   */
   useEffect(() => {
-    if (mode !== 'inspection' || wizard.stage !== 'captured' || !autoCapture) return;
-    const id = window.setTimeout(() => setWizard(advance), 1600);
+    if (wizard.stage !== 'countdown') return;
+
+    if (countdown <= 0) {
+      settledRuns.current = 0;
+      resetAverage();
+      setWizard(armed);
+      return;
+    }
+    const id = window.setTimeout(() => setCountdown((n) => n - 1), 1000);
     return () => window.clearTimeout(id);
-  }, [mode, wizard.stage, wizard.step, autoCapture]);
+  }, [wizard.stage, countdown, resetAverage]);
+
+  /*
+     One position per press of Start.
+
+     Capture stops as soon as a reading is recorded, so the numbers on screen
+     are the ones that were kept rather than a live feed that has moved on, and
+     so the operator can handle the watch without the microphone listening. The
+     panel then names the next position and Start begins it.
+  */
+  useEffect(() => {
+    if (mode !== 'inspection' || wizard.stage !== 'captured') return;
+    const id = window.setTimeout(() => {
+      void stopRef.current?.();
+      setWizard(advance);
+    }, 1600);
+    return () => window.clearTimeout(id);
+  }, [mode, wizard.stage, wizard.step]);
 
   // The engine is built from the movement, so it is created by an effect rather
   // than inside start(): changing the movement mid-capture has to rebuild it,
@@ -502,6 +526,10 @@ export default function App() {
   // forced on us by the device disappearing. Kept in one place so the two
   // paths cannot drift apart.
   const releaseCaptureState = useCallback(() => {
+    // A position interrupted before it recorded has nothing to keep, so the run
+    // returns to the same prompt rather than advancing past it. A position that
+    // already recorded is left alone — stopping is how each one ends.
+    setWizard(abort);
     session.current = null;
     setMeasurement(null);
     measurementRef.current = null;
@@ -549,6 +577,13 @@ export default function App() {
       setRequestedSampleRate(s.requestedSampleRate ?? null);
       setCapturing(true);
       saveSelection(selectedId);
+
+      // In an inspection this is the only trigger there is: it opens the
+      // device and starts the position's grace in one press.
+      if (mode === 'inspection') {
+        setCountdown(COUNTDOWN_SECONDS);
+        setWizard(begin);
+      }
     } catch (err) {
       setError(describeError(err));
     } finally {
@@ -726,9 +761,9 @@ export default function App() {
               settling={settling}
               valid={measurement?.valid ?? false}
               seconds={secondsCaptured}
+              countdown={countdown}
               auto={autoCapture}
               onAutoChange={changeAutoCapture}
-              onGo={wizardGo}
               onCapture={wizardCapture}
               onSkip={() => setWizard(advance)}
               onNext={() => setWizard(advance)}

@@ -13,23 +13,30 @@ import {
 import type { Settling } from '../timegrapher/stability';
 
 /*
-   The wizard's face.
+   The inspection run, as one instruction at a time.
 
-   Deliberately a panel in the flow rather than a sheet over it. The operator
-   has to watch the reading settle — covering the numbers with the instructions
-   about the numbers would be its own kind of useless.
+   It reads as an information panel rather than a control panel because there is
+   only ever one thing to do, and the button that does it is Start at the top of
+   the screen. An earlier version had its own Go button beside that Start, which
+   left two controls that both looked like the way to begin and only one that
+   was — pressing Start appeared to do nothing at all.
+
+   So: Start is the only trigger. It runs one position, stops on its own once
+   the reading is recorded, and the panel says which position is next. The
+   operator's loop is turn the watch, press Start, wait.
 */
 interface Props {
   state: WizardState;
-  /** Nothing can be measured until the audio is running. */
+  /** Whether audio is running. Start and Stop live in the setup panel. */
   capturing: boolean;
   settling: Settling;
   valid: boolean;
-  /** Seconds since Go. Restarts with the average, so it measures this step. */
+  /** Seconds since the reading began counting. */
   seconds: number;
+  /** Seconds left of the get-clear grace, while the stage is 'countdown'. */
+  countdown: number;
   auto: boolean;
   onAutoChange: (auto: boolean) => void;
-  onGo: () => void;
   onCapture: () => void;
   onSkip: () => void;
   onNext: () => void;
@@ -69,8 +76,8 @@ function Dots({ state, onJump }: { state: WizardState; onJump: (step: number) =>
 }
 
 export function InspectionWizard({
-  state, capturing, settling, valid, seconds, auto, onAutoChange,
-  onGo, onCapture, onSkip, onNext, onRetry, onFinish, onRestart, onOpenSummary, onJump,
+  state, capturing, settling, valid, seconds, countdown, auto, onAutoChange,
+  onCapture, onSkip, onNext, onRetry, onFinish, onRestart, onOpenSummary, onJump,
 }: Props) {
   const position = positionAt(state.step);
   const settled = settling === 'settled';
@@ -79,118 +86,114 @@ export function InspectionWizard({
   if (state.stage === 'done') {
     const missed = skipped(state);
     return (
-      <div className="panel panel--tight wizard">
-        <div className="wizard__row">
-          <div className="wizard__text">
-            <div className="eyebrow">Run complete</div>
-            <p className="wizard__line">
-              {state.recorded.length} of {WIZARD_ORDER.length} positions recorded
-              {missed.length > 0 && `, ${missed.length} skipped`}.
-            </p>
-          </div>
-          <div className="wizard__actions">
-            <button className="secondary" onClick={onRestart}>Run again</button>
-            <button onClick={onOpenSummary}>Summary</button>
-          </div>
+      <div className="panel wizard wizard--done">
+        <div className="eyebrow">Run complete</div>
+        <div className="wizard__headline">
+          {state.recorded.length} of {WIZARD_ORDER.length} recorded
         </div>
-        <div className="wizard__foot">
-          <Dots state={state} onJump={onJump} />
+        <p className="wizard__line">
+          {missed.length > 0 ? `${missed.length} skipped.` : 'Every position measured.'}
+        </p>
+        <div className="wizard__actions">
+          <button className="secondary" onClick={onRestart}>Run again</button>
+          <button onClick={onOpenSummary}>Summary</button>
         </div>
+        <Dots state={state} onJump={onJump} />
       </div>
     );
   }
 
   if (!position) return null;
 
+  const name = positionName(position);
+
   return (
-    <div className="panel panel--tight wizard">
-      <div className="wizard__row">
-        <div className="wizard__text">
-          {/* "1/6" rather than "Position 1 of 6": the column beside the
-              buttons is narrow, and the long form wrapped onto a second line
-              that pushed the trace down for no information. */}
-          <div className="eyebrow">
-            {state.step + 1}/{WIZARD_ORDER.length} · {positionName(position)}
-          </div>
-
-          {/* No placement instruction: the position is named right above, and
-              "Dial up" already tells a watchmaker what to do with the watch. */}
-          {state.stage === 'prompt' && !capturing && (
-            <p className="wizard__line">Press Start above to begin.</p>
-          )}
-
-          {state.stage === 'measuring' && (
-            <p className="wizard__line">
-              {stalled
-                ? 'Still moving after a minute. Check the watch is in firm contact — or record it as it is.'
-                : settled
-                  ? auto
-                    ? 'Settled. Recording…'
-                    : 'Settled. Record when ready.'
-                  : `Listening… ${seconds.toFixed(0)}s. Keep hands off the watch.`}
-            </p>
-          )}
-
-          {state.stage === 'captured' && (
-            <p className="wizard__line wizard__line--good">
-              {positionName(position)} recorded.
-            </p>
-          )}
-        </div>
-
-        <div className="wizard__actions">
-          {state.stage === 'prompt' && (
-            <>
-              <button className="secondary" onClick={onSkip} disabled={!capturing}>Skip</button>
-              <button onClick={onGo} className="wizard__go" disabled={!capturing}>Go</button>
-            </>
-          )}
-
-          {state.stage === 'measuring' && (
-            <>
-              <button className="secondary" onClick={onSkip}>Skip</button>
-              <button
-                onClick={onCapture}
-                /* Enabled once stalled even though it is not settled: at that
-                   point refusing to record is just a dead end, and the operator
-                   can see the spread and judge for themselves. */
-                disabled={!valid || (!settled && !stalled)}
-                title={settled || stalled ? undefined : 'Wait for the reading to settle'}
-              >
-                Record
-              </button>
-            </>
-          )}
-
-          {state.stage === 'captured' && (
-            <>
-              <button className="secondary" onClick={onRetry}>Redo</button>
-              <button onClick={onNext}>
-                {state.step + 1 >= WIZARD_ORDER.length ? 'Finish' : 'Next'}
-              </button>
-            </>
-          )}
-        </div>
+    <div className="panel wizard" data-stage={state.stage}>
+      <div className="eyebrow">
+        Position {state.step + 1} of {WIZARD_ORDER.length}
       </div>
+
+      {/* The position is the largest thing on the panel. It is what the
+          operator has to act on, and they are looking at a watch. */}
+      <div className="wizard__headline">
+        {state.stage === 'captured' ? `${name} recorded` : `${name} position`}
+      </div>
+
+      {state.stage === 'prompt' && (
+        <p className="wizard__line wizard__line--call">
+          Press <strong>START</strong> to begin
+        </p>
+      )}
+
+      {state.stage === 'countdown' && (
+        <p className="wizard__line wizard__line--call">
+          Hands off — starting in <strong>{countdown}</strong>
+        </p>
+      )}
+
+      {state.stage === 'measuring' && (
+        <p className="wizard__line">
+          {stalled
+            ? 'Still moving after a minute. Check contact — or record it as it is.'
+            : settled
+              ? auto ? 'Settled. Recording…' : 'Settled. Record when ready.'
+              : `Listening… ${seconds.toFixed(0)}s`}
+        </p>
+      )}
+
+      {state.stage === 'captured' && (
+        <p className="wizard__line wizard__line--good">
+          {state.step + 1 >= WIZARD_ORDER.length ? 'Last position.' : 'Turn the watch for the next one.'}
+        </p>
+      )}
 
       <div className="wizard__foot">
         <Dots state={state} onJump={onJump} />
 
-        <label className="wizard__auto">
-          <input
-            type="checkbox"
-            checked={auto}
-            onChange={(e) => onAutoChange(e.target.checked)}
-          />
-          {/* The operator's hands are on a watch, not the screen. With this on,
-              the only thing they touch between positions is Go. */}
-          <span>Record automatically</span>
-        </label>
+        {/* Only while a reading is actually running: an inspection that has not
+            started has nothing to record and nothing to record automatically. */}
+        {(state.stage === 'countdown' || state.stage === 'measuring') && (
+          <label className="wizard__auto">
+            <input
+              type="checkbox"
+              checked={auto}
+              onChange={(e) => onAutoChange(e.target.checked)}
+            />
+            <span>Auto</span>
+          </label>
+        )}
 
-        {state.recorded.length > 0 && (
-          <button className="wizard__finish" onClick={onFinish}>
-            Finish early
+        {/* The manual alternative, and only when automatic is off — two ways to
+            do the same thing side by side is one too many. */}
+        {state.stage === 'measuring' && !auto && (
+          <button
+            className="wizard__record"
+            onClick={onCapture}
+            /* Enabled once stalled even though it is not settled: at that point
+               refusing to record is a dead end, and the operator can see the
+               spread and judge for themselves. */
+            disabled={!valid || (!settled && !stalled)}
+            title={settled || stalled ? undefined : 'Wait for the reading to settle'}
+          >
+            Record
           </button>
+        )}
+
+        {state.stage === 'captured' && (
+          <>
+            <button className="wizard__link" onClick={onRetry}>Redo</button>
+            <button className="wizard__record" onClick={onNext}>
+              {state.step + 1 >= WIZARD_ORDER.length ? 'Finish' : 'Next'}
+            </button>
+          </>
+        )}
+
+        {state.stage === 'prompt' && !capturing && (
+          <button className="wizard__link" onClick={onSkip}>Skip</button>
+        )}
+
+        {state.recorded.length > 0 && state.stage === 'prompt' && (
+          <button className="wizard__link" onClick={onFinish}>Finish early</button>
         )}
       </div>
     </div>

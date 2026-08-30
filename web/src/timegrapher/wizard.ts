@@ -41,8 +41,10 @@ export const WIZARD_ORDER: PositionId[] = [
 ];
 
 export type WizardStage =
-  /** Waiting for the operator to place the watch and press Go. */
+  /** Waiting for the operator to place the watch and press Start. */
   | 'prompt'
+  /** Audio is running but nothing is being kept yet — the get-clear grace. */
+  | 'countdown'
   /** The average has been restarted and is building. */
   | 'measuring'
   /** A reading was just recorded; showing it before moving on. */
@@ -93,10 +95,34 @@ export function stepLabel(state: WizardState): string {
   return `Position ${state.step + 1} of ${WIZARD_ORDER.length} — ${positionName(position)}`;
 }
 
-/** Go: the watch is in place, restart the average and begin. */
+/**
+ * Seconds between pressing Start and the reading beginning to count.
+ *
+ * The operator's hand is on the watch when they reach for Start, and letting go
+ * of it is itself a noise. Three seconds is long enough to withdraw and for the
+ * bench to stop ringing, and short enough not to feel like waiting.
+ */
+export const COUNTDOWN_SECONDS = 3;
+
+/** Start pressed: audio is running, but nothing counts until the grace ends. */
 export function begin(state: WizardState): WizardState {
   if (state.stage !== 'prompt') return state;
+  return { ...state, stage: 'countdown' };
+}
+
+/** The grace elapsed. The caller restarts the average as it calls this. */
+export function armed(state: WizardState): WizardState {
+  if (state.stage !== 'countdown') return state;
   return { ...state, stage: 'measuring' };
+}
+
+/**
+ * Stop pressed, or capture lost, before a reading was recorded. Back to the
+ * same position — nothing was kept, so there is nothing to move on from.
+ */
+export function abort(state: WizardState): WizardState {
+  if (state.stage !== 'countdown' && state.stage !== 'measuring') return state;
+  return { ...state, stage: 'prompt' };
 }
 
 /** A reading was recorded for the current position. */

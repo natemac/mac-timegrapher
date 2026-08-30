@@ -697,58 +697,68 @@ select {
   letter-spacing: 0.01em;
 }
 
-/* ---------- Certification wizard ----------
-   One instruction, one action. Everything the operator needs at this moment is
-   on one line, because they are looking at a watch rather than at the screen. */
+/* ---------- Inspection wizard ----------
+   An information panel, not a control panel. There is one thing to do at any
+   moment and Start at the top of the screen does it, so the panel's job is to
+   say plainly which position is next and what state the reading is in. */
 .wizard {
   flex: 0 0 auto;
+  margin-bottom: 0;
+  padding: 12px 14px 10px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  /* Tighter than a reading panel: it is one instruction and one button, and
-     every pixel here comes out of the trace. */
-  padding: 10px 12px;
+  gap: 2px;
+  text-align: center;
 }
 
-.wizard__row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.wizard__text {
-  flex: 1 1 auto;
-  min-width: 0;
+/* The one thing the operator has to act on, sized so it can be read at the
+   distance a watch is held. */
+.wizard__headline {
+  font-size: clamp(19px, 5.6vw, 23px);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
 }
 
 .wizard__line {
-  margin: 3px 0 0;
-  font-size: 12.5px;
-  line-height: 1.35;
+  margin: 2px 0 0;
+  font-size: 13px;
   color: var(--text-dim);
+  min-height: 18px;
+}
+
+/* What to do next, as opposed to what is happening. */
+.wizard__line--call { color: var(--text); }
+.wizard__line--call strong {
+  font-family: var(--mono);
+  letter-spacing: 0.06em;
 }
 .wizard__line--good { color: var(--ok); }
 
-.wizard__actions {
-  display: flex;
-  gap: 8px;
-  flex: 0 0 auto;
+/* Counting down reads as the panel holding its breath. */
+.wizard[data-stage='countdown'] .wizard__line--call strong {
+  font-size: 16px;
+  color: var(--warn);
 }
-
-.wizard__actions button {
-  font-size: 13px;
-  padding: 8px 13px;
-}
-
-/* Go restarts the average, which is the one irreversible thing in the run —
-   it is worth being the biggest target on the panel. */
-.wizard__go { min-width: 74px; }
 
 .wizard__foot {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 8px;
+  min-height: 28px;
 }
+
+.wizard__actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.wizard__actions button { font-size: 13px; padding: 8px 14px; }
+
+.wizard--done .wizard__foot { margin-top: 10px; }
 
 .wizard__dots {
   display: flex;
@@ -790,16 +800,21 @@ select {
 .wizard__auto {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   font-size: 12px;
   color: var(--text-dim);
   cursor: pointer;
-  flex: 1 1 auto;
-  min-width: 0;
+  flex: 0 0 auto;
 }
 .wizard__auto input { margin: 0; accent-color: var(--accent); }
 
-.wizard__finish {
+.wizard__record {
+  flex: 0 0 auto;
+  font-size: 12px;
+  padding: 6px 13px;
+}
+
+.wizard__link {
   background: none;
   border: 0;
   padding: 4px 0;
@@ -812,7 +827,7 @@ select {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
-.wizard__finish:hover { color: var(--text-dim); }
+.wizard__link:hover { color: var(--text-dim); }
 
 @media (prefers-reduced-motion: reduce) {
   .wizard__dot::after { transition: none; }

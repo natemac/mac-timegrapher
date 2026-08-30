@@ -9,7 +9,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   WIZARD_ORDER, AUTO_CAPTURE_CONFIRMATIONS, STALL_SECONDS,
-  startWizard, positionAt, stepLabel, begin, captured, advance,
+  COUNTDOWN_SECONDS,
+  startWizard, positionAt, stepLabel, begin, armed, abort, captured, advance,
   finish, retry, shouldAutoCapture, hasStalled, skipped, orderIsValid,
 } from './wizard';
 
@@ -25,12 +26,15 @@ describe('wizard order', () => {
 });
 
 describe('progression', () => {
-  it('runs prompt -> measuring -> captured -> next prompt', () => {
+  it('runs prompt -> countdown -> measuring -> captured -> next prompt', () => {
     let s = startWizard();
     expect(s.stage).toBe('prompt');
     expect(positionAt(s.step)).toBe('dial-up');
 
     s = begin(s);
+    expect(s.stage).toBe('countdown');
+
+    s = armed(s);
     expect(s.stage).toBe('measuring');
 
     s = captured(s);
@@ -45,7 +49,7 @@ describe('progression', () => {
   it('finishes after the last position', () => {
     let s = startWizard();
     for (let i = 0; i < WIZARD_ORDER.length; i++) {
-      s = advance(captured(begin(s)));
+      s = advance(captured(armed(begin(s))));
     }
     expect(s.stage).toBe('done');
     expect(s.step).toBe(WIZARD_ORDER.length);
@@ -57,24 +61,58 @@ describe('progression', () => {
      average, so a second press mid-measurement would silently throw away the
      twenty seconds the operator was waiting on.
   */
-  it('ignores Go unless it is prompting', () => {
-    const measuring = begin(startWizard());
-    expect(begin(measuring)).toBe(measuring);
+  it('ignores Start unless it is prompting', () => {
+    const counting = begin(startWizard());
+    expect(begin(counting)).toBe(counting);
+  });
+
+  /* Nothing is kept during the grace, so arming twice would silently discard
+     the seconds the operator had already waited. */
+  it('arms only out of the countdown', () => {
+    const prompting = startWizard();
+    expect(armed(prompting)).toBe(prompting);
+    const measuring = armed(begin(startWizard()));
+    expect(armed(measuring)).toBe(measuring);
+  });
+
+  it('returns to the same position when capture stops mid-reading', () => {
+    const aborted = abort(armed(begin(startWizard())));
+    expect(aborted.stage).toBe('prompt');
+    expect(positionAt(aborted.step)).toBe('dial-up');
+    expect(aborted.recorded).toEqual([]);
+  });
+
+  it('aborts out of the countdown too', () => {
+    expect(abort(begin(startWizard())).stage).toBe('prompt');
+  });
+
+  /* A recorded reading must survive Stop — the run is not lost because the
+     operator put the watch down. */
+  it('leaves a finished step alone', () => {
+    const done = captured(armed(begin(startWizard())));
+    expect(abort(done)).toBe(done);
+  });
+
+  it('gives the operator a few seconds to let go of the watch', () => {
+    expect(COUNTDOWN_SECONDS).toBeGreaterThanOrEqual(2);
+    expect(COUNTDOWN_SECONDS).toBeLessThanOrEqual(5);
   });
 
   it('ignores a capture that did not come from measuring', () => {
     const prompting = startWizard();
     expect(captured(prompting)).toBe(prompting);
+    const counting = begin(prompting);
+    expect(captured(counting)).toBe(counting);
   });
 
   it('does not record the same position twice on a re-measure', () => {
-    let s = captured(begin(startWizard()));
-    s = captured(begin(retry(s)));
+    let s = captured(armed(begin(startWizard())));
+    s = captured(armed(begin(retry(s))));
     expect(s.recorded).toEqual(['dial-up']);
   });
 
   it('retry goes back to prompting the same position', () => {
-    const s = retry(captured(begin(startWizard())));
+    const s = retry(captured(armed(begin(startWizard()))));
     expect(s.stage).toBe('prompt');
     expect(positionAt(s.step)).toBe('dial-up');
   });
@@ -82,13 +120,13 @@ describe('progression', () => {
   it('reports positions stepped past without a reading', () => {
     let s = startWizard();
     s = advance(s);                       // skipped dial-up
-    s = advance(captured(begin(s)));      // recorded dial-down
+    s = advance(captured(armed(begin(s))));  // recorded dial-down
     expect(s.recorded).toEqual(['dial-down']);
     expect(skipped(s)).toEqual(['dial-up']);
   });
 
   it('finishing early keeps what was recorded', () => {
-    const s = finish(captured(begin(startWizard())));
+    const s = finish(captured(armed(begin(startWizard()))));
     expect(s.stage).toBe('done');
     expect(s.recorded).toEqual(['dial-up']);
   });
@@ -137,6 +175,8 @@ describe('automatic capture', () => {
   it('does not fire outside a measurement', () => {
     expect(shouldAutoCapture({ ...base, stage: 'prompt' })).toBe(false);
     expect(shouldAutoCapture({ ...base, stage: 'captured' })).toBe(false);
+    // Above all not during the grace, which exists to discard what it hears.
+    expect(shouldAutoCapture({ ...base, stage: 'countdown' })).toBe(false);
   });
 });
 
