@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   WIZARD_ORDER, AUTO_CAPTURE_CONFIRMATIONS, STALL_SECONDS,
-  startWizard, positionAt, placementFor, stepLabel, begin, captured, advance,
+  startWizard, positionAt, stepLabel, begin, captured, advance,
   finish, retry, shouldAutoCapture, hasStalled, skipped, orderIsValid,
 } from './wizard';
 
@@ -17,12 +17,6 @@ describe('wizard order', () => {
   it('covers every session position exactly once', () => {
     expect(orderIsValid()).toBe(true);
     expect(new Set(WIZARD_ORDER).size).toBe(WIZARD_ORDER.length);
-  });
-
-  it('has placement wording for every position', () => {
-    for (const p of WIZARD_ORDER) {
-      expect(placementFor(p).length).toBeGreaterThan(10);
-    }
   });
 
   it('starts flat, which is where a session starts', () => {

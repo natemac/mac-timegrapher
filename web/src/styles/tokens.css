@@ -676,15 +676,10 @@ select {
 
 
 /* ---------- Mode switch ----------
-   The primary control: it decides what the whole screen is for, so it is wider
-   and taller than the graph switch inside a panel header, and centred on its
-   own row where it reads as a heading for everything below it. */
-.app__mode {
-  display: flex;
-  justify-content: center;
-  flex: 0 0 auto;
-}
-
+   Lives on the welcome screen, not in the measuring view: it is decided once
+   before the watch is picked up, and a row for it above the readings costs the
+   trace height it needs more. Wider and taller than the graph switch, because
+   it decides what the whole session is for. */
 .switch--mode {
   width: 100%;
   max-width: 300px;
@@ -817,21 +812,19 @@ select {
   .wizard__dot::after { transition: none; }
 }
 
-/* The two modes, named on the welcome screen so the switch on the next one is
-   already familiar. */
-.gate__modes {
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid var(--line);
-  display: grid;
-  gap: 6px;
+/* Choosing the job, on the screen where the job starts. */
+.gate__mode {
+  display: flex;
+  justify-content: center;
 }
-.gate__modes p {
-  margin: 0;
-  font-size: 13px;
-  color: var(--text-dim);
+
+.gate__mode-note {
+  margin: 10px 0 20px;
+  font-size: 12.5px;
+  /* Two lines' worth, so the panel does not jump when the selection changes
+     from a one-line description to a two-line one. */
+  min-height: 34px;
 }
-.gate__modes strong { color: var(--text); font-weight: 600; }
 
 /* Transient confirmation under the readings — it replaces nothing and pushes
    nothing, because it is gone in three seconds. */

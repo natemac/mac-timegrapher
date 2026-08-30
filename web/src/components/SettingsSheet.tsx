@@ -9,6 +9,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { GUIDE, GUIDE_ORDER, type Topic } from './guide-content';
 import { ZOOM_STEPS, ZOOM_AUTO } from '../timegrapher/trace-zoom';
+import { ModeSwitch, type Mode } from './ModeSwitch';
 
 export interface Settings {
   /** Milliseconds of drift spanning the trace width. Smaller magnifies more. */
@@ -33,6 +34,8 @@ interface Props {
   onShowFullGuide: () => void;
   settings: Settings;
   onChange: (s: Settings) => void;
+  mode: Mode;
+  onSelectMode: (m: Mode) => void;
 }
 
 type Tab = 'guide' | 'settings';
@@ -67,7 +70,7 @@ function Choice<T extends number>({
 }
 
 export function SettingsSheet({
-  open, topic, onClose, onShowFullGuide, settings, onChange,
+  open, topic, onClose, onShowFullGuide, settings, onChange, mode, onSelectMode,
 }: Props) {
   const [tab, setTab] = useState<Tab>('guide');
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -142,6 +145,19 @@ export function SettingsSheet({
             </>
           ) : tab === 'settings' ? (
             <>
+              {/* Chosen on the welcome screen, changed here. Without this the
+                  choice would be fixed until the page was reloaded. */}
+              <div style={{ marginBottom: 16 }}>
+                <div className="eyebrow" style={{ marginBottom: 8 }}>Mode</div>
+                <ModeSwitch value={mode} onChange={onSelectMode} />
+              </div>
+              <p className="dim">
+                <strong>Measure</strong> is one live reading, for watching the
+                effect of moving the regulator. <strong>Certify</strong> steps
+                through six positions, restarting the average at each one, and
+                ends in a printable certificate.
+              </p>
+
               <Choice
                 label="Trace magnification"
                 options={ZOOM_CHOICES}

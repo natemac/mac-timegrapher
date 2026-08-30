@@ -40,24 +40,6 @@ export const WIZARD_ORDER: PositionId[] = [
   'crown-right',
 ];
 
-/*
-   How to reach each position from the one before it.
-
-   Kept to a glance — under thirty characters, so it sets on one line beside
-   the Go button. Someone reading this has a watch in one hand and is looking
-   at the watch, not the screen; a sentence they have to stop and parse is a
-   sentence that gets skipped. Nothing here says "press Go", because the button
-   next to it says Go.
-*/
-const PLACEMENT: Record<PositionId, string> = {
-  'dial-up': 'Lay it flat, dial up.',
-  'dial-down': 'Turn it over, dial down.',
-  'crown-down': 'On edge, crown down.',
-  'crown-up': 'Turn it round, crown up.',
-  'crown-left': 'Quarter turn, 12 up.',
-  'crown-right': 'Half turn, 6 up.',
-};
-
 export type WizardStage =
   /** Waiting for the operator to place the watch and press Go. */
   | 'prompt'
@@ -102,10 +84,6 @@ export function startWizard(): WizardState {
 /** The position a step measures, or null once the run is past the end. */
 export function positionAt(step: number): PositionId | null {
   return WIZARD_ORDER[step] ?? null;
-}
-
-export function placementFor(position: PositionId): string {
-  return PLACEMENT[position];
 }
 
 /** Human label for the current step, e.g. "Position 3 of 6 — Crown down". */

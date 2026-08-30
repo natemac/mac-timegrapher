@@ -8,8 +8,7 @@
 */
 import { positionName } from '../timegrapher/session';
 import {
-  WIZARD_ORDER, STALL_SECONDS, positionAt, placementFor, skipped,
-  type WizardState,
+  WIZARD_ORDER, STALL_SECONDS, positionAt, skipped, type WizardState,
 } from '../timegrapher/wizard';
 import type { Settling } from '../timegrapher/stability';
 
@@ -114,10 +113,10 @@ export function CertifyWizard({
             {state.step + 1}/{WIZARD_ORDER.length} · {positionName(position)}
           </div>
 
-          {state.stage === 'prompt' && (
-            <p className="wizard__line">
-              {capturing ? placementFor(position) : 'Press Start above to begin.'}
-            </p>
+          {/* No placement instruction: the position is named right above, and
+              "Dial up" already tells a watchmaker what to do with the watch. */}
+          {state.stage === 'prompt' && !capturing && (
+            <p className="wizard__line">Press Start above to begin.</p>
           )}
 
           {state.stage === 'measuring' && (

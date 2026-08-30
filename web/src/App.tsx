@@ -29,7 +29,7 @@ import type { Topic } from './components/guide-content';
 import { findMovement, engineConfigFor } from './timegrapher/movements';
 import { useWakeLock } from './hooks/useWakeLock';
 import { SessionSheet } from './components/SessionSheet';
-import { ModeSwitch, loadMode, saveMode, type Mode } from './components/ModeSwitch';
+import { loadMode, saveMode, type Mode } from './components/ModeSwitch';
 import { CertifyWizard } from './components/CertifyWizard';
 import {
   startWizard, begin, captured, advance, finish, retry, jumpTo, positionAt,
@@ -626,6 +626,8 @@ export default function App() {
         onShowFullGuide={() => setHelpTopic(null)}
         settings={settings}
         onChange={updateSettings}
+        mode={mode}
+        onSelectMode={selectMode}
       />
 
       {!secure && (
@@ -647,7 +649,13 @@ export default function App() {
       )}
 
       {secure && supported && !granted && (
-        <PermissionGate onGrant={grant} error={error} busy={busy} />
+        <PermissionGate
+          onGrant={grant}
+          error={error}
+          busy={busy}
+          mode={mode}
+          onSelectMode={selectMode}
+        />
       )}
 
       {granted && (
@@ -672,12 +680,6 @@ export default function App() {
               <p className="bad" style={{ margin: 0, fontSize: 13 }}>{error}</p>
             </div>
           )}
-
-          {/* What the screen is for. Above the readings because it changes
-              what everything below it means. */}
-          <div className="app__mode">
-            <ModeSwitch value={mode} onChange={selectMode} />
-          </div>
 
           <MeasurementPanel
             measurement={measurement}
