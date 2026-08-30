@@ -75,7 +75,30 @@ export function MeasurementPanel({
 
   return (
     <div className="panel panel--tight">
-      <PanelHead label="Measurement" topic="measurement" onHelp={onHelp} />
+      <PanelHead
+        label="Measurement"
+        topic="measurement"
+        onHelp={onHelp}
+        right={capturing ? (
+          /*
+            Repositioning the watch makes a burst of noise the spread cannot
+            tell from the movement misbehaving, and it would otherwise sit in
+            the window for the next thirty seconds. This throws the average
+            away and starts again without stopping capture.
+          */
+          <button
+            className="panel__help-icon"
+            onClick={onResetAverage}
+            aria-label="Restart the average"
+            title="Restart the average"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M3 12a9 9 0 1 0 2.6-6.4" strokeLinecap="round" />
+              <path d="M3 4v5h5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        ) : undefined}
+      />
 
       {/* Two by two so all four read at a glance without scrolling. */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 18px' }}>
@@ -114,7 +137,6 @@ export function MeasurementPanel({
             settling={settling}
             rate={show ? m!.rate : null}
             spread={show ? spreads.rate : null}
-            onReset={onResetAverage}
           />
         </div>
       )}
