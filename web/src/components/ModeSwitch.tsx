@@ -16,24 +16,24 @@ import { SlideSwitch, type SlideOption } from './SlideSwitch';
    button are dead weight there, and in a view that must never scroll, dead
    weight costs the trace its height.
 
-   Certifying is the opposite — the readings are a means to a document, and the
-   work is getting through six positions without contaminating any of them.
-
-   Both labels are verbs, because the switch asks what you are doing rather
-   than which screen you want.
+   An inspection is the opposite — the readings are a means to a document, and
+   the work is getting through six positions without contaminating any of them.
 */
-export type Mode = 'measure' | 'certify';
+export type Mode = 'measure' | 'inspection';
 
 const OPTIONS: SlideOption<Mode>[] = [
   { id: 'measure', label: 'Measure' },
-  { id: 'certify', label: 'Certify' },
+  { id: 'inspection', label: 'Inspection' },
 ];
 
 const KEY = 'mac-timegrapher.mode';
 
 export function loadMode(): Mode {
   try {
-    return localStorage.getItem(KEY) === 'certify' ? 'certify' : 'measure';
+    const stored = localStorage.getItem(KEY);
+    // 'certify' was this mode's name before it was called an inspection.
+    // Mapping it keeps an existing preference rather than silently resetting it.
+    return stored === 'inspection' || stored === 'certify' ? 'inspection' : 'measure';
   } catch {
     return 'measure';
   }

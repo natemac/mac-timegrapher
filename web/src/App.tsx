@@ -30,7 +30,7 @@ import { findMovement, engineConfigFor } from './timegrapher/movements';
 import { useWakeLock } from './hooks/useWakeLock';
 import { SessionSheet } from './components/SessionSheet';
 import { loadMode, saveMode, type Mode } from './components/ModeSwitch';
-import { CertifyWizard } from './components/CertifyWizard';
+import { InspectionWizard } from './components/InspectionWizard';
 import {
   startWizard, begin, captured, advance, finish, retry, jumpTo, positionAt,
   shouldAutoCapture, loadAutoCapture, saveAutoCapture, type WizardState,
@@ -301,7 +301,7 @@ export default function App() {
   }, [settling, secondsCaptured]);
 
   useEffect(() => {
-    if (mode !== 'certify') return;
+    if (mode !== 'inspection') return;
     if (
       !shouldAutoCapture({
         stage: wizard.stage,
@@ -322,7 +322,7 @@ export default function App() {
      the instruction for the next one.
   */
   useEffect(() => {
-    if (mode !== 'certify' || wizard.stage !== 'captured' || !autoCapture) return;
+    if (mode !== 'inspection' || wizard.stage !== 'captured' || !autoCapture) return;
     const id = window.setTimeout(() => setWizard(advance), 1600);
     return () => window.clearTimeout(id);
   }, [mode, wizard.stage, wizard.step, autoCapture]);
@@ -413,7 +413,7 @@ export default function App() {
       bph: m.detectedBph,
       spreads,
       movementName: movementLabel,
-      position: mode === 'certify' ? positionAt(wizard.step) : null,
+      position: mode === 'inspection' ? positionAt(wizard.step) : null,
       reference: meta.reference,
       at: new Date(),
     };
@@ -697,8 +697,8 @@ export default function App() {
             <p className="dim app__note" role="status">{snapshotNote}</p>
           )}
 
-          {mode === 'certify' && (
-            <CertifyWizard
+          {mode === 'inspection' && (
+            <InspectionWizard
               state={wizard}
               capturing={capturing}
               settling={settling}

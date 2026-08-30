@@ -68,7 +68,7 @@ function Dots({ state, onJump }: { state: WizardState; onJump: (step: number) =>
   );
 }
 
-export function CertifyWizard({
+export function InspectionWizard({
   state, capturing, settling, valid, seconds, auto, onAutoChange,
   onGo, onCapture, onSkip, onNext, onRetry, onFinish, onRestart, onOpenSummary, onJump,
 }: Props) {

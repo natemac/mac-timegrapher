@@ -153,7 +153,7 @@ export function SettingsSheet({
               </div>
               <p className="dim">
                 <strong>Measure</strong> is one live reading, for watching the
-                effect of moving the regulator. <strong>Certify</strong> steps
+                effect of moving the regulator. <strong>Inspection</strong> steps
                 through six positions, restarting the average at each one, and
                 ends in a printable certificate.
               </p>

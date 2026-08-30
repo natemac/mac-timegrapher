@@ -205,7 +205,7 @@ select {
    The one elastic block. Everything above it is a fixed cost — a masthead, a
    setup panel, four readings, a meter — so the trace is what absorbs whatever
    is left, and the floor is set low enough that it can still do that in
-   Certify mode, where the wizard takes a panel's worth of height the manual
+   Inspection mode, where the wizard takes a panel's worth of height the manual
    view does not need. A short trace beats a scrolling app: the rule is one
    view, and a strip that has to be scrolled to is a strip nobody watches.
 */
@@ -816,14 +816,7 @@ select {
 .gate__mode {
   display: flex;
   justify-content: center;
-}
-
-.gate__mode-note {
-  margin: 10px 0 20px;
-  font-size: 12.5px;
-  /* Two lines' worth, so the panel does not jump when the selection changes
-     from a one-line description to a two-line one. */
-  min-height: 34px;
+  margin-bottom: 20px;
 }
 
 /* Transient confirmation under the readings — it replaces nothing and pushes
