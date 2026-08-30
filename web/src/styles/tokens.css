@@ -844,3 +844,14 @@ select {
   cursor: pointer;
 }
 .setting-toggle input { margin: 0; accent-color: var(--accent); }
+
+/* Pinned beneath the sheet's title, outside the scrolling body: producing the
+   certificate is why the sheet gets opened, and it should not be at the far end
+   of the thing you are scrolling through. */
+.sheet__actions {
+  display: flex;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  flex: 0 0 auto;
+}

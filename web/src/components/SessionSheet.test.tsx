@@ -91,3 +91,41 @@ describe('SessionSheet certificate fields', () => {
     expect(screen.getByRole('button', { name: 'Close' })).toHaveFocus();
   });
 });
+
+describe('SessionSheet header', () => {
+  it('names the session after the reference as it is typed', async () => {
+    const user = userEvent.setup();
+    render(<Host />);
+
+    expect(screen.getByText('Session — Seiko / TMI NH35')).toBeInTheDocument();
+
+    await user.click(screen.getByPlaceholderText('Reference or build number'));
+    await user.keyboard('MB-0142');
+
+    expect(screen.getByText('MB-0142 — Seiko / TMI NH35')).toBeInTheDocument();
+    expect(screen.queryByText('Session — Seiko / TMI NH35')).not.toBeInTheDocument();
+  });
+
+  /*
+     These used to sit under the summary, so reaching the button the sheet was
+     opened for meant scrolling past every position. They belong outside the
+     scrolling region.
+  */
+  it('keeps the actions out of the scrolling body', () => {
+    render(<Host />);
+    const actions = document.querySelector('.sheet__actions');
+    expect(actions).not.toBeNull();
+    expect(actions!.querySelector('.sheet__body')).toBeNull();
+    expect(document.querySelector('.sheet__body')!.contains(actions)).toBe(false);
+    for (const name of ['Certificate — print or save as PDF', 'Copy the results as text', 'Clear']) {
+      expect(actions!.contains(screen.getByRole('button', { name }))).toBe(true);
+    }
+  });
+
+  it('asks twice before clearing', async () => {
+    const user = userEvent.setup();
+    render(<Host />);
+    await user.click(screen.getByRole('button', { name: 'Clear' }));
+    expect(screen.getByRole('button', { name: 'Sure?' })).toBeInTheDocument();
+  });
+});

@@ -68,6 +68,19 @@ export const EMPTY_META: SessionMeta = { reference: '', technician: '', notes: '
 const STORAGE_KEY = 'mac-timegrapher.session';
 const META_KEY = 'mac-timegrapher.session-meta';
 
+/**
+ * What to call this session.
+ *
+ * The reference is the operator's own name for the job — a build number, a
+ * movement serial, a job number — so once they have typed one it is the name,
+ * and "Session" stops being useful. Falling back the other way round would
+ * label every session on the bench identically.
+ */
+export function sessionTitle(reference: string, movementName: string | null): string {
+  const name = reference.trim() || 'Session';
+  return movementName ? `${name} — ${movementName}` : name;
+}
+
 export function positionName(id: PositionId): string {
   return POSITIONS.find((p) => p.id === id)?.name ?? id;
 }

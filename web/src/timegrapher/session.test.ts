@@ -8,7 +8,7 @@
 */
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  upsert, summarise, load, save, clear, toTable, positionName,
+  upsert, summarise, load, save, clear, toTable, positionName, sessionTitle,
   loadMeta, saveMeta, EMPTY_META,
   type Reading, type PositionId,
 } from './session';
@@ -156,5 +156,29 @@ describe('session metadata', () => {
     clear();
     expect(loadMeta()).toEqual(EMPTY_META);
     expect(load()).toEqual([]);
+  });
+});
+
+describe('sessionTitle', () => {
+  it('names the session after the reference once there is one', () => {
+    expect(sessionTitle('MB-0142', 'Seiko / TMI NH35')).toBe('MB-0142 — Seiko / TMI NH35');
+  });
+
+  it('falls back to Session before a reference is entered', () => {
+    expect(sessionTitle('', 'Seiko / TMI NH35')).toBe('Session — Seiko / TMI NH35');
+  });
+
+  /* A field the operator half-typed into and cleared is not a reference. */
+  it('treats whitespace as no reference', () => {
+    expect(sessionTitle('   ', 'Seiko / TMI NH35')).toBe('Session — Seiko / TMI NH35');
+  });
+
+  it('trims a reference rather than rendering the padding', () => {
+    expect(sessionTitle('  MB-0142 ', null)).toBe('MB-0142');
+  });
+
+  it('stands alone when no movement is chosen', () => {
+    expect(sessionTitle('MB-0142', null)).toBe('MB-0142');
+    expect(sessionTitle('', null)).toBe('Session');
   });
 });

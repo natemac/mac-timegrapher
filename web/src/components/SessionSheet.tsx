@@ -8,7 +8,7 @@
 */
 import { useEffect, useRef, useState } from 'react';
 import {
-  POSITIONS, summarise, toTable, type Reading, type SessionMeta,
+  POSITIONS, summarise, toTable, sessionTitle, type Reading, type SessionMeta,
 } from '../timegrapher/session';
 
 interface Props {
@@ -72,6 +72,7 @@ export function SessionSheet({
 
   const summary = summarise(readings);
   const byPosition = new Map(readings.map((r) => [r.position, r]));
+  const title = sessionTitle(meta.reference, movementName);
 
   const copy = async () => {
     try {
@@ -89,11 +90,11 @@ export function SessionSheet({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="sheet" role="dialog" aria-modal="true" aria-label="Session">
+      <div className="sheet" role="dialog" aria-modal="true" aria-label={title}>
         <div className="sheet__head">
-          <span style={{ fontWeight: 600, fontSize: 15 }}>
-            Session{movementName ? ` — ${movementName}` : ''}
-          </span>
+          {/* The reference becomes the name as soon as one is typed, so the
+              sheet says which job it is rather than "Session". */}
+          <span style={{ fontWeight: 600, fontSize: 15 }}>{title}</span>
           <button
             ref={closeRef}
             className="secondary"
@@ -104,6 +105,39 @@ export function SessionSheet({
             ✕
           </button>
         </div>
+
+        {/*
+          Pinned outside the scrolling body. These were at the foot of the
+          table, so producing the certificate meant scrolling past every
+          position and the summary to reach the button that is the reason the
+          sheet was opened.
+        */}
+        {summary && (
+          <div className="sheet__actions">
+            <button
+              onClick={onPrint}
+              aria-label="Certificate — print or save as PDF"
+              style={{ flex: '1 1 auto', fontSize: 13 }}
+            >
+              Certificate
+            </button>
+            <button
+              className="secondary"
+              onClick={copy}
+              aria-label="Copy the results as text"
+              style={{ flex: '0 0 auto', fontSize: 13 }}
+            >
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+            <button
+              className="secondary"
+              onClick={() => (confirmClear ? onClear() : setConfirmClear(true))}
+              style={{ flex: '0 0 auto', fontSize: 13 }}
+            >
+              {confirmClear ? 'Sure?' : 'Clear'}
+            </button>
+          </div>
+        )}
 
         <div className="sheet__body prose">
           {/* Every position is listed whether measured or not, so what is left
@@ -181,21 +215,6 @@ export function SessionSheet({
                 />
               </div>
 
-              <div style={{ display: 'flex', gap: 8, marginTop: 16, flexWrap: 'wrap' }}>
-                <button onClick={onPrint} style={{ flex: '1 1 100%', fontSize: 13 }}>
-                  Certificate — print or save as PDF
-                </button>
-                <button className="secondary" onClick={copy} style={{ flex: '1 1 auto', fontSize: 13 }}>
-                  {copied ? 'Copied' : 'Copy results'}
-                </button>
-                <button
-                  className="secondary"
-                  onClick={() => (confirmClear ? onClear() : setConfirmClear(true))}
-                  style={{ flex: '1 1 auto', fontSize: 13 }}
-                >
-                  {confirmClear ? 'Tap again to clear' : 'Clear session'}
-                </button>
-              </div>
             </>
           ) : (
             <p className="dim" style={{ marginTop: 16 }}>
