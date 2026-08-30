@@ -22,6 +22,7 @@ import { MeasurementPanel } from './components/MeasurementPanel';
 import { TimegrapherEngine, type Measurement, type Beat } from './timegrapher/tg-engine';
 import { StabilityTracker, type Settling, type Spread } from './timegrapher/stability';
 import { TraceCanvas } from './components/TraceCanvas';
+import { GraphSwitch, type Graph } from './components/GraphSwitch';
 import { SettingsSheet, DEFAULT_SETTINGS, type Settings } from './components/SettingsSheet';
 import type { Topic } from './components/guide-content';
 import { findMovement, engineConfigFor } from './timegrapher/movements';
@@ -63,7 +64,7 @@ export default function App() {
   const [beats, setBeats] = useState<Beat[]>([]);
   const [settling, setSettling] = useState<Settling>('waiting');
   const [spreads, setSpreads] = useState<{ rate: Spread | null; amplitude: Spread | null; beatError: Spread | null }>({ rate: null, amplitude: null, beatError: null });
-  const [graph, setGraph] = useState<'trace' | 'waveform'>('trace');
+  const [graph, setGraph] = useState<Graph>('trace');
   // Remembered: a bench usually works through a batch of the same calibre.
   const [movementId, setMovementId] = useState<string | null>(
     () => {
@@ -515,10 +516,31 @@ export default function App() {
 
           <LevelMeter signal={signal} onHelp={showHelp} />
 
-          {/* The graph takes whatever height is left, with its selector below
-              it: the control belongs next to the thing it changes, and at the
-              bottom it falls under the thumb. */}
-          <div className="app__graph">
+          {/* One panel, two views. The switch names what you are looking at,
+              so the panel needs no separate label of its own. */}
+          <div className="panel panel--tight app__graph">
+            <div className="panel__head">
+              <GraphSwitch value={graph} onChange={setGraph} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className="dim mono" style={{ fontSize: 10 }}>
+                  {graph === 'trace'
+                    ? `${settings.traceSeconds}s · ${settings.zoomMs}ms wide`
+                    : '1s'}
+                </span>
+                <button
+                  className="panel__help-icon"
+                  onClick={() => showHelp(graph)}
+                  aria-label={graph === 'trace' ? 'What is the trace?' : 'What is the waveform?'}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M9.2 9a2.9 2.9 0 0 1 5.6 1c0 2-2.8 2.6-2.8 2.6" strokeLinecap="round" />
+                    <circle cx="12" cy="17.2" r="0.9" fill="currentColor" stroke="none" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
             {graph === 'trace' ? (
               <TraceCanvas
                 beats={beats}
@@ -526,24 +548,10 @@ export default function App() {
                 zoomMs={settings.zoomMs}
                 windowSeconds={settings.traceSeconds}
                 capturing={capturing}
-                onHelp={showHelp}
               />
             ) : (
-              <WaveformCanvas latest={latest} onHelp={showHelp} />
+              <WaveformCanvas latest={latest} />
             )}
-          </div>
-
-          <div className="segmented">
-            {(['trace', 'waveform'] as const).map((g) => (
-              <button
-                key={g}
-                className={graph === g ? undefined : 'secondary'}
-                style={{ textTransform: 'capitalize' }}
-                onClick={() => setGraph(g)}
-              >
-                {g}
-              </button>
-            ))}
           </div>
 
           <SourceFooter />

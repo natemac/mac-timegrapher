@@ -8,8 +8,6 @@
 */
 import { useEffect, useRef } from 'react';
 import type { Beat } from '../timegrapher/tg-engine';
-import { PanelHead } from './PanelHead';
-import type { Topic } from './guide-content';
 
 /*
    The paper strip.
@@ -43,7 +41,6 @@ interface Props {
   /** Seconds of history to show. */
   windowSeconds?: number;
   capturing: boolean;
-  onHelp: (t: Topic) => void;
 }
 
 /* Read from CSS custom properties so the strip follows the theme: bone on
@@ -61,7 +58,7 @@ function themeColours(el: HTMLElement) {
   };
 }
 
-export function TraceCanvas({ beats, bph, zoomMs, windowSeconds = 30, capturing, onHelp }: Props) {
+export function TraceCanvas({ beats, bph, zoomMs, windowSeconds = 30, capturing }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -145,25 +142,9 @@ export function TraceCanvas({ beats, bph, zoomMs, windowSeconds = 30, capturing,
   }, [beats, bph, zoomMs, windowSeconds, capturing]);
 
   return (
-    <div
-      className="panel panel--tight"
-      style={{ flex: '1 1 auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}
-    >
-      <PanelHead
-        label="Trace"
-        topic="trace"
-        onHelp={onHelp}
-        right={
-          <span className="dim mono" style={{ fontSize: 10 }}>
-            {windowSeconds}s · {zoomMs}ms wide
-          </span>
-        }
-      />
-      {/* The canvas is the only thing that grows. */}
-      <canvas
-        ref={canvasRef}
-        style={{ width: '100%', flex: '1 1 auto', minHeight: 0, display: 'block' }}
-      />
-    </div>
+    <canvas
+      ref={canvasRef}
+      style={{ width: '100%', flex: '1 1 auto', minHeight: 0, display: 'block' }}
+    />
   );
 }
