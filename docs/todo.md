@@ -1,125 +1,131 @@
 # To do
 
-Written 2026-08-30. Ordered by what unblocks the most.
+Rewritten 2026-08-30. Split by who can actually do each thing: some of these
+need a watch, a bench and a decision, and no amount of code will settle them.
 
 ---
 
+# Yours — needs a bench, or a call only you can make
+
 ## 1. Verify amplitude against a known-good instrument
 
-**This is the only thing on the list that could invalidate the tool.**
+**Still the only thing on this list that could invalidate the tool**, and it
+matters more now that amplitude prints on a customer-facing certificate.
 
 Rate and beat error come from *when* ticks happen, and those are confirmed —
 against synthetic signals with exact known timing, against the native reference
 build, and against a real NH35. Amplitude comes from the *shape* of the
 escapement impulse, and it has never been compared with anything.
 
-The number is plausible (250° on a running NH35 is believable) but plausible is
-not verified. Put the same watch on a Weishi or equivalent, in the same
-position, and compare.
+250° on a running NH35 is believable. Believable is not verified. Put the same
+watch on a Weishi or equivalent, same position, and compare.
 
-- If amplitude agrees within a few degrees, the port is sound and this can be
-  closed.
-- If it is consistently off by a fixed proportion, suspect the lift angle
-  (see 2).
-- If it is erratic, the impulse detection needs looking at.
+- Agrees within a few degrees → the port is sound, close this.
+- Off by a consistent proportion → suspect the lift angle (2).
+- Erratic → the impulse detection needs looking at.
 
 ## 2. Confirm the preset lift angles
 
-`web/src/timegrapher/movements.ts` uses commonly-published lift angles: 53° for
-the NH family, 51° Miyota, 52° PT5000/ST2130, 50° ETA/Sellita.
+`web/src/timegrapher/movements.ts` uses commonly-published figures: 53° for the
+NH family, 51° Miyota, 52° PT5000/ST2130, 50° ETA/Sellita.
 
-Amplitude is calculated straight from this number — a degree out is about two
-percent of amplitude, enough to move a reading across a healthy/unhealthy line.
-Worth checking against manufacturer service data before amplitude from a preset
-goes into a permanent build record.
+Amplitude is calculated straight from this. A degree out is about two percent of
+amplitude — enough to move a reading across a healthy/unhealthy line. Worth
+checking against manufacturer service data before a preset-derived amplitude
+goes on a permanent build record.
 
-## 3. Record a reference fixture
+## 3. Run a full six-position inspection on a real watch
 
-`fixtures/` is still empty, so there is no regression corpus. Any future change
-to the DSP is currently checked only against synthetic signals, which cannot
-test amplitude at all.
+The whole Start-driven flow — three-second grace, automatic record, stop between
+positions — is covered by unit tests and has never met a movement. Specifically
+worth watching:
 
-Procedure is in `docs/bench-checklist.md`. One 30-second NH35 recording with its
-`.json` metadata is enough to start; more positions and a faulty movement would
-make it much stronger.
+- Does **automatic record** fire, and on a reading you would have accepted?
+- Is **three seconds** enough to get clear, or does the first reading still
+  carry handling noise?
+- Does stopping and restarting the microphone each position cause any hitch?
+- Does the run reach **Settled** at all six positions, or stall on some?
 
-## 4. Decide what the certificate should say
+## 4. Record a reference fixture
 
-The certificate deliberately records measurements without grading the watch —
-pass/fail thresholds are business rules that differ by calibre and customer, and
-they belong in the private application rather than a public GPL tool.
+`fixtures/` is still empty, so there is no regression corpus. Any future DSP
+change is checked only against synthetic signals, which cannot test amplitude at
+all. Procedure in `docs/bench-checklist.md`. One 30-second NH35 recording with
+its `.json` metadata starts it; more positions and a faulty movement make it
+much stronger.
 
-Worth deciding before it goes to a customer:
+The WAV recorder still exists in `web/src/audio/wav-recorder.ts` — it was taken
+out of the UI, not deleted. Say the word and it comes back for this.
 
-- **Does it need a pass/fail or a grade?** If so, those thresholds should come
-  from the private side, not be hardcoded here.
-- **Wording of the method statement.** It currently says the certificate records
-  measurements and asserts no conformance to a standard. That is honest, and
-  worth keeping unless you intend to certify against something specific.
-- **Amplitude's caveat.** The certificate names the lift angle it used, because
-  amplitude is derived from that rather than measured. Until item 1 is done,
-  amplitude on a customer-facing document is unverified.
-- **Whether to note the regulation state** — as-found versus as-left. A
-  before-and-after pair would be more useful than a single reading, and the
-  session store could hold both.
-- **Whether a certification run should record how it was taken.** The Certify
-  wizard restarts the average at every position and waits for the reading to
-  settle before recording, which is a stronger claim about the numbers than the
-  certificate currently makes. It may be worth saying so on the document.
+## 5. Decide what the certificate says
 
-## 5. Decide on the settled thresholds
+It records measurements and deliberately does not grade the watch: pass/fail
+thresholds are business rules that differ by calibre and customer, and belong in
+the private application rather than a public GPL tool.
 
-`web/src/timegrapher/stability.ts` uses ±1.0 s/day, ±8° and ±0.3 ms, calibrated
-from hand-held bench readings. A rigid sensor mount should do considerably
-better, and the thresholds could tighten.
+Open questions:
 
-Watch whether the indicator reaches **Settled** in ordinary use. If it settles
-instantly every time, they are too loose; if it rarely settles, too tight.
+- **Does it need a grade or pass/fail?** If so, those thresholds come from the
+  private side, not hardcoded here.
+- **As-found versus as-left.** A before-and-after pair is more useful than a
+  single reading, and the session store could hold both.
+- **Does it say how it was taken?** An inspection run restarts the average at
+  every position and waits for it to settle — a stronger claim about the numbers
+  than the document currently makes.
+- **Naming.** The mode is called Inspection; the document is still headed
+  "Timing Certificate". One of those should probably move.
+
+## 6. Settle the thresholds
+
+`stability.ts` uses ±1.0 s/day, ±8° and ±0.3 ms, calibrated from hand-held bench
+readings. A rigid mount should beat these comfortably. Watch whether the
+indicator reaches **Settled** in ordinary use: instantly every time means too
+loose, rarely means too tight.
+
+`STALL_SECONDS` in `wizard.ts` is 75 — after that the wizard stops promising the
+reading will settle and lets it be recorded anyway. That number is a guess.
 
 ---
 
-## Smaller items
+# Mine — code, waiting on nothing
 
-- **Native GTK build unverified.** `src/` still holds upstream's application and
-  `Makefile.am` was updated when `algo.c` moved, but it has never been compiled
-  since — GTK+3, PortAudio, pkg-config and automake are not installed. Only
-  matters when a direct A/B against native tg is wanted.
-- **WAV file input for the native build.** Native tg cannot read files, which is
-  why upstream's C was kept. Adding a file-input mode to `tools/` would allow an
-  exact comparison on identical samples rather than two live measurements.
-- **Trace magnification default.** Currently 20 ms. 10 ms looked better in use;
-  worth settling after some bench time.
-- **The stall threshold is a guess.** `STALL_SECONDS` in
-  `web/src/timegrapher/wizard.ts` is 75 seconds — after that the Certify wizard
-  stops promising the reading will settle and lets it be captured anyway. Never
-  measured against how long a hand-held sensor actually takes on a difficult
-  movement.
-- **Auto-capture has only been exercised synthetically.** The two-report
-  confirmation and the stall path are unit-tested, but no watch has yet gone
-  through a full six-position run unattended.
-- **Trace floor is 96px.** Certify mode leaves the trace about 106px on a
-  375x812 screen. Readable, but if it proves too short in use the height has to
-  come from somewhere else — the setup panel collapsing to a summary line while
-  capturing is the obvious candidate.
-- **`web/.oxlintrc.json` is untracked** — swallowed by upstream's bare `.*`
-  gitignore pattern. `npm run lint` therefore behaves differently for a fresh
-  clone. One negation line fixes it.
+## Known gaps
+
+- **The guide never mentions the inspection run.** `guide-content.tsx` explains
+  the four readings, the signal meter and both graphs, but nothing tells a
+  newcomer what the six-position flow is for or how to work it. The flow changed
+  under it and the guide did not follow.
+- **The record → stop → next-position handoff has no test.** The state machine
+  and the panel are both covered; the orchestration between them lives in
+  `App.tsx` effects and is verified only by reading it. Extracting it would make
+  it testable.
 - **The stopped waveform keeps its last frame** until the next capture starts.
-  Cosmetic.
-- **No landscape layout.** The app is portrait-locked in the manifest; a
-  landscape bench setup would want a two-column arrangement.
+  Cosmetic, but it reads as though capture were still running.
+- **No landscape layout.** Portrait-locked in the manifest. A landscape bench
+  setup would want two columns.
+
+## Reference build
+
+- **Native GTK build unverified since `algo.c` moved.** `Makefile.am` was
+  updated but never compiled — GTK+3, PortAudio, pkg-config and automake are not
+  installed here. Only matters when a direct A/B against native tg is wanted.
+- **WAV file input for the native build.** Native tg cannot read files, which is
+  why upstream's C was kept. A file-input mode in `tools/` would allow an exact
+  comparison on identical samples rather than two live measurements.
 
 ---
 
-## Deliberately not done
+# Deliberately not done
 
-- **Recording removed from the UI.** It existed to produce DSP fixtures; the
-  code is still in `web/src/audio/wav-recorder.ts` if fixtures are wanted again.
 - **No QC pass/fail.** Thresholds are business rules and belong in the private
-  application, not in a public GPL repo. The session sheet reports the numbers
-  and leaves the judgement to the operator.
-- **No build-record integration.** Milestone 7. Wants an authenticated endpoint
-  on the PHP side first; the session already exports tab-separated text that
-  pastes into a spreadsheet in the meantime.
-- **No mocked tests for `startCapture` or the React components.** Mocking the
-  Web Audio graph would test the mock. They are verified at the bench.
+  application, not a public GPL repo. The session reports the numbers and leaves
+  the judgement to the watchmaker who signs it.
+- **No build-record integration.** Milestone 7, and it wants an authenticated
+  endpoint on the PHP side first. The session already exports tab-separated text
+  that pastes into a spreadsheet.
+- **Recording is not in the UI.** It existed to produce fixtures; the code stays
+  for when item 4 happens.
+- **No mocked tests for `startCapture` or the audio-wired components.** Mocking
+  the Web Audio graph would test the mock. Components that take plain props —
+  `SourceFooter`, `SessionSheet`, `MeasurementPanel`, `InspectionWizard`,
+  settings persistence — are tested, because there is nothing to mock.
