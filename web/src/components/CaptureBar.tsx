@@ -35,7 +35,7 @@ export function CaptureBar({
   const enabled = canCapture && settled;
 
   return (
-    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10 }}>
+    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flex: '0 0 auto' }}>
       <select
         aria-label="Position"
         value={position}

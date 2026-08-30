@@ -162,8 +162,15 @@ export default function App() {
     setReadings(next);
     sessionStore.save(next);
     setJustCaptured(true);
-    window.setTimeout(() => setJustCaptured(false), 1400);
   }, [readings, position]);
+
+  // The 'Captured' flash clears itself, and cancels cleanly if capture stops
+  // or the operator captures again before it has finished.
+  useEffect(() => {
+    if (!justCaptured) return;
+    const id = window.setTimeout(() => setJustCaptured(false), 1400);
+    return () => window.clearTimeout(id);
+  }, [justCaptured]);
 
   const clearSession = useCallback(() => {
     setReadings([]);
