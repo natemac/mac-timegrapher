@@ -640,8 +640,6 @@ export default function App() {
         onShowFullGuide={showFullGuide}
         settings={settings}
         onChange={updateSettings}
-        mode={mode}
-        onSelectMode={selectMode}
       />
 
       {!secure && (

@@ -24,11 +24,12 @@ interface Props {
    introduce itself at length. The guide behind the cog explains what a
    timegrapher measures for anyone who wants that.
 
-   Choosing the mode happens here rather than on the measuring screen. It is a
-   decision made once — you know whether you are regulating or inspecting
-   before you pick the watch up — and a control for it in the measuring view
-   costs a row of height that the trace needs more. It can still be changed
-   later from the settings sheet.
+   Choosing the mode happens here, and only here. It is a decision made once —
+   you know whether you are regulating or inspecting before you pick the watch
+   up — and a control for it in the measuring view costs a row of height that
+   the trace needs more. The consequence is that switching after the microphone
+   is allowed takes a reload; the choice is remembered, so the reload lands
+   where you left it.
 */
 export function PermissionGate({ onGrant, error, busy, mode, onSelectMode }: Props) {
   return (
