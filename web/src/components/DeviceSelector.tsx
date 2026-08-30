@@ -9,6 +9,7 @@
 import type { AudioInput } from '../audio/device-manager';
 import { PanelHead } from './PanelHead';
 import type { Topic } from './guide-content';
+import { MOVEMENTS, findMovement } from '../timegrapher/movements';
 
 interface Props {
   devices: AudioInput[];
@@ -20,12 +21,15 @@ interface Props {
   onSelect: (deviceId: string) => void;
   onStart: () => void;
   onStop: () => void;
+  movementId: string | null;
+  onSelectMovement: (id: string | null) => void;
   onHelp: (t: Topic) => void;
 }
 
 export function DeviceSelector({
   devices, selectedId, sampleRate, requestedSampleRate,
   capturing, busy, onSelect, onStart, onStop, onHelp,
+  movementId, onSelectMovement,
 }: Props) {
   // A rate the browser refused means it resampled, which makes the recording a
   // derivative rather than a reference. Worth surfacing; the applied-processing
@@ -34,10 +38,12 @@ export function DeviceSelector({
     capturing && sampleRate !== null && requestedSampleRate !== null &&
     Math.abs(sampleRate - requestedSampleRate) > 1;
 
+  const movement = findMovement(movementId);
+
   return (
     <div className="panel panel--tight">
       <PanelHead
-        label="Audio input"
+        label="Setup"
         topic="input"
         onHelp={onHelp}
         right={capturing && sampleRate !== null ? (
@@ -70,6 +76,27 @@ export function DeviceSelector({
             ))
           )}
         </select>
+      </div>
+
+      {/* Beat rate the app can work out for itself; lift angle it cannot —
+          that is escapement geometry, and amplitude is calculated straight
+          from it. Choosing the movement pins both. */}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
+        <select
+          aria-label="Movement"
+          value={movementId ?? ''}
+          disabled={busy}
+          onChange={(e) => onSelectMovement(e.target.value || null)}
+          style={{ flex: '1 1 auto', minWidth: 0 }}
+        >
+          <option value="">Detect beat rate automatically</option>
+          {MOVEMENTS.map((m) => (
+            <option key={m.id} value={m.id}>{m.maker} {m.name}</option>
+          ))}
+        </select>
+        <span className="mono dim" style={{ fontSize: 11, flex: '0 0 auto' }}>
+          {movement ? `${movement.liftAngle}° lift` : `${52}° lift`}
+        </span>
       </div>
 
       {rateMismatch && (

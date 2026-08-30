@@ -350,3 +350,53 @@ select {
 .prose strong { color: var(--text); font-weight: 600; }
 .prose .dim { color: var(--text-dim); }
 .sheet__lede { color: var(--text-dim); }
+
+/* ---------- Session table ---------- */
+.session-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.session-table th {
+  text-align: right;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  font-weight: 400;
+  padding-bottom: 6px;
+}
+.session-table th:first-child,
+.session-table td:first-child { text-align: left; }
+.session-table td {
+  text-align: right;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+}
+.session-table td:first-child { font-family: var(--font); }
+/* Positions still to do are visibly waiting rather than looking like a zero. */
+.session-table__pending td { color: var(--text-faint); }
+
+/* The session control sits to the left of the cog. Both are absolute so the
+   logo stays optically centred regardless of what is beside it. */
+.icon-button--left { right: 44px; }
+
+.icon-button__badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+}
+.icon-button { position: absolute; }

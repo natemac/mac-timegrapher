@@ -24,6 +24,12 @@ import { StabilityTracker, type Settling, type Spread } from './timegrapher/stab
 import { TraceCanvas } from './components/TraceCanvas';
 import { SettingsSheet, DEFAULT_SETTINGS, type Settings } from './components/SettingsSheet';
 import type { Topic } from './components/guide-content';
+import { findMovement, engineConfigFor } from './timegrapher/movements';
+import { useWakeLock } from './hooks/useWakeLock';
+import { SessionSheet } from './components/SessionSheet';
+import { CaptureBar } from './components/CaptureBar';
+import * as sessionStore from './timegrapher/session';
+import type { PositionId, Reading } from './timegrapher/session';
 
 function describeError(err: unknown): string {
   if (!(err instanceof Error)) return 'Could not open the audio input.';
@@ -56,9 +62,34 @@ export default function App() {
   const [settling, setSettling] = useState<Settling>('waiting');
   const [spreads, setSpreads] = useState<{ rate: Spread | null; amplitude: Spread | null; beatError: Spread | null }>({ rate: null, amplitude: null, beatError: null });
   const [graph, setGraph] = useState<'trace' | 'waveform'>('trace');
+  // Remembered: a bench usually works through a batch of the same calibre.
+  const [movementId, setMovementId] = useState<string | null>(
+    () => {
+      try {
+        return localStorage.getItem('mac-timegrapher.movement');
+      } catch {
+        return null;
+      }
+    },
+  );
+
+  const selectMovement = useCallback((id: string | null) => {
+    setMovementId(id);
+    try {
+      if (id) localStorage.setItem('mac-timegrapher.movement', id);
+      else localStorage.removeItem('mac-timegrapher.movement');
+    } catch {
+      // Private browsing or a full quota; a forgotten preference is not worth
+      // failing over.
+    }
+  }, []);
   // null topic means the full guide; a topic means one section's note.
   const [helpTopic, setHelpTopic] = useState<Topic | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [sessionOpen, setSessionOpen] = useState(false);
+  const [readings, setReadings] = useState<Reading[]>(() => sessionStore.load());
+  const [position, setPosition] = useState<PositionId>('dial-up');
+  const [justCaptured, setJustCaptured] = useState(false);
 
   const showHelp = useCallback((topic: Topic) => {
     setHelpTopic(topic);
@@ -95,6 +126,9 @@ export default function App() {
   // Beats accumulate across calls; the core re-reports overlapping windows,
   // so they are keyed by time to dedupe.
   const beatStore = useRef(new Map<number, Beat>());
+  // Capture reads the latest measurement without being rebuilt on every one of
+  // them, which would otherwise re-render the capture control twice a second.
+  const measurementRef = useRef<Measurement | null>(null);
   // Guards start/stop against re-entry. A ref rather than `busy` alone
   // because setState is asynchronous: two clicks inside one tick would both
   // read the old `busy` and both call getUserMedia, leaving the first
@@ -109,6 +143,33 @@ export default function App() {
   useEffect(() => {
     traceSecondsRef.current = settings.traceSeconds;
   }, [settings.traceSeconds]);
+
+  // Readings take half a minute to settle and the operator's hands are on a
+  // watch, not the screen.
+  useWakeLock(capturing);
+
+  const capture = useCallback(() => {
+    const m = measurementRef.current;
+    if (!m?.valid) return;
+    const next = sessionStore.upsert(readings, {
+      position,
+      rate: m.rate,
+      amplitude: m.amplitude,
+      beatError: m.beatError,
+      bph: m.detectedBph,
+      at: new Date().toISOString(),
+    });
+    setReadings(next);
+    sessionStore.save(next);
+    setJustCaptured(true);
+    window.setTimeout(() => setJustCaptured(false), 1400);
+  }, [readings, position]);
+
+  const clearSession = useCallback(() => {
+    setReadings([]);
+    sessionStore.clear();
+    setSessionOpen(false);
+  }, []);
 
   const secure = window.isSecureContext;
   const supported = typeof AudioWorkletNode !== 'undefined';
@@ -168,6 +229,7 @@ export default function App() {
     engine.current?.destroy();
     engine.current = null;
     setMeasurement(null);
+    measurementRef.current = null;
     setSecondsCaptured(0);
     setCapturing(false);
     // Every live-updating display has to be cleared: a frozen waveform and a
@@ -210,12 +272,14 @@ export default function App() {
       // scale every reading.
       // Runs in a Worker: the analysis sweeps a sixteen-second window through
       // seven FFTs, which visibly stutters the waveform if done on this thread.
+      const { bph, liftAngle } = engineConfigFor(findMovement(movementId));
       engine.current = TimegrapherEngine.create({
         sampleRate: s.sampleRate,
-        bph: 0,           // detect automatically until movement presets land
-        liftAngle: 52,    // tg's default; per-movement values come with presets
+        bph,
+        liftAngle,
         onMeasurement: (m, seconds, newBeats) => {
           setMeasurement(m);
+          measurementRef.current = m;
           setSecondsCaptured(seconds);
 
           for (const b of newBeats) beatStore.current.set(b.time, b);
@@ -288,6 +352,17 @@ export default function App() {
         <span className="app__wordmark">Timegrapher</span>
 
         <button
+          className="icon-button icon-button--left"
+          onClick={() => setSessionOpen(true)}
+          aria-label={`Session — ${readings.length} of 6 positions recorded`}
+        >
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+            <path d="M4 5.5h16M4 12h16M4 18.5h16" strokeLinecap="round" />
+          </svg>
+          {readings.length > 0 && <span className="icon-button__badge">{readings.length}</span>}
+        </button>
+
+        <button
           className="icon-button"
           onClick={() => { setHelpTopic(null); setSheetOpen(true); }}
           aria-label="Guide and settings"
@@ -298,6 +373,14 @@ export default function App() {
           </svg>
         </button>
       </header>
+
+      <SessionSheet
+        open={sessionOpen}
+        onClose={() => setSessionOpen(false)}
+        readings={readings}
+        movementName={findMovement(movementId) ? `${findMovement(movementId)!.maker} ${findMovement(movementId)!.name}` : null}
+        onClear={clearSession}
+      />
 
       <SettingsSheet
         open={sheetOpen}
@@ -343,6 +426,8 @@ export default function App() {
             onStart={start}
             onStop={stop}
             onHelp={showHelp}
+            movementId={movementId}
+            onSelectMovement={selectMovement}
           />
 
           {error && (
@@ -359,6 +444,18 @@ export default function App() {
             spreads={spreads}
             onHelp={showHelp}
           />
+
+          {capturing && (
+            <CaptureBar
+              position={position}
+              onSelectPosition={setPosition}
+              settling={settling}
+              canCapture={measurement?.valid ?? false}
+              readings={readings}
+              onCapture={capture}
+              justCaptured={justCaptured}
+            />
+          )}
 
           <LevelMeter signal={signal} onHelp={showHelp} />
 
