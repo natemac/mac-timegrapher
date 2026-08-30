@@ -37,6 +37,18 @@ for the modification record.
 
 GNU General Public License, version 2 only. See [LICENSE](LICENSE).
 
+### Trademarks
+
+The GPL covers the code, not the branding. The MAC Bespoke Watch Co. name and
+logo (`web/public/mac-logo-*.png`, `web/public/icon-*.png`,
+`web/public/apple-touch-icon.png`) are trademarks of MAC Bespoke Watch Co. and
+are **not** licensed under the GPL.
+
+You are free to fork, modify and redistribute this software under the GPL. If
+you do, replace those files with your own mark. This is the same arrangement
+Mozilla uses for Firefox: the code is free, the name and logo identify who
+stands behind a particular build.
+
 ## Development
 
     cd web

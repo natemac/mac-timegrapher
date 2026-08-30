@@ -7,7 +7,9 @@ a native GTK desktop application.
 
 - **Repo:** https://github.com/natemac/mac-timegrapher (public)
 - **Live:** https://macwatches.com/tools/timegrapher/
-- **Roadmap:** `docs/roadmap.md` — currently between Milestone 1 and 2
+- **Roadmap:** `docs/roadmap.md`. Milestones 1-3 shipped (foundation, DSP core,
+  WebAssembly). The app measures live, with movement presets, multi-position
+  sessions and PWA install.
 
 ## Licensing — read before adding anything
 
@@ -49,6 +51,27 @@ These decide whether measurements mean anything. All are in
   is only pulled when its output reaches the destination — but at zero gain, so
   the watch isn't played out the speakers.
 
+## How the app is put together
+
+```
+core/ + wasm/            C DSP core, compiled to WebAssembly
+web/src/timegrapher/     tg-worker (engine, off-thread), stability, movements, session
+web/src/audio/           capture, signal metering, WAV
+web/src/components/      one panel each; guide-content.tsx holds every explanation
+```
+
+- **The measurement engine runs in a Worker.** It sweeps a sixteen-second window
+  through seven FFTs; on the main thread that visibly stutters the UI.
+- **The trace is folded and magnified.** A full beat period across the width
+  makes a 10 s/day error move two pixels. See `TraceCanvas.tsx`.
+- **Lift angle comes from the movement preset**, not a constant. Amplitude is
+  calculated directly from it, so a wrong preset is a wrong amplitude.
+- **`guide-content.tsx` is the single source for every explanation**, read by
+  both the per-panel notes and the full guide. Do not write help text anywhere
+  else.
+- **The app never scrolls.** One `100dvh` view; only sheets scroll. Anything
+  added has to earn its height or go in a sheet.
+
 ## Traps that cost time once already
 
 - **Never use Hostinger's `hosting_deployStaticSiteArchiveV1` or
@@ -73,6 +96,16 @@ These decide whether measurements mean anything. All are in
   reintroduce the entanglement the split exists to avoid.
 - **The `upstream` remote has push URL `no_push`** so nothing can be pushed to
   agrigera by accident. Leave it that way.
+- **Anything read through `HEAPU8`/`HEAPF32`/`HEAPF64` must be in
+  `EXPORTED_RUNTIME_METHODS`** in `wasm/build-wasm.sh`. The worker's TypeScript
+  interface declares these, so `tsc` is satisfied by a declaration the build
+  never fulfils and every measurement throws at runtime. `tests/compare-wasm-native.mjs`
+  exercises the event path for exactly this reason.
+- **Service workers do not register in the in-app browser pane.** They work on
+  the deployed site. Verify PWA behaviour there, not locally.
+- **Settled thresholds in `stability.ts` are calibrated against real bench
+  readings**, not chosen for tidiness. The first values were below the
+  achievable floor for a hand-held sensor and the indicator never fired.
 
 ## Layout
 
