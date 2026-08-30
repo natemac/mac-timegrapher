@@ -62,6 +62,10 @@ Worth deciding before it goes to a customer:
 - **Whether to note the regulation state** — as-found versus as-left. A
   before-and-after pair would be more useful than a single reading, and the
   session store could hold both.
+- **Whether a certification run should record how it was taken.** The Certify
+  wizard restarts the average at every position and waits for the reading to
+  settle before recording, which is a stronger claim about the numbers than the
+  certificate currently makes. It may be worth saying so on the document.
 
 ## 5. Decide on the settled thresholds
 
@@ -85,6 +89,18 @@ instantly every time, they are too loose; if it rarely settles, too tight.
   exact comparison on identical samples rather than two live measurements.
 - **Trace magnification default.** Currently 20 ms. 10 ms looked better in use;
   worth settling after some bench time.
+- **The stall threshold is a guess.** `STALL_SECONDS` in
+  `web/src/timegrapher/wizard.ts` is 75 seconds — after that the Certify wizard
+  stops promising the reading will settle and lets it be captured anyway. Never
+  measured against how long a hand-held sensor actually takes on a difficult
+  movement.
+- **Auto-capture has only been exercised synthetically.** The two-report
+  confirmation and the stall path are unit-tested, but no watch has yet gone
+  through a full six-position run unattended.
+- **Trace floor is 96px.** Certify mode leaves the trace about 106px on a
+  375x812 screen. Readable, but if it proves too short in use the height has to
+  come from somewhere else — the setup panel collapsing to a summary line while
+  capturing is the obvious candidate.
 - **`web/.oxlintrc.json` is untracked** — swallowed by upstream's bare `.*`
   gitignore pattern. `npm run lint` therefore behaves differently for a fresh
   clone. One negation line fixes it.
