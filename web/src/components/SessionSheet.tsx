@@ -13,6 +13,7 @@ import {
   type Phase, type Reading, type SessionMeta,
 } from '../timegrapher/session';
 import { SlideSwitch } from './SlideSwitch';
+import { Sheet } from './Sheet';
 
 interface Props {
   open: boolean;
@@ -106,17 +107,6 @@ export function SessionSheet({
     setConfirmClear(false);
   }, [open]);
 
-  // Re-registering this when onClose changes identity is harmless: it adds and
-  // removes a listener and touches nothing the operator is looking at.
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
-
   if (!open) return null;
 
   const shown = readingsIn(readings, phase);
@@ -138,13 +128,7 @@ export function SessionSheet({
   };
 
   return (
-    <div
-      className="sheet__scrim"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="sheet" role="dialog" aria-modal="true" aria-label={title}>
+    <Sheet open={open} onClose={onClose} label={title}>
         {/*
           Actions first, close beside them, name underneath. Both rows are
           outside the scrolling body — these used to sit at the foot of the
@@ -196,7 +180,7 @@ export function SessionSheet({
           <span style={{ fontWeight: 600, fontSize: 15 }}>{title}</span>
         </div>
 
-        <div className="sheet__body prose">
+        <div className="sheet__body prose" data-sheet-scroll>
           {/*
             Which pass is on screen. Both are kept — a watch that now runs at
             +2 means little without the +25 it arrived at — so the table shows
@@ -335,7 +319,6 @@ export function SessionSheet({
             </p>
           )}
         </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }

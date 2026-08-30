@@ -8,6 +8,8 @@
 */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { GUIDE, GUIDE_ORDER, type Topic } from './guide-content';
+import { Sheet } from './Sheet';
+import { InfoSheet } from './InfoSheet';
 import { ZOOM_STEPS, ZOOM_AUTO } from '../timegrapher/trace-zoom';
 import { SourceFooter } from './SourceFooter';
 import { MOVEMENTS } from '../timegrapher/movements';
@@ -99,40 +101,24 @@ type Tab = 'guide' | 'settings';
    are now asked for rather than imposed.
 */
 function Setting({
-  label, topic, children,
+  label, topic, onInfo, children,
 }: {
   label: string;
   topic: Topic;
+  onInfo: (t: Topic) => void;
   children: ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
-  const entry = GUIDE[topic];
-
   return (
     <section className="setting">
-      <button
-        className="setting__head"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-      >
+      <button className="setting__head" onClick={() => onInfo(topic)}>
         <span className="eyebrow">{label}</span>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
           <circle cx="12" cy="12" r="10" />
           <path d="M9.2 9a2.9 2.9 0 0 1 5.6 1c0 2-2.8 2.6-2.8 2.6" strokeLinecap="round" />
           <circle cx="12" cy="17.2" r="0.9" fill="currentColor" stroke="none" />
         </svg>
-        <span className="visually-hidden">
-          {open ? '— hide the explanation' : '— what is this?'}
-        </span>
+        <span className="visually-hidden">— what is this?</span>
       </button>
-
-      {open && (
-        <div className="setting__note">
-          <p className="sheet__lede">{entry.lede}</p>
-          {entry.body}
-        </div>
-      )}
-
       {children}
     </section>
   );
@@ -174,6 +160,7 @@ export function SettingsSheet({
   const [tab, setTab] = useState<Tab>('settings');
   const closeRef = useRef<HTMLButtonElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const [info, setInfo] = useState<Topic | null>(null);
 
   /*
      Focus moves into the sheet, and the body returns to the top, when the sheet
@@ -186,29 +173,16 @@ export function SettingsSheet({
     if (!open) return;
     closeRef.current?.focus();
     bodyRef.current?.scrollTo({ top: 0 });
+    setInfo(null);
   }, [open, topic]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
 
   if (!open) return null;
 
   const focused = topic !== null ? GUIDE[topic] : null;
 
   return (
-    <div
-      className="sheet__scrim"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="sheet" role="dialog" aria-modal="true" aria-label={focused ? focused.title : 'Guide and settings'}>
+    <>
+    <Sheet open={open} onClose={onClose} label={focused ? focused.title : 'Guide and settings'}>
         <div className="sheet__head">
           {focused ? (
             <span style={{ fontWeight: 600, fontSize: 15 }}>{focused.title}</span>
@@ -238,7 +212,7 @@ export function SettingsSheet({
           </button>
         </div>
 
-        <div className="sheet__body prose" ref={bodyRef}>
+        <div className="sheet__body prose" ref={bodyRef} data-sheet-scroll>
           {focused ? (
             <>
               <p className="sheet__lede">{focused.lede}</p>
@@ -253,7 +227,7 @@ export function SettingsSheet({
             </>
           ) : tab === 'settings' ? (
             <>
-              <Setting label="Movement" topic="setting-movement">
+              <Setting onInfo={setInfo} label="Movement" topic="setting-movement">
                 <select
                   aria-label="Movement"
                   value={movementId ?? ''}
@@ -267,7 +241,7 @@ export function SettingsSheet({
                 </select>
               </Setting>
 
-              <Setting label="Trace magnification" topic="setting-magnification">
+              <Setting onInfo={setInfo} label="Trace magnification" topic="setting-magnification">
                 <Choice
                   options={ZOOM_CHOICES}
                   value={settings.zoomMs}
@@ -276,7 +250,7 @@ export function SettingsSheet({
                 />
               </Setting>
 
-              <Setting label="Trace history" topic="setting-history">
+              <Setting onInfo={setInfo} label="Trace history" topic="setting-history">
                 <Choice
                   options={HISTORY_STEPS}
                   value={settings.traceSeconds}
@@ -285,7 +259,7 @@ export function SettingsSheet({
                 />
               </Setting>
 
-              <Setting label="Branding" topic="setting-branding">
+              <Setting onInfo={setInfo} label="Branding" topic="setting-branding">
                 <label className="setting-toggle">
                   <input
                     type="checkbox"
@@ -298,7 +272,7 @@ export function SettingsSheet({
 
               {/* A readout rather than a setting, but it is what the Settled
                   threshold has to be chosen against, so it belongs here. */}
-              <Setting label="Steadiness of this bench" topic="setting-steadiness">
+              <Setting onInfo={setInfo} label="Steadiness of this bench" topic="setting-steadiness">
                 <table className="settings__bench">
                   <tbody>
                     <tr>
@@ -357,7 +331,11 @@ export function SettingsSheet({
             <SourceFooter />
           </div>
         </div>
-      </div>
-    </div>
+    </Sheet>
+
+    {/* Above the settings, so answering a question leaves the list where it
+        was rather than pushing it about underneath the finger that asked. */}
+    <InfoSheet topic={info} onClose={() => setInfo(null)} />
+    </>
   );
 }

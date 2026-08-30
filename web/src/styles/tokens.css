@@ -249,14 +249,11 @@ select {
 .sheet__scrim {
   position: fixed;
   inset: 0;
-  /* A sheet is modal, so a drag on it must not reach the app underneath. The
-     scrim itself never scrolls, and without this iOS hands the gesture to the
-     nearest scrollable ancestor — which is `.app` — and the screen behind the
-     sheet slides about. `contain` stops the chaining; `touch-action: none`
-     stops a drag on the scrim or the header doing anything at all. The body
-     opts back in to vertical panning below. */
+  /* The sheet renders into document.body rather than inside `.app`, so it has
+     no scrollable ancestor to hand a gesture to. `contain` is belt and braces
+     for the body's own overscroll. Dragging is handled in JS — touch-action is
+     left alone here, or the drag-to-dismiss could never start. */
   overscroll-behavior: contain;
-  touch-action: none;
   background: color-mix(in srgb, var(--ink) 72%, transparent);
   display: flex;
   align-items: flex-end;
@@ -318,10 +315,9 @@ select {
   padding: 16px 14px calc(20px + env(safe-area-inset-bottom));
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  /* The one place inside a sheet that scrolls, and only along its own axis.
-     `contain` keeps reaching its end from scrolling the app behind it. */
+  /* The one place inside a sheet that scrolls. `contain` keeps reaching its
+     end from scrolling anything else. */
   overscroll-behavior: contain;
-  touch-action: pan-y;
 }
 
 .sheet__body h3 { color: var(--text-dim); }
@@ -1063,3 +1059,63 @@ select {
 }
 .setting__note > :first-child { margin-top: 0; }
 .setting__note > :last-child { margin-bottom: 0; }
+
+
+/* ---------- While a sheet is open ----------
+   The part iOS actually honours. overscroll-behavior alone still let a drag
+   inside a sheet scroll the app underneath, and a pull at the top fire the
+   browser's own refresh — which reloads and throws the session away. */
+html.is-locked,
+html.is-locked body {
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+html.is-locked .app { overflow: hidden; }
+
+/* Never, sheet or no sheet. This is an app; pulling it down should not reload
+   it and lose a session that is halfway through. */
+html, body { overscroll-behavior-y: none; }
+
+/* The grab bar. Says the sheet can be pulled away, and gives a target where a
+   downward drag is never mistaken for a scroll. */
+.sheet__grab {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 2px;
+  flex: 0 0 auto;
+  cursor: grab;
+  /* The browser must not claim this gesture; the drag handler wants it. */
+  touch-action: none;
+}
+.sheet__grab span {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+}
+
+/* A sheet follows the finger, so its own entrance animation has to be able to
+   give way to a transform set inline. */
+.sheet { will-change: transform; transition: transform 240ms cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* ---------- An explanation over the top ----------
+   Centred rather than bottom-anchored, so it reads as something above the
+   sheet rather than as the sheet having changed. */
+.sheet__scrim--popup {
+  align-items: center;
+  padding: 20px 14px;
+  z-index: 30;
+  background: color-mix(in srgb, var(--ink) 58%, transparent);
+}
+
+.sheet--popup {
+  max-width: 560px;
+  max-height: min(76dvh, 620px);
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet { transition: none; }
+}
