@@ -9,6 +9,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { GUIDE, GUIDE_ORDER, type Topic } from './guide-content';
 import { ZOOM_STEPS, ZOOM_AUTO } from '../timegrapher/trace-zoom';
+import { SourceFooter } from './SourceFooter';
 
 export interface Settings {
   /** Milliseconds of drift spanning the trace width. Smaller magnifies more. */
@@ -239,6 +240,12 @@ export function SettingsSheet({
               </ul>
             </>
           )}
+
+          {/* Every route into the sheet ends here, so the source offer is
+              reachable from the measuring screen in one tap. */}
+          <div className="sheet__source">
+            <SourceFooter />
+          </div>
         </div>
       </div>
     </div>

@@ -122,11 +122,11 @@ export function InspectionWizard({
           {state.stage === 'measuring' && (
             <p className="wizard__line">
               {stalled
-                ? 'Still moving after a minute. Check the watch is in firm contact — or capture it as it is.'
+                ? 'Still moving after a minute. Check the watch is in firm contact — or record it as it is.'
                 : settled
                   ? auto
                     ? 'Settled. Recording…'
-                    : 'Settled. Capture when ready.'
+                    : 'Settled. Record when ready.'
                   : `Listening… ${seconds.toFixed(0)}s. Keep hands off the watch.`}
             </p>
           )}
@@ -157,7 +157,7 @@ export function InspectionWizard({
                 disabled={!valid || (!settled && !stalled)}
                 title={settled || stalled ? undefined : 'Wait for the reading to settle'}
               >
-                Capture
+                Record
               </button>
             </>
           )}
@@ -184,7 +184,7 @@ export function InspectionWizard({
           />
           {/* The operator's hands are on a watch, not the screen. With this on,
               the only thing they touch between positions is Go. */}
-          <span>Capture automatically</span>
+          <span>Record automatically</span>
         </label>
 
         {state.recorded.length > 0 && (

@@ -855,3 +855,46 @@ select {
   border-bottom: 1px solid var(--line);
   flex: 0 0 auto;
 }
+
+/* The measurement panel's closing row: whatever the panel has to say on the
+   left, the action on the right. */
+.panel__foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+  min-height: 30px;
+}
+
+.panel__foot-note {
+  margin: 0;
+  font-size: 12px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Pushed right whether or not there is a note beside it. */
+.capture-button {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  background: var(--panel-3);
+  color: var(--text);
+  border: 1px solid var(--line);
+  padding: 6px 11px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.capture-button svg { flex: 0 0 auto; }
+
+/* The source offer at the foot of the sheet, separated from whatever tab the
+   reader was on. */
+.sheet__source {
+  margin-top: 24px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}

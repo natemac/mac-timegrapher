@@ -92,42 +92,23 @@ export function MeasurementPanel({
         topic="measurement"
         onHelp={onHelp}
         right={capturing ? (
-          <div style={{ display: 'flex', gap: 2 }}>
-            {/* Only once there is something worth saving — an image of four
-                dashes is not a reading. */}
-            {show && onSnapshot && (
-              <button
-                className="panel__help-icon"
-                onClick={onSnapshot}
-                aria-label="Save this reading as an image"
-                title="Save this reading as an image"
-              >
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                  <rect x="3" y="6" width="18" height="14" rx="2.5" />
-                  <circle cx="12" cy="13" r="3.4" />
-                  <path d="M8.5 6l1.4-2.2h4.2L15.5 6" strokeLinejoin="round" />
-                </svg>
-              </button>
-            )}
-
-            {/*
-              Repositioning the watch makes a burst of noise the spread cannot
-              tell from the movement misbehaving, and it would otherwise sit in
-              the window for the next thirty seconds. This throws the average
-              away and starts again without stopping capture.
-            */}
-            <button
-              className="panel__help-icon"
-              onClick={onResetAverage}
-              aria-label="Restart the average"
-              title="Restart the average"
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <path d="M3 12a9 9 0 1 0 2.6-6.4" strokeLinecap="round" />
-                <path d="M3 4v5h5" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </button>
-          </div>
+          /*
+            Repositioning the watch makes a burst of noise the spread cannot
+            tell from the movement misbehaving, and it would otherwise sit in
+            the window for the next thirty seconds. This throws the average
+            away and starts again without stopping capture.
+          */
+          <button
+            className="panel__help-icon"
+            onClick={onResetAverage}
+            aria-label="Restart the average"
+            title="Restart the average"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M3 12a9 9 0 1 0 2.6-6.4" strokeLinecap="round" />
+              <path d="M3 4v5h5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
         ) : undefined}
       />
 
@@ -172,18 +153,40 @@ export function MeasurementPanel({
         </div>
       )}
 
-      {guidance && (
-      <p className="dim" style={{ fontSize: 12, marginBottom: 0, marginTop: 6 }}>
-        {!capturing
-          ? 'Press Start, then hold the watch against the sensor.'
-          : warmingUp
-            ? `Listening… ${secondsCaptured.toFixed(0)}s of ${MIN_SECONDS}s.`
-            : !show
-              ? 'No stable reading. Check the watch is in firm contact.'
-              : settling === 'settled'
-                ? 'Readings have stopped moving.'
-                : 'Still moving. Give it a few more seconds.'}
-      </p>
+      {/*
+        Reserved while capturing even before there is a reading to save: the
+        Capture button appears the moment the core produces one, and letting the
+        row collapse would jog the trace by its height at that moment.
+      */}
+      {(guidance || capturing) && (
+      <div className="panel__foot">
+        {guidance && (
+          <p className="dim panel__foot-note">
+            {!capturing
+              ? 'Press Start, then hold the watch against the sensor.'
+              : warmingUp
+                ? `Listening… ${secondsCaptured.toFixed(0)}s of ${MIN_SECONDS}s.`
+                : !show
+                  ? 'No stable reading. Check the watch is in firm contact.'
+                  : settling === 'settled'
+                    ? 'Readings have stopped moving.'
+                    : 'Still moving. Give it a few more seconds.'}
+          </p>
+        )}
+
+        {/* Only once there is something worth saving — an image of four
+            dashes is not a reading. */}
+        {capturing && show && onSnapshot && (
+          <button className="capture-button" onClick={onSnapshot}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <rect x="3" y="6" width="18" height="14" rx="2.5" />
+              <circle cx="12" cy="13" r="3.4" />
+              <path d="M8.5 6l1.4-2.2h4.2L15.5 6" strokeLinejoin="round" />
+            </svg>
+            Capture
+          </button>
+        )}
+      </div>
       )}
     </div>
   );

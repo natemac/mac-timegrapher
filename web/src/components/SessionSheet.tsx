@@ -219,7 +219,7 @@ export function SessionSheet({
           ) : (
             <p className="dim" style={{ marginTop: 16 }}>
               Nothing recorded yet. Choose a position, wait for the reading to
-              settle, then press Capture.
+              settle, then press Record.
             </p>
           )}
         </div>

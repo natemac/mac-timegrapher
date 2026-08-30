@@ -661,13 +661,23 @@ export default function App() {
       )}
 
       {secure && supported && !granted && (
-        <PermissionGate
-          onGrant={grant}
-          error={error}
-          busy={busy}
-          mode={mode}
-          onSelectMode={selectMode}
-        />
+        <>
+          <PermissionGate
+            onGrant={grant}
+            error={error}
+            busy={busy}
+            mode={mode}
+            onSelectMode={selectMode}
+          />
+          {/*
+            The source offer under GPLv2 §3. It is off the measuring screen,
+            which has no room for it, but it is the first thing every visitor
+            passes on the way in and it is repeated at the foot of the guide —
+            so it is always present and always one tap away, which is what the
+            licence asks for. It is not conditional on anything.
+          */}
+          <SourceFooter />
+        </>
       )}
 
       {granted && (
@@ -770,8 +780,6 @@ export default function App() {
               <WaveformCanvas latest={latest} />
             )}
           </div>
-
-          <SourceFooter />
         </>
       )}
     </div>

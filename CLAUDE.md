@@ -22,8 +22,12 @@ Foundation" with **no "or later" clause**. This is **GPLv2-only**.
 - `LICENSE` must stay byte-identical to upstream. Never edit it.
 - The in-app "Open source (GPLv2) — view source" link in `SourceFooter.tsx` is a
   legal obligation, not decoration. Serving WASM/JS to a browser is distribution
-  under §3. It must render unconditionally, and `docs/deployment.md` blocks the
-  deploy if it is missing from the built bundle.
+  under §3. It renders in two places, both unconditional: under the welcome
+  screen, which every visitor passes on the way in, and at the foot of the guide
+  sheet, which is one tap from anywhere. It is deliberately *not* on the
+  measuring screen, which has no height to spare — but it must never be behind a
+  condition, a setting or a tab. `docs/deployment.md` blocks the deploy if it is
+  missing from the built bundle.
 - Business logic — build numbers, customer records, inventory, pricing, QC
   thresholds — belongs in the private PHP app at `macwatches.com`, never here.
   The two talk only over authenticated HTTP. `docs/build-plan.md` was purged from
