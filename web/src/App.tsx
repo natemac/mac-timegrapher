@@ -22,6 +22,7 @@ import { MeasurementPanel } from './components/MeasurementPanel';
 import { TimegrapherEngine, type Measurement, type Beat } from './timegrapher/tg-engine';
 import { StabilityTracker, type Settling, type Spread } from './timegrapher/stability';
 import { TraceCanvas } from './components/TraceCanvas';
+import { SettingsSheet, DEFAULT_SETTINGS, type Settings } from './components/SettingsSheet';
 
 function describeError(err: unknown): string {
   if (!(err instanceof Error)) return 'Could not open the audio input.';
@@ -54,6 +55,28 @@ export default function App() {
   const [settling, setSettling] = useState<Settling>('waiting');
   const [spreads, setSpreads] = useState<{ rate: Spread | null; amplitude: Spread | null; beatError: Spread | null }>({ rate: null, amplitude: null, beatError: null });
   const [graph, setGraph] = useState<'trace' | 'waveform'>('trace');
+  const [sheetOpen, setSheetOpen] = useState(false);
+  // Remembered per device: magnification is a matter of taste and of what the
+  // operator is doing, and re-picking it every session would be tedious.
+  const [settings, setSettings] = useState<Settings>(() => {
+    try {
+      const raw = localStorage.getItem('mac-timegrapher.settings');
+      return raw ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } : DEFAULT_SETTINGS;
+    } catch {
+      return DEFAULT_SETTINGS;
+    }
+  });
+
+  const updateSettings = useCallback((next: Settings) => {
+    setSettings(next);
+    traceSecondsRef.current = next.traceSeconds;
+    try {
+      localStorage.setItem('mac-timegrapher.settings', JSON.stringify(next));
+    } catch {
+      // Private browsing or a full quota. A forgotten preference is not worth
+      // failing over.
+    }
+  }, []);
   const [secondsCaptured, setSecondsCaptured] = useState(0);
   const [capturing, setCapturing] = useState(false);
 
@@ -70,6 +93,14 @@ export default function App() {
   // MediaStream unreachable with its tracks still live — the browser's
   // recording indicator then stays lit until the tab closes.
   const inFlight = useRef(false);
+  // The measurement callback is created once when capture starts, so reading
+  // settings directly from it would pin whatever they were at that moment.
+  // A ref keeps it current when they change mid-capture.
+  const traceSecondsRef = useRef(DEFAULT_SETTINGS.traceSeconds);
+
+  useEffect(() => {
+    traceSecondsRef.current = settings.traceSeconds;
+  }, [settings.traceSeconds]);
 
   const secure = window.isSecureContext;
   const supported = typeof AudioWorkletNode !== 'undefined';
@@ -181,7 +212,7 @@ export default function App() {
 
           for (const b of newBeats) beatStore.current.set(b.time, b);
           // Keep a minute of beats; the trace shows thirty seconds of them.
-          const cutoff = seconds - 60;
+          const cutoff = seconds - Math.max(60, traceSecondsRef.current + 10);
           for (const key of beatStore.current.keys()) {
             if (key < cutoff) beatStore.current.delete(key);
           }
@@ -247,7 +278,25 @@ export default function App() {
           aria-hidden="true"
         />
         <span className="app__wordmark">Timegrapher</span>
+
+        <button
+          className="icon-button"
+          onClick={() => setSheetOpen(true)}
+          aria-label="Guide and settings"
+        >
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+            <circle cx="12" cy="12" r="3.2" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+        </button>
       </header>
+
+      <SettingsSheet
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        settings={settings}
+        onChange={updateSettings}
+      />
 
       {!secure && (
         <div className="panel panel--tight">
@@ -309,6 +358,8 @@ export default function App() {
               <TraceCanvas
                 beats={beats}
                 bph={measurement?.detectedBph ?? 0}
+                zoomMs={settings.zoomMs}
+                windowSeconds={settings.traceSeconds}
                 capturing={capturing}
               />
             ) : (

@@ -13,31 +13,35 @@ import type { Beat } from '../timegrapher/tg-engine';
    The paper strip.
 
    Mechanical timegraphers printed each beat as a mark on a roll of paper
-   creeping past a stylus. If the watch keeps perfect time every mark lands
-   directly below the last and the trace runs straight down. If it gains, each
-   beat arrives fractionally early and the marks walk sideways — the line
-   leans. The steeper the lean, the further off the rate.
+   creeping past a stylus. A watch keeping perfect time put every mark directly
+   below the last; one running fast walked them sideways. The lean of the
+   resulting line is the rate, and the horizontal gap between the two lines —
+   tick and tock — is the beat error. A watchmaker reads a regulator adjustment
+   from the slope changing, seconds before the numbers settle.
 
-   That is the whole instrument in one picture, and it is why this is the
-   primary display rather than the raw waveform: slope is rate, and the gap
-   between the two lines is beat error. A watchmaker reads a regulator
-   adjustment here within a few seconds, without looking at a number.
+   Magnification is the whole trick, and getting it wrong makes the display
+   useless rather than merely coarse. Showing a full beat period across the
+   width sounds natural and is hopeless: at +10 s/day a watch drifts 3.5 ms in
+   thirty seconds, against a 333 ms period, so the marks move about one percent
+   of the width — two pixels, indistinguishable from vertical.
 
-   Time runs downward, newest at the top, which is the direction the paper
-   actually moved.
+   So the strip is folded at the beat interval and shown a few milliseconds
+   wide. Marks that run off one edge reappear on the other, exactly as paper
+   scrolling past a stylus did.
+
+   Time runs downward, newest at the top, the direction the paper moved.
 */
 
 interface Props {
   beats: Beat[];
-  /** Beats per hour; sets how wide one sweep of the strip is. */
+  /** Beats per hour; sets the fold interval. */
   bph: number;
+  /** Milliseconds of drift spanning the full width. Smaller is more magnified. */
+  zoomMs: number;
   /** Seconds of history to show. */
   windowSeconds?: number;
   capturing: boolean;
 }
-
-/** How many beat periods wide the strip is. Two keeps tick and tock apart. */
-const SWEEP_PERIODS = 2;
 
 /* Read from CSS custom properties so the strip follows the theme: bone on
    black in the dark, ink on paper in the light. Resolved per draw rather than
@@ -54,7 +58,7 @@ function themeColours(el: HTMLElement) {
   };
 }
 
-export function TraceCanvas({ beats, bph, windowSeconds = 30, capturing }: Props) {
+export function TraceCanvas({ beats, bph, zoomMs, windowSeconds = 30, capturing }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -74,13 +78,12 @@ export function TraceCanvas({ beats, bph, windowSeconds = 30, capturing }: Props
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     const colour = themeColours(canvas);
-
     const w = cssWidth;
     const h = cssHeight;
     ctx.clearRect(0, 0, w, h);
 
-    // Vertical rules mark the sweep. The centre one is the reference: a watch
-    // running dead on time keeps its marks parallel to it.
+    // Quarter rules, the centre one heavier: a watch on rate keeps its marks
+    // parallel to it.
     ctx.lineWidth = 1;
     for (let i = 1; i < 4; i++) {
       ctx.strokeStyle = i === 2 ? colour.ruleCentre : colour.rule;
@@ -93,48 +96,50 @@ export function TraceCanvas({ beats, bph, windowSeconds = 30, capturing }: Props
 
     if (!capturing || beats.length === 0 || bph <= 0) {
       ctx.fillStyle = colour.dim;
-      ctx.font = '13px "JetBrains Mono", ui-monospace, monospace';
+      ctx.font = '12px "JetBrains Mono", ui-monospace, monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(
-        capturing ? 'waiting for beats…' : 'press Start',
-        w / 2,
-        h / 2,
-      );
+      ctx.fillText(capturing ? 'waiting for beats…' : 'press Start', w / 2, h / 2);
       return;
     }
 
-    // One full oscillation, tick to tick, in seconds.
-    const period = 7200 / bph;
-    const sweep = period * SWEEP_PERIODS;
+    // Successive beats — tick then tock — are half an oscillation apart.
+    const beatInterval = 7200 / bph / 2;
+    const span = zoomMs / 1000;
 
     const newest = beats[beats.length - 1].time;
     const oldest = newest - windowSeconds;
+    const visible = beats.filter((b) => b.time >= oldest);
+    if (visible.length === 0) return;
 
-    for (const beat of beats) {
-      if (beat.time < oldest) continue;
+    // Anchor on the oldest visible beat so the trace enters at the centre of
+    // the bottom edge and leans away as it climbs. Without an anchor the strip
+    // would slide sideways as the reference aged out of the window.
+    const anchor = visible[0].time % beatInterval;
 
+    for (const beat of visible) {
       const age = newest - beat.time;
       const y = (age / windowSeconds) * h;
 
-      // Position within the sweep. Because the sweep is derived from the
-      // *nominal* rate, a watch running fast advances a little further each
-      // beat and the marks drift — that drift is the slope.
-      const phase = ((beat.time % sweep) + sweep) % sweep;
-      const x = (phase / sweep) * w;
+      // Fold to the beat interval, then take the signed distance from the
+      // anchor. A watch off rate makes this grow steadily — that is the slope.
+      let delta = (beat.time % beatInterval) - anchor;
+      if (delta > beatInterval / 2) delta -= beatInterval;
+      if (delta < -beatInterval / 2) delta += beatInterval;
 
-      // Older marks fade, so the eye follows the current slope rather than
+      // Wrap across the edges rather than clipping, the way paper did.
+      let x = w / 2 + (delta / span) * w;
+      x = ((x % w) + w) % w;
+
+      // Older marks fade so the eye follows the current slope rather than
       // averaging over the whole strip.
       const fade = 1 - age / windowSeconds;
       ctx.fillStyle = fade > 0.75 ? colour.ink : colour.inkFaded;
 
-      // Ticks read as marks, tocks as lighter ones — the pair is what makes
-      // beat error legible as the gap between two lines.
-      const r = beat.isTick ? 1.6 : 1.2;
       ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.arc(x, y, beat.isTick ? 1.7 : 1.2, 0, Math.PI * 2);
       ctx.fill();
     }
-  }, [beats, bph, windowSeconds, capturing]);
+  }, [beats, bph, zoomMs, windowSeconds, capturing]);
 
   return (
     <div
@@ -144,7 +149,7 @@ export function TraceCanvas({ beats, bph, windowSeconds = 30, capturing }: Props
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
         <span className="eyebrow">Trace</span>
         <span className="dim mono" style={{ fontSize: 10 }}>
-          {windowSeconds}s · {SWEEP_PERIODS} beats
+          {windowSeconds}s · {zoomMs}ms wide
         </span>
       </div>
       {/* The canvas is the only thing that grows. */}

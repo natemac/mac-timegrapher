@@ -226,3 +226,76 @@ select {
     transition: none;
   }
 }
+
+/* ---------- Guide and settings sheet ----------
+   The app itself never scrolls, but reference material legitimately does — so
+   the sheet is the one place scrolling is allowed, and it sits above the app
+   rather than lengthening it. */
+.sheet__scrim {
+  position: fixed;
+  inset: 0;
+  background: color-mix(in srgb, var(--ink) 72%, transparent);
+  backdrop-filter: blur(3px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 20;
+}
+
+.sheet {
+  width: 100%;
+  max-width: 720px;
+  max-height: 88dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius) var(--radius) 0 0;
+  animation: sheet-rise 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes sheet-rise {
+  from { transform: translateY(14px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.sheet__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+  flex: 0 0 auto;
+}
+
+.sheet__body {
+  padding: 16px 14px calc(20px + env(safe-area-inset-bottom));
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sheet__body h3 { color: var(--text-dim); }
+.sheet__body li { margin-bottom: 4px; }
+
+/* The cog sits in the masthead's top-right without pushing the logo
+   off-centre, which is why the masthead is positioned rather than flowed. */
+.app__masthead { position: relative; }
+
+.icon-button {
+  position: absolute;
+  top: max(2px, env(safe-area-inset-top));
+  right: 0;
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--text-dim);
+  padding: 7px 9px;
+  line-height: 0;
+  cursor: pointer;
+}
+.icon-button:hover { color: var(--text); border-color: var(--text-faint); }
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet { animation: none; }
+}
