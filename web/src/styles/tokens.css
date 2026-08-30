@@ -256,6 +256,11 @@ select {
 }
 
 .sheet {
+  /* Positioned so it paints above the scrim's blur layer. Left static, the
+     absolutely-positioned ::before wins the paint order and blurs the sheet's
+     own header — the body escapes only because its overflow scroller gets its
+     own compositing layer on iOS. */
+  position: relative;
   width: 100%;
   max-width: 720px;
   max-height: 88dvh;
