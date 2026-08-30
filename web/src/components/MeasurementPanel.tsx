@@ -23,6 +23,7 @@ interface Props {
     beatError: Spread | null;
   };
   onHelp: (t: Topic) => void;
+  onResetAverage: () => void;
 }
 
 /** The shortest analysis window is two seconds. */
@@ -65,7 +66,7 @@ function Reading({
 }
 
 export function MeasurementPanel({
-  measurement, capturing, secondsCaptured, settling, spreads, onHelp,
+  measurement, capturing, secondsCaptured, settling, spreads, onHelp, onResetAverage,
 }: Props) {
   const m = measurement;
   const show = m?.valid ?? false;
@@ -113,6 +114,7 @@ export function MeasurementPanel({
             settling={settling}
             rate={show ? m!.rate : null}
             spread={show ? spreads.rate : null}
+            onReset={onResetAverage}
           />
         </div>
       )}

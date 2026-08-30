@@ -237,11 +237,22 @@ select {
   position: fixed;
   inset: 0;
   background: color-mix(in srgb, var(--ink) 72%, transparent);
-  backdrop-filter: blur(3px);
   display: flex;
   align-items: flex-end;
   justify-content: center;
   z-index: 20;
+}
+
+/* The blur lives on a layer behind the sheet rather than on the scrim itself.
+   iOS Safari has long-standing hit-testing trouble with form controls inside a
+   backdrop-filter container: the certificate fields could not be tapped to
+   raise the keyboard. Nothing interactive sits inside this element. */
+.sheet__scrim::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  backdrop-filter: blur(3px);
+  pointer-events: none;
 }
 
 .sheet {
@@ -577,7 +588,13 @@ select {
 
 .field {
   font: inherit;
-  font-size: 14px;
+  /* 16px exactly. Below that, iOS Safari zooms the page when the field takes
+     focus, which shoves the sheet off screen and reads as the tap having gone
+     wrong. */
+  font-size: 16px;
+  -webkit-appearance: none;
+  appearance: none;
+  touch-action: manipulation;
   width: 100%;
   padding: 10px;
   background: var(--panel-3);

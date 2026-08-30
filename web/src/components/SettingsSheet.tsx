@@ -8,6 +8,7 @@
 */
 import { useEffect, useRef, useState } from 'react';
 import { GUIDE, GUIDE_ORDER, type Topic } from './guide-content';
+import { ZOOM_STEPS, ZOOM_AUTO } from '../timegrapher/trace-zoom';
 
 export interface Settings {
   /** Milliseconds of drift spanning the trace width. Smaller magnifies more. */
@@ -16,14 +17,12 @@ export interface Settings {
   traceSeconds: number;
 }
 
-export const DEFAULT_SETTINGS: Settings = { zoomMs: 20, traceSeconds: 30 };
+/* Auto by default: the operator should not have to work out that +17 s/day
+   over thirty seconds needs more than ten milliseconds of strip. */
+export const DEFAULT_SETTINGS: Settings = { zoomMs: ZOOM_AUTO, traceSeconds: 30 };
 
-/*
-   Magnification, in the units a watchmaker already thinks in. 5 ms across the
-   width is enough to see a single second a day lean; 100 ms takes in a badly
-   out-of-beat movement without the lines wrapping every few seconds.
-*/
-const ZOOM_STEPS = [5, 10, 20, 50, 100];
+/* Magnification in the units a watchmaker already thinks in, plus Auto. */
+const ZOOM_CHOICES = [ZOOM_AUTO, ...ZOOM_STEPS];
 const HISTORY_STEPS = [15, 30, 60];
 
 interface Props {
@@ -145,16 +144,18 @@ export function SettingsSheet({
             <>
               <Choice
                 label="Trace magnification"
-                options={ZOOM_STEPS}
+                options={ZOOM_CHOICES}
                 value={settings.zoomMs}
-                format={(v) => `${v} ms`}
+                format={(v) => (v === ZOOM_AUTO ? 'Auto' : `${v} ms`)}
                 onSelect={(zoomMs) => onChange({ ...settings, zoomMs })}
               />
               <p className="dim">
                 How much drift spans the width of the trace. A smaller number
-                magnifies more, so a small rate error leans further. If the lines
-                wrap around the edges faster than you can read them, choose a
-                larger number.
+                magnifies more, so a small rate error leans further.
+                <strong> Auto</strong> keeps the lean as steep as it can while
+                the line still fits on the strip, and is usually what you want.
+                Lines running off one edge and reappearing on the other means
+                the magnification is tighter than the watch's error needs.
               </p>
 
               <Choice

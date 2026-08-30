@@ -23,6 +23,7 @@ import { TimegrapherEngine, type Measurement, type Beat } from './timegrapher/tg
 import { StabilityTracker, type Settling, type Spread } from './timegrapher/stability';
 import { TraceCanvas } from './components/TraceCanvas';
 import { GraphSwitch, type Graph } from './components/GraphSwitch';
+import { resolveZoom, ZOOM_AUTO } from './timegrapher/trace-zoom';
 import { SettingsSheet, DEFAULT_SETTINGS, type Settings } from './components/SettingsSheet';
 import type { Topic } from './components/guide-content';
 import { findMovement, engineConfigFor } from './timegrapher/movements';
@@ -181,6 +182,24 @@ export default function App() {
     return () => window.clearTimeout(id);
   }, [justCaptured]);
 
+  /*
+    Throw away the collected average and the trace, keeping the audio running.
+    Moving the watch onto the sensor makes a burst of noise the spread cannot
+    distinguish from the movement misbehaving, and it would otherwise sit in
+    the window for the next thirty seconds.
+
+    Deliberately not a full stop and start: that would tear down the engine and
+    the microphone for something the operator does several times a session.
+  */
+  const resetAverage = useCallback(() => {
+    stability.current.reset();
+    beatStore.current.clear();
+    setBeats([]);
+    setSpreads({ rate: null, amplitude: null, beatError: null });
+    setSettling('waiting');
+    engine.current?.reset();
+  }, []);
+
   const clearSession = useCallback(() => {
     setReadings([]);
     setMeta(sessionStore.EMPTY_META);
@@ -256,6 +275,14 @@ export default function App() {
       setSettling('waiting');
     };
   }, [capturing, sampleRate, movementId]);
+
+  // Auto magnification follows the reading, so it is resolved here rather than
+  // inside the canvas — the header has to show the figure actually in use.
+  const effectiveZoom = resolveZoom(
+    settings.zoomMs,
+    measurement?.valid ? measurement.rate : 0,
+    settings.traceSeconds,
+  );
 
   const chosenMovement = findMovement(movementId);
   const movementLabel = chosenMovement ? `${chosenMovement.maker} ${chosenMovement.name}` : null;
@@ -500,6 +527,7 @@ export default function App() {
             settling={settling}
             spreads={spreads}
             onHelp={showHelp}
+            onResetAverage={resetAverage}
           />
 
           {capturing && (
@@ -524,7 +552,7 @@ export default function App() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span className="dim mono" style={{ fontSize: 10 }}>
                   {graph === 'trace'
-                    ? `${settings.traceSeconds}s · ${settings.zoomMs}ms wide`
+                    ? `${settings.traceSeconds}s · ${effectiveZoom}ms${settings.zoomMs === ZOOM_AUTO ? ' auto' : ''}`
                     : '1s'}
                 </span>
                 <button
@@ -545,7 +573,8 @@ export default function App() {
               <TraceCanvas
                 beats={beats}
                 bph={measurement?.detectedBph ?? 0}
-                zoomMs={settings.zoomMs}
+                zoomMs={effectiveZoom}
+                rate={measurement?.valid ? measurement.rate : 0}
                 windowSeconds={settings.traceSeconds}
                 capturing={capturing}
               />

@@ -37,6 +37,7 @@ interface WasmModule {
   _tgw_push(handle: number, ptr: number, count: number): void;
   _tgw_result(handle: number, ptr: number): void;
   _tgw_events(handle: number, timePtr: number, tictocPtr: number, max: number): number;
+  _tgw_reset(handle: number): void;
   _tgw_destroy(handle: number): void;
   _tgw_result_fields(): number;
   _malloc(bytes: number): number;
@@ -155,6 +156,16 @@ self.onmessage = async (event: MessageEvent) => {
         samplesSeen += block.length;
         break;
       }
+
+      case 'reset':
+        // Discards the core's ring buffer, so the next reading is built from
+        // audio recorded after this point rather than from whatever noise the
+        // operator just made moving the watch.
+        if (mod && handle) {
+          mod._tgw_reset(handle);
+          samplesSeen = 0;
+        }
+        break;
 
       case 'destroy':
         release();

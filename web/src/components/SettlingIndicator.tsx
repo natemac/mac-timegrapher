@@ -26,6 +26,7 @@ interface Props {
   settling: Settling;
   rate: number | null;
   spread: Spread | null;
+  onReset: () => void;
 }
 
 const LABEL: Record<Settling, string> = {
@@ -35,7 +36,7 @@ const LABEL: Record<Settling, string> = {
   settled: 'Settled',
 };
 
-export function SettlingIndicator({ settling, rate, spread }: Props) {
+export function SettlingIndicator({ settling, rate, spread, onReset }: Props) {
   const settled = settling === 'settled';
   const reduceMotion =
     typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -106,6 +107,26 @@ export function SettlingIndicator({ settling, rate, spread }: Props) {
       >
         {LABEL[settling]}
       </span>
+
+      {/*
+        Repositioning the watch makes a burst of noise that the spread has no
+        way to tell from the movement misbehaving, and it stays in the window
+        for the next thirty seconds. Rather than wait it out, discard what has
+        been collected and start the average again — without stopping capture,
+        which would throw away the audio too.
+      */}
+      <button
+        className="panel__help-icon"
+        onClick={onReset}
+        aria-label="Restart the average"
+        title="Restart the average"
+        style={{ flex: '0 0 auto' }}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <path d="M3 12a9 9 0 1 0 2.6-6.4" strokeLinecap="round" />
+          <path d="M3 4v5h5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
     </div>
   );
 }

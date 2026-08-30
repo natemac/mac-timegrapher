@@ -38,6 +38,8 @@ interface Props {
   bph: number;
   /** Milliseconds of drift spanning the full width. Smaller is more magnified. */
   zoomMs: number;
+  /** Seconds per day, used to lay the trace out so it runs across the strip. */
+  rate: number;
   /** Seconds of history to show. */
   windowSeconds?: number;
   capturing: boolean;
@@ -58,7 +60,7 @@ function themeColours(el: HTMLElement) {
   };
 }
 
-export function TraceCanvas({ beats, bph, zoomMs, windowSeconds = 30, capturing }: Props) {
+export function TraceCanvas({ beats, bph, zoomMs, rate, windowSeconds = 30, capturing }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -111,10 +113,19 @@ export function TraceCanvas({ beats, bph, zoomMs, windowSeconds = 30, capturing 
     const visible = beats.filter((b) => b.time >= oldest);
     if (visible.length === 0) return;
 
-    // Anchor on the oldest visible beat so the trace enters at the centre of
-    // the bottom edge and leans away as it climbs. Without an anchor the strip
-    // would slide sideways as the reference aged out of the window.
+    // Anchor on the oldest visible beat. Without an anchor the strip would
+    // slide sideways as the reference aged out of the window.
     const anchor = visible[0].time % beatInterval;
+
+    /*
+      Where that anchor sits across the width depends on which way the watch is
+      going. A fast watch reaches each beat early, so its marks walk left as
+      they climb; a slow one walks right. Starting both at the centre wastes
+      half the strip and sends the line over the edge at half the rate it
+      needs to — so the oldest beat enters at the side it is travelling away
+      from, and the whole width is available for the drift.
+    */
+    const entryX = rate >= 0 ? 0.85 : 0.15;
 
     for (const beat of visible) {
       const age = newest - beat.time;
@@ -127,7 +138,7 @@ export function TraceCanvas({ beats, bph, zoomMs, windowSeconds = 30, capturing 
       if (delta < -beatInterval / 2) delta += beatInterval;
 
       // Wrap across the edges rather than clipping, the way paper did.
-      let x = w / 2 + (delta / span) * w;
+      let x = entryX * w + (delta / span) * w;
       x = ((x % w) + w) % w;
 
       // Older marks fade so the eye follows the current slope rather than
@@ -139,7 +150,7 @@ export function TraceCanvas({ beats, bph, zoomMs, windowSeconds = 30, capturing 
       ctx.arc(x, y, beat.isTick ? 1.7 : 1.2, 0, Math.PI * 2);
       ctx.fill();
     }
-  }, [beats, bph, zoomMs, windowSeconds, capturing]);
+  }, [beats, bph, zoomMs, rate, windowSeconds, capturing]);
 
   return (
     <canvas

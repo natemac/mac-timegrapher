@@ -92,6 +92,14 @@ export class TimegrapherEngine {
     this.worker?.postMessage({ type: 'push', samples: block });
   }
 
+  /**
+   * Discards the audio collected so far, keeping the engine and the microphone.
+   * The next reading is built entirely from what arrives after this call.
+   */
+  reset(): void {
+    this.worker?.postMessage({ type: 'reset' });
+  }
+
   /** Stops the engine and frees the wasm heap behind it. */
   destroy(): void {
     if (!this.worker) return;
