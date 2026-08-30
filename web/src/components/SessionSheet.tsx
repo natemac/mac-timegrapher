@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import { POSITIONS, summarise } from '../timegrapher/session';
 import {
   PHASES, findPair, orderPair, comparePair, phaseName, phaseShort, inspectionAverage,
-  formatAverage, byRecency, pairToTable,
+  formatAverage, pairToTable,
   type Inspection,
 } from '../timegrapher/inspections';
 import { SlideSwitch } from './SlideSwitch';
@@ -23,9 +23,8 @@ interface Props {
   saved: Inspection[];
   onChange: (next: Inspection) => void;
   onPrint: () => void;
-  onNew: () => void;
-  onOpen: (id: string) => void;
-  onDelete: (id: string) => void;
+  /** Start the next watch. The reading on screen is the only one there is. */
+  onClear: () => void;
 }
 
 function fmtRate(v: number): string {
@@ -45,19 +44,17 @@ function Row({ label, value, unit }: { label: string; value: string; unit?: stri
 }
 
 export function SessionSheet({
-  open, onClose, current, saved, onChange, onPrint, onNew, onOpen, onDelete,
+  open, onClose, current, saved, onChange, onPrint, onClear,
 }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const [copied, setCopied] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  const [showHistory, setShowHistory] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     closeRef.current?.focus();
     setCopied(false);
-    setConfirmDelete(null);
-    setShowHistory(false);
+    setConfirmClear(false);
   }, [open]);
 
   if (!open) return null;
@@ -71,7 +68,6 @@ export function SessionSheet({
     : null;
   const average = inspectionAverage(current);
   const title = current.reference.trim() || 'Unnamed watch';
-  const history = byRecency(saved).filter((i) => i.readings.length > 0);
 
   const copy = async () => {
     try {
@@ -103,6 +99,14 @@ export function SessionSheet({
               style={{ flex: '0 0 auto', fontSize: 13 }}
             >
               {copied ? 'Copied' : 'Copy'}
+            </button>
+            <button
+              className="secondary"
+              onClick={() => (confirmClear ? onClear() : setConfirmClear(true))}
+              aria-label="Clear this reading and start the next watch"
+              style={{ flex: '0 0 auto', fontSize: 13 }}
+            >
+              {confirmClear ? 'Sure?' : 'Clear'}
             </button>
           </>
         )}
@@ -142,15 +146,19 @@ export function SessionSheet({
             onChange={(phase) => set({ phase })}
             label="Before or after regulation"
           />
-          <p className="dim run-identity__note">
-            {pair
-              ? `Paired with the ${phaseShort(pair.phase).toLowerCase()} reading of ${new Date(pair.updatedAt).toLocaleDateString()}.`
-              : current.reference.trim()
-                ? current.phase === 'pre'
-                  ? 'Nothing recorded after regulation for this reference yet.'
-                  : 'Nothing recorded before regulation for this reference yet.'
-                : 'Give it a reference and the before and after will pair themselves, however long apart.'}
-          </p>
+          {/*
+            Said only when there is one. A note promising that a matching
+            reading will turn up would be promising that the browser keeps
+            things, and it does not — a cleared cache or another device and it
+            is gone. When the pairing does happen it is a convenience, not
+            something the document depends on.
+          */}
+          {pair && (
+            <p className="dim run-identity__note">
+              Paired with the {phaseShort(pair.phase).toLowerCase()} reading of{' '}
+              {new Date(pair.updatedAt).toLocaleDateString()}.
+            </p>
+          )}
         </div>
 
         {/* Every position is listed whether measured or not, so what is left
@@ -270,48 +278,6 @@ export function SessionSheet({
           />
         </div>
 
-        <button className="secondary run-new" onClick={onNew}>
-          Start a new reading
-        </button>
-
-        {/* Kept for looking back at and for clearing out. Nothing in the
-            normal flow needs them: the document pairs a before with an after on
-            the reference by itself. */}
-        {history.length > 0 && (
-          <>
-            <button
-              className="secondary"
-              onClick={() => setShowHistory((v) => !v)}
-              style={{ width: '100%', marginTop: 18, fontSize: 13 }}
-              aria-expanded={showHistory}
-            >
-              {showHistory ? 'Hide past readings' : `Past readings — ${history.length}`}
-            </button>
-
-            {showHistory && (
-              <ul className="run-list">
-                {history.map((i) => (
-                  <li key={i.id} className={i.id === current.id ? 'run-list__item is-current' : 'run-list__item'}>
-                    <button className="run-list__open" onClick={() => onOpen(i.id)}>
-                      <span className="run-list__name">{i.reference.trim() || 'Unnamed'}</span>
-                      <span className="dim run-list__meta">
-                        {phaseShort(i.phase)} · {i.readings.length} of {POSITIONS.length} ·{' '}
-                        {new Date(i.updatedAt).toLocaleDateString()}
-                      </span>
-                    </button>
-                    <button
-                      className="secondary run-list__delete"
-                      onClick={() => (confirmDelete === i.id ? onDelete(i.id) : setConfirmDelete(i.id))}
-                      aria-label={`Delete the ${phaseName(i.phase).toLowerCase()} reading for ${i.reference.trim() || 'this unnamed watch'}`}
-                    >
-                      {confirmDelete === i.id ? 'Sure?' : 'Delete'}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>
-        )}
       </div>
     </Sheet>
   );

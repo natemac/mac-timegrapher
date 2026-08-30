@@ -44,9 +44,7 @@ function Host({ saved = [] as Inspection[] }: { saved?: Inspection[] } = {}) {
       saved={saved}
       onChange={setCurrent}
       onPrint={() => {}}
-      onNew={() => {}}
-      onOpen={() => {}}
-      onDelete={() => {}}
+      onClear={() => {}}
     />
   );
 }
@@ -125,7 +123,11 @@ describe('SessionSheet header', () => {
     expect(actions).not.toBeNull();
     expect(actions!.querySelector('.sheet__body')).toBeNull();
     expect(document.querySelector('.sheet__body')!.contains(actions)).toBe(false);
-    for (const name of ['Export inspection — print or save as PDF', 'Copy the results as text']) {
+    for (const name of [
+      'Export inspection — print or save as PDF',
+      'Copy the results as text',
+      'Clear this reading and start the next watch',
+    ]) {
       expect(actions!.contains(screen.getByRole('button', { name }))).toBe(true);
     }
   });
@@ -192,16 +194,40 @@ describe('marking a run', () => {
 
     expect(screen.getByText(/paired with the after reading/i)).toBeInTheDocument();
 
-    // Marking this run "after" too leaves nothing to pair with.
+    // Marking this reading "after" too leaves nothing to pair with.
     await user.click(screen.getByRole('button', { name: 'After regulation' }));
-    expect(screen.getByText(/nothing recorded before regulation/i)).toBeInTheDocument();
+    expect(screen.queryByText(/paired with/i)).not.toBeInTheDocument();
   });
 
-  it('explains that a run needs a reference before it can pair', async () => {
+  /*
+     It says nothing at all unless there is genuinely a match. Promising that
+     one will turn up would be promising the browser keeps things, and a
+     cleared cache or another device loses them.
+  */
+  it('stays quiet when there is nothing to pair with', () => {
+    render(<Host />);
+    expect(screen.queryByText(/paired with/i)).not.toBeInTheDocument();
+  });
+
+  it('does not pair on a blank reference', async () => {
+    const user = userEvent.setup();
+    const earlier = createInspection({
+      reference: '',
+      phase: 'post',
+      readings: [READING],
+    });
+    render(<Host saved={[earlier]} />);
+
+    await user.clear(screen.getByLabelText('Reference or build number'));
+    expect(screen.queryByText(/paired with/i)).not.toBeInTheDocument();
+  });
+
+  it('clears the reading to start the next watch', async () => {
     const user = userEvent.setup();
     render(<Host />);
 
-    await user.clear(screen.getByLabelText('Reference or build number'));
-    expect(screen.getByText(/give it a reference/i)).toBeInTheDocument();
+    const clear = screen.getByRole('button', { name: 'Clear this reading and start the next watch' });
+    await user.click(clear);
+    expect(screen.getByRole('button', { name: /sure/i })).toBeInTheDocument();
   });
 });

@@ -47,7 +47,7 @@ import {
 import { DiagnosticsLog, diagnosticsFilename } from './export/diagnostics';
 import type { PositionId } from './timegrapher/session';
 import {
-  createInspection, upsertReading, putInspection, removeInspection,
+  createInspection, upsertReading, putInspection,
   loadInspections, saveInspections, loadCurrentId, saveCurrentId,
   type Inspection,
 } from './timegrapher/inspections';
@@ -340,12 +340,12 @@ export default function App() {
   }, []);
 
   /*
-     Begin a fresh run.
+     Clear the reading and start the next watch.
 
      The technician and the calibre carry over, because the next watch is
      usually measured by the same person on the same bench. The reference does
      not: it is what identifies the watch, and inheriting it would silently
-     pair the new run with the old one's opposite pass.
+     pair the new reading with the old one's opposite pass.
   */
   const startNewInspection = useCallback(() => {
     const next = createInspection({
@@ -362,32 +362,6 @@ export default function App() {
     setSessionOpen(false);
   }, [updateCurrent]);
 
-  const openInspection = useCallback((id: string) => {
-    const found = saved.find((i) => i.id === id);
-    if (!found) return;
-    setCurrent(found);
-    saveCurrentId(found.id);
-    settledRuns.current = 0;
-    setWizard(startWizard());
-  }, [saved]);
-
-  const deleteInspection = useCallback((id: string) => {
-    setSaved((all) => {
-      const next = removeInspection(all, id);
-      saveInspections(next);
-      return next;
-    });
-    // Deleting the open run leaves nothing to add to, so start a fresh one.
-    if (currentRef.current.id === id) {
-      const fresh = createInspection({
-        technician: currentRef.current.technician,
-        movementId: movementIdRef.current,
-        movementName: movementLabelRef.current,
-      });
-      setCurrent(fresh);
-      saveCurrentId(fresh.id);
-    }
-  }, []);
 
   /*
     Close the sheet before printing. The print stylesheet hides it anyway, but
@@ -837,9 +811,7 @@ export default function App() {
         saved={saved}
         onChange={updateCurrent}
         onPrint={printCertificate}
-        onNew={startNewInspection}
-        onOpen={openInspection}
-        onDelete={deleteInspection}
+        onClear={startNewInspection}
       />
 
 
