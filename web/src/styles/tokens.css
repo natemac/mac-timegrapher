@@ -1018,6 +1018,47 @@ select {
   white-space: nowrap;
 }
 
+/* Which pass the session table is showing. */
+.session__phase {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+
+/* The wizard's eyebrow doubles as its own explanation, like every panel head. */
+.wizard__help {
+  align-self: center;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+/* What the bench managed, against what it has to beat. */
+.settings__bench {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.settings__bench th {
+  text-align: left;
+  font-weight: 400;
+  color: var(--text-dim);
+  padding: 4px 0;
+}
+.settings__bench td {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  padding: 4px 0 4px 10px;
+  white-space: nowrap;
+}
+
 /* A text field with a shortcut into it. */
 .fillable {
   display: flex;
@@ -1195,15 +1236,47 @@ html.is-measuring body { overscroll-behavior-y: none; }
 
 /* The phase switch carries full labels — "Before regulation", not "Before" —
    so it needs no explanation beside it. Smaller type is what makes them fit. */
-.switch--phase { width: 100%; }
-.switch--phase .switch__option {
-  padding: 8px 6px;
-  font-size: 11.5px;
-  letter-spacing: 0;
+
+
+/* ---------- The build number, as the heading ----------
+   It was the heading and then a field under it holding the same text. One of
+   them had to go, and the field is the one you can type in. */
+.run-name {
+  width: 100%;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text);
+}
+.run-name::placeholder { color: var(--text-faint); font-weight: 400; }
+.run-name:focus { outline: none; }
+.sheet__head--title:focus-within { box-shadow: inset 0 -2px 0 var(--accent); }
+
+/* Two radios and a word. It is a small choice and should look like one. */
+.phase-choice {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border: 0;
+  margin: 0;
+  padding: 0;
 }
 
-.run-new {
-  width: 100%;
-  margin-top: 18px;
+.phase-choice__option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+.phase-choice__option input { margin: 0; accent-color: var(--accent); }
+
+.phase-choice__label {
+  font-size: 13px;
+  color: var(--text-dim);
 }

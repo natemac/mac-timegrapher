@@ -9,11 +9,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { POSITIONS, summarise } from '../timegrapher/session';
 import {
-  PHASES, findPair, orderPair, comparePair, phaseName, phaseShort, inspectionAverage,
-  formatAverage, pairToTable,
+  PHASES, findPair, orderPair, comparePair, phaseShort, pairToTable,
   type Inspection,
 } from '../timegrapher/inspections';
-import { SlideSwitch } from './SlideSwitch';
 import { Sheet } from './Sheet';
 
 interface Props {
@@ -66,8 +64,8 @@ export function SessionSheet({
   const comparison = pair
     ? comparePair(...(runs as [Inspection, Inspection]))
     : null;
-  const average = inspectionAverage(current);
   const title = current.reference.trim() || 'Unnamed watch';
+  const set = (patch: Partial<Inspection>) => onChange({ ...current, ...patch });
 
   const copy = async () => {
     try {
@@ -77,8 +75,6 @@ export function SessionSheet({
       setCopied(false);
     }
   };
-
-  const set = (patch: Partial<Inspection>) => onChange({ ...current, ...patch });
 
   return (
     <Sheet open={open} onClose={onClose} label={title}>
@@ -103,7 +99,11 @@ export function SessionSheet({
             <button
               className="secondary"
               onClick={() => (confirmClear ? onClear() : setConfirmClear(true))}
-              aria-label="Clear this reading and start the next watch"
+              /* The label follows the state, or pressing Clear would announce
+                 nothing changed to anyone not looking at it. */
+              aria-label={confirmClear
+                ? 'Press again to clear this reading'
+                : 'Clear this reading and start the next watch'}
               style={{ flex: '0 0 auto', fontSize: 13 }}
             >
               {confirmClear ? 'Sure?' : 'Clear'}
@@ -122,7 +122,13 @@ export function SessionSheet({
       </div>
 
       <div className="sheet__head sheet__head--title">
-        <span style={{ fontWeight: 600, fontSize: 15 }}>{title}</span>
+        <input
+          className="run-name"
+          placeholder="Build number"
+          aria-label="Build number"
+          value={current.reference}
+          onChange={(e) => set({ reference: e.target.value })}
+        />
       </div>
 
       <div className="sheet__body prose" data-sheet-scroll>
@@ -132,26 +138,27 @@ export function SessionSheet({
           ties a before to an after — a run without one pairs with nothing.
         */}
         <div className="run-identity">
-          <input
-            className="field"
-            placeholder="Reference or build number"
-            aria-label="Reference or build number"
-            value={current.reference}
-            onChange={(e) => set({ reference: e.target.value })}
-          />
-          <SlideSwitch
-            className="switch--phase"
-            value={current.phase}
-            options={PHASES.map((p) => ({ id: p.id, label: p.name }))}
-            onChange={(phase) => set({ phase })}
-            label="Before or after regulation"
-          />
+          <fieldset className="phase-choice">
+            <legend className="visually-hidden">Before or after regulation</legend>
+            {PHASES.map((ph) => (
+              <label key={ph.id} className="phase-choice__option">
+                <input
+                  type="radio"
+                  name="phase"
+                  checked={current.phase === ph.id}
+                  onChange={() => set({ phase: ph.id })}
+                />
+                <span>{ph.id === 'pre' ? 'Pre' : 'Post'}</span>
+              </label>
+            ))}
+            <span className="phase-choice__label">Regulation</span>
+          </fieldset>
+
           {/*
             Said only when there is one. A note promising that a matching
             reading will turn up would be promising that the browser keeps
             things, and it does not — a cleared cache or another device and it
-            is gone. When the pairing does happen it is a convenience, not
-            something the document depends on.
+            is gone.
           */}
           {pair && (
             <p className="dim run-identity__note">
@@ -243,30 +250,6 @@ export function SessionSheet({
             value={current.technician}
             onChange={(e) => set({ technician: e.target.value })}
           />
-
-          {/*
-            One line per run, in the watchmaker's own words — "+27, uniformly
-            fast" and "+27, all over the place" are the same average and
-            different watches. Fill writes this run's own average, which is
-            unambiguous now that a run is one pass over one watch.
-          */}
-          <div className="fillable">
-            <input
-              className="field"
-              placeholder={`${phaseName(current.phase)} — in a line`}
-              aria-label={`${phaseName(current.phase)} summary`}
-              value={current.summaryText}
-              onChange={(e) => set({ summaryText: e.target.value })}
-            />
-            <button
-              className="secondary fillable__fill"
-              onClick={() => average && set({ summaryText: formatAverage(average) })}
-              disabled={average === null}
-              aria-label="Fill with this run's measured average"
-            >
-              Fill
-            </button>
-          </div>
 
           <textarea
             className="field"

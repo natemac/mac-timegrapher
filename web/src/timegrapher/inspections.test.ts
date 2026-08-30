@@ -9,7 +9,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   createInspection, upsertReading, sameWatch, findPair, orderPair, comparePair,
-  inspectionAverage, formatAverage, inspectionTitle, phaseName, phaseShort, otherPhase,
+  inspectionTitle, phaseName, phaseShort, otherPhase,
   loadInspections, saveInspections, putInspection, removeInspection, byRecency,
   loadCurrentId, saveCurrentId, MAX_INSPECTIONS,
   type Inspection,
@@ -149,16 +149,6 @@ describe('readings', () => {
     expect(i.readings.map((r) => r.position)).toEqual(['dial-up', 'crown-down']);
   });
 
-  it('averages its own readings, not another run\'s', () => {
-    const i = run({ readings: [reading('dial-up', 10), reading('dial-down', 20)] });
-    expect(inspectionAverage(i)).toEqual({ rate: 15, positions: 2 });
-    expect(inspectionAverage(run())).toBeNull();
-  });
-
-  it('formats an average for the summary line', () => {
-    expect(formatAverage({ rate: 2.53, positions: 6 })).toBe('+2.5 s/day average over 6 positions');
-    expect(formatAverage({ rate: -4.2, positions: 1 })).toBe('-4.2 s/day average over 1 position');
-  });
 });
 
 describe('naming', () => {
@@ -266,7 +256,7 @@ describe('migration from the single-session store', () => {
     ]));
     localStorage.setItem('mac-timegrapher.session-meta', JSON.stringify({
       reference: 'MB-0142', technician: 'NM',
-      preRegulation: 'arrived fast', postRegulation: 'within tolerance', notes: 'n',
+      notes: 'n',
     }));
 
     const loaded = loadInspections();
@@ -275,8 +265,6 @@ describe('migration from the single-session store', () => {
     const found = loaded.find((i) => i.phase === 'pre')!;
     const left = loaded.find((i) => i.phase === 'post')!;
     expect(found.reference).toBe('MB-0142');
-    expect(found.summaryText).toBe('arrived fast');
-    expect(left.summaryText).toBe('within tolerance');
     expect(found.readings[0].rate).toBe(25);
     expect(left.readings[0].rate).toBe(2);
     // The phase belongs to the run now, not to every reading in it.

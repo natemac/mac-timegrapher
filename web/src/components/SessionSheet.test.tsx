@@ -60,7 +60,7 @@ describe('SessionSheet certificate fields', () => {
     const user = userEvent.setup();
     render(<Host />);
 
-    const field = screen.getByLabelText('Reference or build number');
+    const field = screen.getByLabelText('Build number');
     await user.clear(field);
     await user.keyboard('MB-0199');
 
@@ -99,17 +99,11 @@ describe('SessionSheet certificate fields', () => {
 });
 
 describe('SessionSheet header', () => {
-  it('names the run after the reference as it is typed', async () => {
-    const user = userEvent.setup();
+  /* It used to be a heading with a field under it holding the same text. */
+  it('shows the build number once, as the field you type in', () => {
     render(<Host />);
-
-    expect(screen.getAllByText('MB-0142').length).toBeGreaterThan(0);
-
-    const field = screen.getByLabelText('Reference or build number');
-    await user.clear(field);
-    await user.keyboard('MB-0199');
-
-    expect(screen.getAllByText('MB-0199').length).toBeGreaterThan(0);
+    expect(screen.getByLabelText('Build number')).toHaveValue('MB-0142');
+    expect(screen.queryByText('MB-0142')).not.toBeInTheDocument();
   });
 
   /*
@@ -134,48 +128,15 @@ describe('SessionSheet header', () => {
 
 });
 
-describe('the run summary line', () => {
-  it('is editable by hand', async () => {
-    const user = userEvent.setup();
-    render(<Host />);
-
-    const field = screen.getByLabelText('Before regulation summary');
-    await user.click(field);
-    await user.keyboard('+27, uniformly fast');
-
-    expect(field).toHaveValue('+27, uniformly fast');
-    expect(field).toHaveFocus();
-  });
-
-  /* This run's own average, which is unambiguous now that a run is one pass
-     over one watch — it used to mean "whatever was measured most recently". */
-  it('fills from this run\'s average', async () => {
-    const user = userEvent.setup();
-    render(<Host />);
-
-    await user.click(screen.getByRole('button', { name: "Fill with this run's measured average" }));
-    expect(screen.getByLabelText('Before regulation summary'))
-      .toHaveValue('+12.4 s/day average over 1 position');
-  });
-
-  it('follows the mark, so it asks for the pass it is on', async () => {
-    const user = userEvent.setup();
-    render(<Host />);
-
-    await user.click(screen.getByRole('button', { name: 'After regulation' }));
-    expect(screen.getByLabelText('After regulation summary')).toBeInTheDocument();
-    expect(screen.queryByLabelText('Before regulation summary')).not.toBeInTheDocument();
-  });
-});
-
 describe('marking a run', () => {
-  it('starts as found and can be marked as left', async () => {
+  it('starts on Pre and can be marked Post', async () => {
     const user = userEvent.setup();
     render(<Host />);
 
-    expect(screen.getByRole('button', { name: 'Before regulation' })).toHaveAttribute('aria-pressed', 'true');
-    await user.click(screen.getByRole('button', { name: 'After regulation' }));
-    expect(screen.getByRole('button', { name: 'After regulation' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('radio', { name: 'Pre' })).toBeChecked();
+    await user.click(screen.getByRole('radio', { name: 'Post' }));
+    expect(screen.getByRole('radio', { name: 'Post' })).toBeChecked();
+    expect(screen.getByRole('radio', { name: 'Pre' })).not.toBeChecked();
   });
 
   /*
@@ -195,7 +156,7 @@ describe('marking a run', () => {
     expect(screen.getByText(/paired with the after reading/i)).toBeInTheDocument();
 
     // Marking this reading "after" too leaves nothing to pair with.
-    await user.click(screen.getByRole('button', { name: 'After regulation' }));
+    await user.click(screen.getByRole('radio', { name: 'Post' }));
     expect(screen.queryByText(/paired with/i)).not.toBeInTheDocument();
   });
 
@@ -218,7 +179,7 @@ describe('marking a run', () => {
     });
     render(<Host saved={[earlier]} />);
 
-    await user.clear(screen.getByLabelText('Reference or build number'));
+    await user.clear(screen.getByLabelText('Build number'));
     expect(screen.queryByText(/paired with/i)).not.toBeInTheDocument();
   });
 
@@ -226,8 +187,11 @@ describe('marking a run', () => {
     const user = userEvent.setup();
     render(<Host />);
 
-    const clear = screen.getByRole('button', { name: 'Clear this reading and start the next watch' });
-    await user.click(clear);
-    expect(screen.getByRole('button', { name: /sure/i })).toBeInTheDocument();
+    await user.click(
+      screen.getByRole('button', { name: 'Clear this reading and start the next watch' }),
+    );
+    // The label follows the state, so it is not silent to a screen reader.
+    expect(screen.getByRole('button', { name: 'Press again to clear this reading' }))
+      .toHaveTextContent('Sure?');
   });
 });

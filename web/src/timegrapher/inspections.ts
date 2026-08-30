@@ -72,7 +72,6 @@ export interface Inspection {
   readings: Reading[];
   technician: string;
   /** The watchmaker's line about this pass, printed beside its table. */
-  summaryText: string;
   notes: string;
   startedAt: string;
   updatedAt: string;
@@ -102,7 +101,6 @@ export function createInspection(over: Partial<Inspection> = {}): Inspection {
     phase: 'pre',
     readings: [],
     technician: '',
-    summaryText: '',
     notes: '',
     startedAt: now,
     updatedAt: now,
@@ -199,22 +197,6 @@ export function summariseInspection(i: Inspection): SessionSummary | null {
   return summarise(i.readings);
 }
 
-/** The average rate of this run, for filling its own summary line. */
-export function inspectionAverage(i: Inspection): { rate: number; positions: number } | null {
-  if (i.readings.length === 0) return null;
-  return {
-    rate: i.readings.reduce((s, r) => s + r.rate, 0) / i.readings.length,
-    positions: i.readings.length,
-  };
-}
-
-export function formatAverage(a: { rate: number; positions: number }): string {
-  const sign = a.rate >= 0 ? '+' : '';
-  return `${sign}${a.rate.toFixed(1)} s/day average over ${a.positions} position${
-    a.positions === 1 ? '' : 's'
-  }`;
-}
-
 /** What to call a run in a list: the watch, then which pass it was. */
 export function inspectionTitle(i: Inspection): string {
   const name = i.reference.trim() || 'Unnamed';
@@ -246,7 +228,6 @@ function readLegacy(): Inspection[] {
         reference: meta.reference ?? '',
         technician: meta.technician ?? '',
         notes: meta.notes ?? '',
-        summaryText: phase === 'pre' ? (meta.preRegulation ?? '') : (meta.postRegulation ?? ''),
         phase,
         readings,
       }));

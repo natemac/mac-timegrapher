@@ -58,7 +58,6 @@ function RunTable({
   return (
     <section className="certificate__phase">
       <h2 className="certificate__phase-title">{label}</h2>
-      {run.summaryText && <p className="certificate__phase-note">{run.summaryText}</p>}
       <table className="certificate__table">
         <thead>
           <tr>
