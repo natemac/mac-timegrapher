@@ -91,53 +91,56 @@ export function SessionSheet({
       }}
     >
       <div className="sheet" role="dialog" aria-modal="true" aria-label={title}>
-        <div className="sheet__head">
-          {/* The reference becomes the name as soon as one is typed, so the
-              sheet says which job it is rather than "Session". */}
-          <span style={{ fontWeight: 600, fontSize: 15 }}>{title}</span>
+        {/*
+          Actions first, close beside them, name underneath. Both rows are
+          outside the scrolling body — these used to sit at the foot of the
+          table, so producing the certificate meant scrolling past every
+          position and the summary to reach the button the sheet was opened
+          for.
+        */}
+        <div className="sheet__actions">
+          {summary && (
+            <>
+              <button
+                onClick={onPrint}
+                aria-label="Certificate — print or save as PDF"
+                style={{ flex: '1 1 auto', fontSize: 13 }}
+              >
+                Certificate
+              </button>
+              <button
+                className="secondary"
+                onClick={copy}
+                aria-label="Copy the results as text"
+                style={{ flex: '0 0 auto', fontSize: 13 }}
+              >
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+              <button
+                className="secondary"
+                onClick={() => (confirmClear ? onClear() : setConfirmClear(true))}
+                style={{ flex: '0 0 auto', fontSize: 13 }}
+              >
+                {confirmClear ? 'Sure?' : 'Clear'}
+              </button>
+            </>
+          )}
           <button
             ref={closeRef}
             className="secondary"
             onClick={onClose}
             aria-label="Close"
-            style={{ padding: '7px 13px', fontSize: 15, lineHeight: 1 }}
+            style={{ marginLeft: 'auto', padding: '7px 13px', fontSize: 15, lineHeight: 1 }}
           >
             ✕
           </button>
         </div>
 
-        {/*
-          Pinned outside the scrolling body. These were at the foot of the
-          table, so producing the certificate meant scrolling past every
-          position and the summary to reach the button that is the reason the
-          sheet was opened.
-        */}
-        {summary && (
-          <div className="sheet__actions">
-            <button
-              onClick={onPrint}
-              aria-label="Certificate — print or save as PDF"
-              style={{ flex: '1 1 auto', fontSize: 13 }}
-            >
-              Certificate
-            </button>
-            <button
-              className="secondary"
-              onClick={copy}
-              aria-label="Copy the results as text"
-              style={{ flex: '0 0 auto', fontSize: 13 }}
-            >
-              {copied ? 'Copied' : 'Copy'}
-            </button>
-            <button
-              className="secondary"
-              onClick={() => (confirmClear ? onClear() : setConfirmClear(true))}
-              style={{ flex: '0 0 auto', fontSize: 13 }}
-            >
-              {confirmClear ? 'Sure?' : 'Clear'}
-            </button>
-          </div>
-        )}
+        {/* The reference becomes the name as soon as one is typed, so the
+            sheet says which job it is rather than "Session". */}
+        <div className="sheet__head">
+          <span style={{ fontWeight: 600, fontSize: 15 }}>{title}</span>
+        </div>
 
         <div className="sheet__body prose">
           {/* Every position is listed whether measured or not, so what is left

@@ -9,7 +9,7 @@
 import type { AudioInput } from '../audio/device-manager';
 import { PanelHead } from './PanelHead';
 import type { Topic } from './guide-content';
-import { MOVEMENTS, findMovement } from '../timegrapher/movements';
+import { MOVEMENTS, findMovement, DEFAULT_LIFT_ANGLE } from '../timegrapher/movements';
 
 interface Props {
   devices: AudioInput[];
@@ -78,26 +78,40 @@ export function DeviceSelector({
         </select>
       </div>
 
-      {/* Beat rate the app can work out for itself; lift angle it cannot —
-          that is escapement geometry, and amplitude is calculated straight
-          from it. Choosing the movement pins both. */}
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
-        <select
-          aria-label="Movement"
-          value={movementId ?? ''}
-          disabled={busy}
-          onChange={(e) => onSelectMovement(e.target.value || null)}
-          style={{ flex: '1 1 auto', minWidth: 0 }}
-        >
-          <option value="">Detect beat rate automatically</option>
-          {MOVEMENTS.map((m) => (
-            <option key={m.id} value={m.id}>{m.maker} {m.name}</option>
-          ))}
-        </select>
-        <span className="mono dim" style={{ fontSize: 11, flex: '0 0 auto' }}>
-          {movement ? `${movement.liftAngle}° lift` : `${52}° lift`}
-        </span>
-      </div>
+      {/*
+        Beat rate the app can work out for itself; lift angle it cannot — that
+        is escapement geometry, and amplitude is calculated straight from it.
+        Choosing the movement pins both.
+
+        Once it is pinned the dropdown collapses to a line of text. A bench
+        works through a batch of one calibre and the choice is remembered
+        between sessions, so after the first visit this control is a full-height
+        row that never gets touched — and the trace has better uses for it. It
+        is still changeable from the settings sheet.
+      */}
+      {movement ? (
+        <div className="setup__movement mono dim">
+          {movement.maker} {movement.name} · {movement.liftAngle}° lift
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
+          <select
+            aria-label="Movement"
+            value={movementId ?? ''}
+            disabled={busy}
+            onChange={(e) => onSelectMovement(e.target.value || null)}
+            style={{ flex: '1 1 auto', minWidth: 0 }}
+          >
+            <option value="">Detect beat rate automatically</option>
+            {MOVEMENTS.map((m) => (
+              <option key={m.id} value={m.id}>{m.maker} {m.name}</option>
+            ))}
+          </select>
+          <span className="mono dim" style={{ fontSize: 11, flex: '0 0 auto' }}>
+            {DEFAULT_LIFT_ANGLE}° lift
+          </span>
+        </div>
+      )}
 
       {rateMismatch && (
         <p className="bad" style={{ fontSize: 12, marginTop: 8, marginBottom: 0 }}>

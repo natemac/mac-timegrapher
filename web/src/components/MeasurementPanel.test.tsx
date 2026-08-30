@@ -45,11 +45,19 @@ function panel(over: Partial<Parameters<typeof MeasurementPanel>[0]> = {}) {
 }
 
 describe('the Capture control', () => {
-  it('sits at the foot of the panel, not in its header', () => {
+  it('rides the settling row, not the panel header', () => {
     render(panel());
     const button = screen.getByRole('button', { name: /capture/i });
-    expect(document.querySelector('.panel__foot')!.contains(button)).toBe(true);
+    expect(document.querySelector('.panel__settle')!.contains(button)).toBe(true);
     expect(document.querySelector('.panel__head')!.contains(button)).toBe(false);
+  });
+
+  /* The settling indicator is what says the reading is worth saving, so the
+     two share a row rather than the button taking one of its own. */
+  it('leaves the indicator its width', () => {
+    render(panel());
+    const row = document.querySelector('.panel__settle')!;
+    expect(row.querySelector('.panel__settle-bar')).not.toBeNull();
   });
 
   it('is labelled, not just an icon', () => {

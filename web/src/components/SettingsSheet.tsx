@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import { GUIDE, GUIDE_ORDER, type Topic } from './guide-content';
 import { ZOOM_STEPS, ZOOM_AUTO } from '../timegrapher/trace-zoom';
 import { SourceFooter } from './SourceFooter';
+import { MOVEMENTS } from '../timegrapher/movements';
 
 export interface Settings {
   /** Milliseconds of drift spanning the trace width. Smaller magnifies more. */
@@ -80,6 +81,8 @@ interface Props {
   onShowFullGuide: () => void;
   settings: Settings;
   onChange: (s: Settings) => void;
+  movementId: string | null;
+  onSelectMovement: (id: string | null) => void;
 }
 
 type Tab = 'guide' | 'settings';
@@ -115,6 +118,7 @@ function Choice<T extends number>({
 
 export function SettingsSheet({
   open, topic, onClose, onShowFullGuide, settings, onChange,
+  movementId, onSelectMovement,
 }: Props) {
   const [tab, setTab] = useState<Tab>('guide');
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -198,6 +202,29 @@ export function SettingsSheet({
             </>
           ) : tab === 'settings' ? (
             <>
+              {/* The setup panel drops its dropdown once a calibre is pinned,
+                  because a bench works through a batch of one. This is where
+                  it gets changed. */}
+              <div style={{ marginBottom: 16 }}>
+                <div className="eyebrow" style={{ marginBottom: 8 }}>Movement</div>
+                <select
+                  aria-label="Movement"
+                  value={movementId ?? ''}
+                  onChange={(e) => onSelectMovement(e.target.value || null)}
+                  style={{ width: '100%' }}
+                >
+                  <option value="">Detect beat rate automatically</option>
+                  {MOVEMENTS.map((m) => (
+                    <option key={m.id} value={m.id}>{m.maker} {m.name}</option>
+                  ))}
+                </select>
+              </div>
+              <p className="dim">
+                Lift angle comes from the calibre and amplitude is calculated
+                straight from it, so the wrong movement gives the wrong
+                amplitude. Beat rate is detected either way.
+              </p>
+
               <div style={{ marginBottom: 16 }}>
                 <div className="eyebrow" style={{ marginBottom: 8 }}>Branding</div>
                 <label className="setting-toggle">

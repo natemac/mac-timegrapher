@@ -42,8 +42,11 @@ export function PermissionGate({ onGrant, error, busy, mode, onSelectMode }: Pro
         <ModeSwitch value={mode} onChange={onSelectMode} />
       </div>
 
+      {/* It grants access and opens the app in one press, so it says both.
+          "Allow microphone" described the permission prompt rather than what
+          the button was for. */}
       <button onClick={onGrant} disabled={busy} style={{ minWidth: 190 }}>
-        {busy ? 'Requesting…' : 'Allow microphone'}
+        {busy ? 'Requesting…' : 'Allow Mic & Begin'}
       </button>
 
       <p className="dim" style={{ fontSize: 13, marginTop: 20, marginBottom: 0 }}>

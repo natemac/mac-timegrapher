@@ -143,24 +143,37 @@ export function MeasurementPanel({
         />
       </div>
 
+      {/* Capture rides the settling row rather than taking one of its own.
+          The two belong together anyway: the indicator is what tells you the
+          reading is worth saving. */}
       {capturing && (
-        <div style={{ marginTop: 10 }}>
-          <SettlingIndicator
-            settling={settling}
-            rate={show ? m!.rate : null}
-            spread={show ? spreads.rate : null}
-          />
+        <div className="panel__settle">
+          <div className="panel__settle-bar">
+            <SettlingIndicator
+              settling={settling}
+              rate={show ? m!.rate : null}
+              spread={show ? spreads.rate : null}
+            />
+          </div>
+
+          {/* Only once there is something worth saving — an image of four
+              dashes is not a reading. */}
+          {show && onSnapshot && (
+            <button className="capture-button" onClick={onSnapshot}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <rect x="3" y="6" width="18" height="14" rx="2.5" />
+                <circle cx="12" cy="13" r="3.4" />
+                <path d="M8.5 6l1.4-2.2h4.2L15.5 6" strokeLinejoin="round" />
+              </svg>
+              Capture
+            </button>
+          )}
         </div>
       )}
 
-      {/*
-        Reserved while capturing even before there is a reading to save: the
-        Capture button appears the moment the core produces one, and letting the
-        row collapse would jog the trace by its height at that moment.
-      */}
-      {(guidance || capturing) && (
+      {guidance && (
       <div className="panel__foot">
-        {guidance && (
+        {(
           <p className="dim panel__foot-note">
             {!capturing
               ? 'Press Start, then hold the watch against the sensor.'
@@ -172,19 +185,6 @@ export function MeasurementPanel({
                     ? 'Readings have stopped moving.'
                     : 'Still moving. Give it a few more seconds.'}
           </p>
-        )}
-
-        {/* Only once there is something worth saving — an image of four
-            dashes is not a reading. */}
-        {capturing && show && onSnapshot && (
-          <button className="capture-button" onClick={onSnapshot}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <rect x="3" y="6" width="18" height="14" rx="2.5" />
-              <circle cx="12" cy="13" r="3.4" />
-              <path d="M8.5 6l1.4-2.2h4.2L15.5 6" strokeLinejoin="round" />
-            </svg>
-            Capture
-          </button>
         )}
       </div>
       )}

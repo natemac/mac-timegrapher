@@ -295,7 +295,7 @@ select {
   justify-content: space-between;
   align-items: center;
   gap: 10px;
-  padding: 12px 14px;
+  padding: 2px 14px 11px;
   border-bottom: 1px solid var(--line);
   flex: 0 0 auto;
 }
@@ -865,9 +865,9 @@ select {
    of the thing you are scrolling through. */
 .sheet__actions {
   display: flex;
+  align-items: center;
   gap: 8px;
   padding: 10px 14px;
-  border-bottom: 1px solid var(--line);
   flex: 0 0 auto;
 }
 
@@ -913,3 +913,19 @@ select {
   padding-top: 14px;
   border-top: 1px solid var(--line);
 }
+
+/* The pinned calibre, once the dropdown has collapsed. */
+.setup__movement {
+  margin-top: 7px;
+  font-size: 11px;
+}
+
+/* Settling indicator and Capture on one row: the indicator is what tells you
+   the reading is worth saving, so the control belongs beside it. */
+.panel__settle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+.panel__settle-bar { flex: 1 1 auto; min-width: 0; }

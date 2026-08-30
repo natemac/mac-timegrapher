@@ -77,7 +77,10 @@ export default function App() {
   const [beats, setBeats] = useState<Beat[]>([]);
   const [settling, setSettling] = useState<Settling>('waiting');
   const [spreads, setSpreads] = useState<{ rate: Spread | null; amplitude: Spread | null; beatError: Spread | null }>({ rate: null, amplitude: null, beatError: null });
-  const [graph, setGraph] = useState<Graph>('trace');
+  /* Waveform by default: it shows something the moment audio arrives, so a
+     first-time user can tell the sensor is hearing the watch before any
+     reading exists. The trace needs beats before it draws anything at all. */
+  const [graph, setGraph] = useState<Graph>('waveform');
   // Remembered: a bench usually works through a batch of the same calibre.
   const [movementId, setMovementId] = useState<string | null>(
     () => {
@@ -665,6 +668,8 @@ export default function App() {
         onShowFullGuide={showFullGuide}
         settings={settings}
         onChange={updateSettings}
+        movementId={movementId}
+        onSelectMovement={selectMovement}
       />
 
       {!secure && (
