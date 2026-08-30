@@ -44,7 +44,7 @@ emit() { # environment output
 		-s EXPORTED_FUNCTIONS='["_tgw_init","_tgw_push","_tgw_result","_tgw_reset","_tgw_destroy","_tgw_version","_tgw_result_fields","_malloc","_free"]'
 }
 
-emit web  "$OUT/tg-core.js"
+emit web,worker "$OUT/tg-core.js"
 emit node "$ROOT/wasm/build/node/tg-core.js"
 
 echo "built:"
