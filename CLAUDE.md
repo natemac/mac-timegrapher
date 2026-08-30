@@ -107,18 +107,18 @@ web/src/components/      one panel each; guide-content.tsx holds every explanati
   readings**, not chosen for tidiness. The first values were below the
   achievable floor for a hand-held sensor and the indicator never fired.
 
-## Layout
+## Upstream C
 
-```
-src/          upstream C, untouched and still buildable — the DSP reference.
-              Not part of the web build. Native tg has NO WAV file input
-              (live PortAudio only), which is why this is kept: a file-input
-              mode gets added here later for exact A/B comparison.
-web/src/audio/  pure, browser-free logic — unit-testable without hardware
-web/src/components/  one concern each, props-driven
-core/ wasm/   empty until Milestones 2-3
-fixtures/     recorded WAVs + expected values; the DSP regression corpus
-```
+`src/` holds upstream's GTK application, untouched and still buildable. It is
+not part of the web build; it is the reference implementation the port is
+checked against. Native tg has **no WAV file input** (live PortAudio only),
+which is why it is kept — a file-input mode gets added there for exact A/B
+comparison against a recorded fixture.
+
+`core/` is the extracted DSP (algo + measurement, no GTK/PortAudio/pthread),
+built standalone with `make -f Makefile.core` and to WebAssembly with
+`wasm/build-wasm.sh`. `fixtures/` is the regression corpus — still empty,
+pending a bench recording.
 
 `startCapture` and the React components other than `SourceFooter` have no
 automated tests **by design** — mocking the Web Audio graph would test the mock.
@@ -127,9 +127,14 @@ They are verified at the bench. Don't "fix" this by adding mocks.
 ## Commands
 
 ```sh
-cd web && npm test          # 54 tests
+cd web && npm test          # 88 tests across 9 files
 cd web && npm run build     # tsc -b && vite build
 cd web && npm run dev       # http://localhost:5173/tools/timegrapher/
+
+make -f Makefile.core       # native tg-process (needs brew fftw)
+make -f Makefile.core check # synthetic-signal tests
+./wasm/build-wasm.sh        # rebuild the WebAssembly core
+node tests/compare-wasm-native.mjs FILE.wav   # wasm vs native on one file
 ```
 
 `base` is `/tools/timegrapher/`, overridable via `VITE_BASE` for forks — the dev
