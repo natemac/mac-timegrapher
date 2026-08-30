@@ -1,0 +1,184 @@
+/*
+    MAC Bespoke Web Timegrapher
+    Copyright (C) 2026 MAC Bespoke Watch Co.
+
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License version 2 as
+    published by the Free Software Foundation.
+*/
+import { describe, it, expect } from 'vitest';
+import {
+  DiagnosticsLog, diagnosticsFilename,
+  type DiagnosticContext, type DiagnosticSample,
+} from './diagnostics';
+
+const CONTEXT: DiagnosticContext = {
+  device: 'USB PnP Sound Device',
+  sampleRate: 44100,
+  requestedSampleRate: 44100,
+  processing: [],
+  movement: 'Seiko / TMI NH35',
+  liftAngle: 53,
+  bph: 21600,
+  quartz: false,
+  mode: 'inspection',
+  settledBounds: { rate: 1, amplitude: 15, beatError: 1.5 },
+};
+
+function sample(over: Partial<DiagnosticSample> = {}): DiagnosticSample {
+  return {
+    t: 10,
+    valid: true,
+    rate: 14.5,
+    amplitude: 232,
+    beatError: 1.0,
+    detectedBph: 21600,
+    signalQuality: 0.9,
+    settling: 'settled',
+    rateSpread: 0.4,
+    amplitudeSpread: 10,
+    beatErrorSpread: 0.85,
+    headroomDb: 29,
+    levelDb: -18,
+    clipped: false,
+    ...over,
+  };
+}
+
+describe('the report', () => {
+  it('names the setup a run happened under', () => {
+    const log = new DiagnosticsLog();
+    log.setContext(CONTEXT);
+    const text = log.toText();
+
+    expect(text).toContain('USB PnP Sound Device');
+    expect(text).toContain('44100 Hz');
+    expect(text).toContain('Seiko / TMI NH35');
+    expect(text).toContain('53°');
+  });
+
+  /* Automatic gain control does not degrade amplitude, it invalidates it, so
+     the report has to say plainly whether any was applied. */
+  it('reports the audio processing the browser admitted to', () => {
+    const log = new DiagnosticsLog();
+    log.setContext({ ...CONTEXT, processing: ['autoGainControl: applied'] });
+    expect(log.toText()).toContain('autoGainControl: applied');
+
+    const clean = new DiagnosticsLog();
+    clean.setContext(CONTEXT);
+    expect(clean.toText()).toContain('none reported');
+  });
+
+  it('flags a browser that resampled the input', () => {
+    const log = new DiagnosticsLog();
+    log.setContext({ ...CONTEXT, sampleRate: 48000, requestedSampleRate: 44100 });
+    expect(log.toText()).toContain('the browser resampled');
+  });
+
+  it('says a quartz movement has no lift angle rather than printing one', () => {
+    const log = new DiagnosticsLog();
+    log.setContext({ ...CONTEXT, quartz: true, liftAngle: null });
+    expect(log.toText()).toContain('n/a — quartz');
+  });
+
+  /*
+     The whole point. A bound set below what the bench can hold means nothing
+     ever settles, and the summary has to make that visible without reading
+     two thousand rows.
+  */
+  it('summarises the spreads against the bounds they had to beat', () => {
+    const log = new DiagnosticsLog();
+    log.setContext(CONTEXT);
+    log.sample(sample({ beatErrorSpread: 0.82 }));
+    log.sample(sample({ beatErrorSpread: 0.89 }));
+
+    const text = log.toText();
+    expect(text).toContain('beat spread');
+    expect(text).toMatch(/min 0\.82\s+max 0\.89/);
+    expect(text).toContain('beat ±1.5');
+  });
+
+  it('calls out a run that never settled', () => {
+    const log = new DiagnosticsLog();
+    log.setContext(CONTEXT);
+    log.sample(sample({ settling: 'moving' }));
+    expect(log.toText()).toContain('never settled');
+  });
+
+  it('does not call out a run that did settle', () => {
+    const log = new DiagnosticsLog();
+    log.setContext(CONTEXT);
+    log.sample(sample({ settling: 'settled' }));
+    expect(log.toText()).not.toContain('never settled');
+  });
+
+  /* An invalid sample carries whatever the core last had, not a measurement,
+     so averaging it in would misreport what the bench managed. */
+  it('leaves invalid samples out of the statistics', () => {
+    const log = new DiagnosticsLog();
+    log.setContext(CONTEXT);
+    log.sample(sample({ valid: true, rate: 10 }));
+    log.sample(sample({ valid: false, rate: 9999 }));
+    expect(log.toText()).toMatch(/rate\s+min 10\.00\s+max 10\.00/);
+  });
+
+  it('says so when nothing valid was measured', () => {
+    const log = new DiagnosticsLog();
+    log.setContext(CONTEXT);
+    log.sample(sample({ valid: false }));
+    expect(log.toText()).toContain('no valid samples');
+  });
+
+  it('writes a timeline of what the app did', () => {
+    const log = new DiagnosticsLog();
+    log.setContext(CONTEXT);
+    log.event('start', '44100 Hz');
+    log.event('recorded', 'dial-up (as-found)');
+
+    const text = log.toText();
+    expect(text).toContain('start');
+    expect(text).toContain('recorded  dial-up (as-found)');
+  });
+
+  it('writes one row per sample under a header', () => {
+    const log = new DiagnosticsLog();
+    log.setContext(CONTEXT);
+    log.sample(sample());
+    log.sample(sample({ t: 10.5 }));
+
+    const rows = log.toText().split('\n');
+    const header = rows.findIndex((r) => r.startsWith('t\tvalid'));
+    expect(header).toBeGreaterThan(0);
+    expect(rows.slice(header + 1).filter((r) => r.trim()).length).toBe(2);
+  });
+});
+
+describe('bounds', () => {
+  /* A long session must not grow without limit, and the interesting part is
+     almost always what just happened. */
+  it('drops the oldest samples rather than the newest', () => {
+    const log = new DiagnosticsLog();
+    log.setContext(CONTEXT);
+    for (let i = 0; i < 3000; i++) log.sample(sample({ t: i }));
+
+    expect(log.size).toBeLessThanOrEqual(2600);
+    const text = log.toText();
+    expect(text).toContain('2999.0');
+    expect(text).not.toContain('\n0.0\t');
+  });
+
+  it('starts empty and clears on reset', () => {
+    const log = new DiagnosticsLog();
+    log.sample(sample());
+    expect(log.size).toBe(1);
+    log.reset();
+    expect(log.size).toBe(0);
+  });
+});
+
+describe('diagnosticsFilename', () => {
+  it('is a sortable text file', () => {
+    expect(diagnosticsFilename(new Date(2026, 7, 30, 17, 53, 4)))
+      .toBe('timegrapher-diagnostics-20260830-175304.txt');
+  });
+});

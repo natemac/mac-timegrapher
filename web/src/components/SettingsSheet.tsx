@@ -88,6 +88,9 @@ interface Props {
   onSelectMovement: (id: string | null) => void;
   /** The tightest spread this bench has held, for calibrating the thresholds. */
   best: BestSpread;
+  onExportDiagnostics: () => void;
+  /** How much the log has to say. Zero means nothing has been measured yet. */
+  diagnosticSamples: number;
 }
 
 type Tab = 'guide' | 'settings';
@@ -153,7 +156,7 @@ function Choice<T extends number>({
 
 export function SettingsSheet({
   open, topic, onClose, onShowFullGuide, settings, onChange,
-  movementId, onSelectMovement, best,
+  movementId, onSelectMovement, best, onExportDiagnostics, diagnosticSamples,
 }: Props) {
   /* Settings first. The guide is read once; the settings are the reason the
      cog gets pressed again. */
@@ -268,6 +271,19 @@ export function SettingsSheet({
                   />
                   <span>Show the MAC mark</span>
                 </label>
+              </Setting>
+
+              <Setting onInfo={setInfo} label="Session diagnostics" topic="setting-diagnostics">
+                <button
+                  className="secondary"
+                  onClick={onExportDiagnostics}
+                  disabled={diagnosticSamples === 0}
+                  style={{ width: '100%', fontSize: 13 }}
+                >
+                  {diagnosticSamples === 0
+                    ? 'Nothing measured yet'
+                    : `Export log — ${diagnosticSamples} readings`}
+                </button>
               </Setting>
 
               {/* A readout rather than a setting, but it is what the Settled

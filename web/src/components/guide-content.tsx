@@ -23,7 +23,7 @@ export type Topic =
   // Settings. Explained here rather than beside the controls, so the settings
   // page is a list of controls and not a wall of prose.
   | 'setting-movement' | 'setting-steadiness' | 'setting-branding'
-  | 'setting-magnification' | 'setting-history';
+  | 'setting-magnification' | 'setting-history' | 'setting-diagnostics';
 
 export interface GuideEntry {
   title: string;
@@ -54,6 +54,36 @@ export const GUIDE: Record<Topic, GuideEntry> = {
           analysis does not apply: a stepper motor has no balance wheel, so
           amplitude and beat error are withheld rather than shown as numbers you
           could act on.
+        </p>
+      </>
+    ),
+  },
+
+  'setting-diagnostics': {
+    title: 'Session diagnostics',
+    lede: 'A written record of what the last run actually did, for working out why a reading behaved the way it did.',
+    body: (
+      <>
+        <p>
+          Everything that decides whether a reading is trustworthy happens twice
+          a second and is gone by the time you notice something is wrong. This
+          keeps it: every reading, its spread, the signal level, and a timeline
+          of what the app did — when the average was restarted, when a position
+          was recorded, when it gave up waiting for one to settle.
+        </p>
+        <p>
+          It also records the setup the run happened under: the input device,
+          the sample rate, whether the browser admitted to applying gain control
+          or noise suppression, and the calibre and lift angle in force.
+        </p>
+        <p>
+          It stays on this device. It is written while you measure and goes
+          nowhere until you export it — worth knowing before you send one on,
+          because it names your audio device and your browser.
+        </p>
+        <p>
+          A plain text file. Roughly twenty minutes of a run is kept; beyond
+          that the oldest readings are dropped.
         </p>
       </>
     ),

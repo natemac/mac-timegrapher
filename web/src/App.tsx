@@ -21,7 +21,7 @@ import { SourceFooter } from './components/SourceFooter';
 import { MeasurementPanel } from './components/MeasurementPanel';
 import { TimegrapherEngine, type Measurement, type Beat } from './timegrapher/tg-engine';
 import {
-  StabilityTracker, type BestSpread, type Settling, type Spread,
+  StabilityTracker, SETTLED_BOUNDS, type BestSpread, type Settling, type Spread,
 } from './timegrapher/stability';
 import { TraceCanvas } from './components/TraceCanvas';
 import { GraphSwitch, type Graph } from './components/GraphSwitch';
@@ -44,6 +44,7 @@ import {
   drawSnapshot, dataUrlToBytes, snapshotFilename, loadSnapshotLogo, deliverSnapshot,
   type SnapshotInput,
 } from './export/snapshot';
+import { DiagnosticsLog, diagnosticsFilename } from './export/diagnostics';
 import * as sessionStore from './timegrapher/session';
 import type { Phase, PositionId, Reading, SessionMeta } from './timegrapher/session';
 import { Certificate } from './components/Certificate';
@@ -82,6 +83,7 @@ export default function App() {
   // Read when the settings sheet opens rather than tracked continuously: it is
   // a slow-moving figure and re-rendering the app for it would be waste.
   const [bestSpread, setBestSpread] = useState<BestSpread>({ rate: null, amplitude: null, beatError: null });
+  const [diagnosticSamples, setDiagnosticSamples] = useState(0);
   /* Waveform by default: it shows something the moment audio arrives, so a
      first-time user can tell the sensor is hearing the watch before any
      reading exists. The trace needs beats before it draws anything at all. */
@@ -162,6 +164,7 @@ export default function App() {
   const openSettings = useCallback(() => {
     setHelpTopic(null);
     setBestSpread(stability.current.best());
+    setDiagnosticSamples(diagnostics.current.size);
     setSheetOpen(true);
   }, []);
   // Remembered per device: magnification is a matter of taste and of what the
@@ -211,6 +214,14 @@ export default function App() {
   // stop() is declared below the effects that end a position; a ref lets them
   // call it without being rebuilt every time its closure changes.
   const stopRef = useRef<(() => Promise<void>) | null>(null);
+  // A written record of the run, for working out afterwards why a reading
+  // behaved the way it did. Nothing leaves the device unless it is exported.
+  const diagnostics = useRef(new DiagnosticsLog());
+  // Read inside the measurement callback, which is built once per capture and
+  // would otherwise pin whatever the signal was at that moment.
+  const signalRef = useRef<SignalState | null>(null);
+  // Read by start(), which is declared above where the label is computed.
+  const movementLabelRef = useRef<string | null>(null);
 
   useEffect(() => {
     traceSecondsRef.current = settings.traceSeconds;
@@ -262,6 +273,10 @@ export default function App() {
     });
     setReadings(next);
     sessionStore.save(next);
+    diagnostics.current.event(
+      'recorded',
+      `${position} (${phase})  rate ${m.rate.toFixed(1)}  amp ${m.amplitude.toFixed(0)}  beat ${m.beatError.toFixed(2)}`,
+    );
   }, [readings, phase]);
 
   /*
@@ -274,6 +289,7 @@ export default function App() {
     the microphone for something the operator does several times a session.
   */
   const resetAverage = useCallback(() => {
+    diagnostics.current.event('average restarted');
     stability.current.reset();
     beatStore.current.clear();
     setBeats([]);
@@ -346,6 +362,7 @@ export default function App() {
     ) {
       return;
     }
+    diagnostics.current.event('auto-record fired');
     wizardCapture();
   }, [mode, wizard.stage, autoCapture, measurement, settling, secondsCaptured, wizardCapture]);
 
@@ -364,6 +381,7 @@ export default function App() {
 
     if (countdown <= 0) {
       settledRuns.current = 0;
+      diagnostics.current.event('grace elapsed — now counting');
       resetAverage();
       setWizard(armed);
       return;
@@ -424,11 +442,32 @@ export default function App() {
             beatError: stability.current.spread('beatError'),
           });
         }
-        setSettling(stability.current.settling(seconds));
+        const nextSettling = stability.current.settling(seconds);
+        setSettling(nextSettling);
+
+        diagnostics.current.sample({
+          t: seconds,
+          valid: m.valid,
+          rate: m.rate,
+          amplitude: m.amplitude,
+          beatError: m.beatError,
+          detectedBph: m.detectedBph,
+          signalQuality: m.signalQuality,
+          settling: nextSettling,
+          rateSpread: stability.current.spread('rate')?.plusMinus ?? null,
+          amplitudeSpread: stability.current.spread('amplitude')?.plusMinus ?? null,
+          beatErrorSpread: stability.current.spread('beatError')?.plusMinus ?? null,
+          headroomDb: signalRef.current?.headroomDb ?? null,
+          levelDb: signalRef.current?.levelDb ?? null,
+          clipped: signalRef.current?.clipped ?? false,
+        });
       },
       // Capture still works without measurement — the meter, waveform and trace
       // are useful on their own — so report and carry on.
-      onError: (message) => setError(`Measurement unavailable: ${message}`),
+      onError: (message) => {
+        diagnostics.current.event('engine error', message);
+        setError(`Measurement unavailable: ${message}`);
+      },
     });
     engine.current = built;
 
@@ -456,6 +495,7 @@ export default function App() {
 
   const chosenMovement = findMovement(movementId);
   const movementLabel = chosenMovement ? `${chosenMovement.maker} ${chosenMovement.name}` : null;
+  movementLabelRef.current = movementLabel;
 
   /*
      Save the reading on screen as an image.
@@ -496,6 +536,25 @@ export default function App() {
       setSnapshotNote('Could not save the image.');
     }
   }, [spreads, movementLabel, mode, wizard.step, meta.reference, settings.showLogo]);
+
+  /*
+     Hand over the session log.
+
+     Deliberately not automatic and not uploaded anywhere: it carries the
+     device name and the browser's user agent, so it leaves only when it is
+     asked for.
+  */
+  const exportDiagnostics = useCallback(async () => {
+    const name = diagnosticsFilename(new Date());
+    try {
+      const file = new File([diagnostics.current.toText()], name, { type: 'text/plain' });
+      const outcome = await deliverSnapshot(file);
+      setSnapshotNote(outcome === 'shared' ? 'Diagnostics shared.' : `Saved as ${name}`);
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
+      setSnapshotNote('Could not save the diagnostics.');
+    }
+  }, []);
 
   useEffect(() => {
     if (!snapshotNote) return;
@@ -547,7 +606,9 @@ export default function App() {
 
   const handleBlock = useCallback((block: Float32Array) => {
     engine.current?.push(block);
-    setSignal(meter.current.push(block, block.length / (session.current?.sampleRate ?? 48000)));
+    const next = meter.current.push(block, block.length / (session.current?.sampleRate ?? 48000));
+    signalRef.current = next;
+    setSignal(next);
     setLatest(block);
   }, []);
 
@@ -607,6 +668,21 @@ export default function App() {
       setCapturing(true);
       saveSelection(selectedId);
 
+      diagnostics.current.reset();
+      diagnostics.current.setContext({
+        device: devices.find((d) => d.deviceId === selectedId)?.label ?? null,
+        sampleRate: s.sampleRate,
+        requestedSampleRate: s.requestedSampleRate ?? null,
+        processing: s.warnings.map((w) => `${w.setting}: ${w.state}`),
+        movement: movementLabelRef.current,
+        liftAngle: findMovement(movementId)?.liftAngle ?? null,
+        bph: findMovement(movementId)?.bph ?? null,
+        quartz: isQuartz(findMovement(movementId)),
+        mode,
+        settledBounds: SETTLED_BOUNDS,
+      });
+      diagnostics.current.event('start', `${s.sampleRate} Hz`);
+
       // In an inspection this is the only trigger there is: it opens the
       // device and starts the position's grace in one press.
       if (mode === 'inspection') {
@@ -633,6 +709,7 @@ export default function App() {
       // way back short of reloading the page.
       setError(describeError(err));
     } finally {
+      diagnostics.current.event('stop');
       releaseCaptureState();
       inFlight.current = false;
       setBusy(false);
@@ -709,6 +786,8 @@ export default function App() {
         movementId={movementId}
         onSelectMovement={selectMovement}
         best={bestSpread}
+        onExportDiagnostics={exportDiagnostics}
+        diagnosticSamples={diagnosticSamples}
       />
 
       {!secure && (
