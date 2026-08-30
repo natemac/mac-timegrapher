@@ -234,6 +234,20 @@ export default function App() {
   // watch, not the screen.
   useWakeLock(capturing);
 
+  /*
+     Hold off the browser's pull-to-refresh while a measurement is running.
+
+     A reload is not destructive — recorded readings and the session details
+     are in local storage — but it cuts the microphone off mid-reading and puts
+     the run back to its first position. Off only while that matters: on an
+     idle screen the gesture behaves as it does anywhere else.
+  */
+  useEffect(() => {
+    if (!capturing) return;
+    document.documentElement.classList.add('is-measuring');
+    return () => document.documentElement.classList.remove('is-measuring');
+  }, [capturing]);
+
   const capture = useCallback((position: PositionId) => {
     const m = measurementRef.current;
     if (!m?.valid) return;

@@ -1073,9 +1073,14 @@ html.is-locked body {
 }
 html.is-locked .app { overflow: hidden; }
 
-/* Never, sheet or no sheet. This is an app; pulling it down should not reload
-   it and lose a session that is halfway through. */
-html, body { overscroll-behavior-y: none; }
+/* Pull-to-refresh is left alone except where it would interrupt something.
+   Reloading is not destructive — readings and session details are in local
+   storage and survive it — so the only real cost is a live measurement being
+   cut off and the run losing its place. That is worth preventing; a refresh on
+   an idle screen is not, and a gesture that silently does nothing is its own
+   kind of broken. */
+html.is-measuring,
+html.is-measuring body { overscroll-behavior-y: none; }
 
 /* The grab bar. Says the sheet can be pulled away, and gives a target where a
    downward drag is never mistaken for a scroll. */
