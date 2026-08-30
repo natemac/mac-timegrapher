@@ -160,6 +160,7 @@ select {
 }
 
 .app__logo {
+  grid-column: 1;
   width: 84px;
   height: auto;
   display: block;
@@ -184,6 +185,10 @@ select {
 }
 
 .app__wordmark {
+  /* Pinned to the middle column rather than left to auto-placement. With the
+     logo turned off the wordmark became the first grid item and slid into the
+     empty left column instead of staying centred. */
+  grid-column: 2;
   font-family: var(--mono);
   font-size: 10px;
   letter-spacing: 0.28em;
@@ -424,6 +429,7 @@ select {
 /* The session control sits to the left of the cog. Both are absolute so the
    logo stays optically centred regardless of what is beside it. */
 .app__controls {
+  grid-column: 3;
   display: flex;
   gap: 6px;
   justify-self: end;
@@ -827,3 +833,14 @@ select {
   text-align: center;
   flex: 0 0 auto;
 }
+
+/* A plain on/off row in the settings sheet. */
+.setting-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+}
+.setting-toggle input { margin: 0; accent-color: var(--accent); }

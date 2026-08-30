@@ -38,6 +38,8 @@ export interface SnapshotInput {
   position: PositionId | null;
   reference: string;
   at: Date;
+  /** The mark is branding, not a licence condition; a fork turns it off. */
+  showLogo: boolean;
 }
 
 export interface SnapshotRow {
@@ -201,14 +203,18 @@ export function drawSnapshot(
 
   // --- Masthead -----------------------------------------------------------
   let y = PAD + 8;
-  if (logo && logo.naturalWidth > 0) {
-    const h = 46;
-    const w = (logo.naturalWidth / logo.naturalHeight) * h;
-    ctx.drawImage(logo, PAD, y - h + 10, w, h);
-  } else {
-    ctx.fillStyle = INK;
-    ctx.font = `600 26px ${SANS}`;
-    ctx.fillText('MAC BESPOKE', PAD, y);
+  if (input.showLogo) {
+    if (logo && logo.naturalWidth > 0) {
+      const h = 46;
+      const w = (logo.naturalWidth / logo.naturalHeight) * h;
+      ctx.drawImage(logo, PAD, y - h + 10, w, h);
+    } else {
+      // Only when the image failed to load. Branding turned off deliberately
+      // draws nothing at all — a text fallback would defeat the setting.
+      ctx.fillStyle = INK;
+      ctx.font = `600 26px ${SANS}`;
+      ctx.fillText('MAC BESPOKE', PAD, y);
+    }
   }
 
   ctx.fillStyle = FAINT;
@@ -270,10 +276,12 @@ export function drawSnapshot(
   const left = input.reference.trim() ? `${input.reference.trim()} · ${stamp}` : stamp;
   ctx.fillText(left, PAD, footY);
 
-  ctx.fillStyle = FAINT;
-  ctx.textAlign = 'right';
-  ctx.fillText('macwatches.com', W - PAD, footY);
-  ctx.textAlign = 'left';
+  if (input.showLogo) {
+    ctx.fillStyle = FAINT;
+    ctx.textAlign = 'right';
+    ctx.fillText('macwatches.com', W - PAD, footY);
+    ctx.textAlign = 'left';
+  }
 }
 
 /**

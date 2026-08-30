@@ -27,6 +27,7 @@ const BASE: SnapshotInput = {
   position: 'dial-up',
   reference: 'MB-0142',
   at: new Date(2026, 7, 30, 9, 5),
+  showLogo: true,
 };
 
 describe('snapshotRows', () => {

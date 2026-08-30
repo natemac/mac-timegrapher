@@ -416,6 +416,7 @@ export default function App() {
       position: mode === 'inspection' ? positionAt(wizard.step) : null,
       reference: meta.reference,
       at: new Date(),
+      showLogo: settings.showLogo,
     };
 
     try {
@@ -432,7 +433,7 @@ export default function App() {
       if (err instanceof Error && err.name === 'AbortError') return;
       setSnapshotNote('Could not save the image.');
     }
-  }, [spreads, movementLabel, mode, wizard.step, meta.reference]);
+  }, [spreads, movementLabel, mode, wizard.step, meta.reference, settings.showLogo]);
 
   useEffect(() => {
     if (!snapshotNote) return;
@@ -569,17 +570,21 @@ export default function App() {
     <>
     <div className={granted ? 'app app--measuring' : 'app'}>
       <header className="app__masthead">
-        <img
-          className="app__logo app__logo--neg"
-          src={`${import.meta.env.BASE_URL}mac-logo-neg.png`}
-          alt="MAC Bespoke Watch Co."
-        />
-        <img
-          className="app__logo app__logo--pos"
-          src={`${import.meta.env.BASE_URL}mac-logo-pos.png`}
-          alt=""
-          aria-hidden="true"
-        />
+        {settings.showLogo && (
+          <>
+            <img
+              className="app__logo app__logo--neg"
+              src={`${import.meta.env.BASE_URL}mac-logo-neg.png`}
+              alt="MAC Bespoke Watch Co."
+            />
+            <img
+              className="app__logo app__logo--pos"
+              src={`${import.meta.env.BASE_URL}mac-logo-pos.png`}
+              alt=""
+              aria-hidden="true"
+            />
+          </>
+        )}
         <span className="app__wordmark">Timegrapher</span>
 
         <div className="app__controls">
@@ -776,6 +781,7 @@ export default function App() {
       liftAngle={findMovement(movementId)?.liftAngle ?? DEFAULT_LIFT_ANGLE}
       deviceLabel={devices.find((d) => d.deviceId === selectedId)?.label ?? null}
       sampleRate={sampleRate}
+      showLogo={settings.showLogo}
     />
     </>
   );

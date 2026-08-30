@@ -34,6 +34,8 @@ interface Props {
   /** What the readings were taken with, for the method statement. */
   deviceLabel: string | null;
   sampleRate: number | null;
+  /** The mark is branding, not a licence condition; a fork turns it off. */
+  showLogo: boolean;
 }
 
 function fmtRate(v: number): string {
@@ -41,7 +43,7 @@ function fmtRate(v: number): string {
 }
 
 export function Certificate({
-  readings, meta, movementName, liftAngle, deviceLabel, sampleRate,
+  readings, meta, movementName, liftAngle, deviceLabel, sampleRate, showLogo,
 }: Props) {
   const summary = summarise(readings);
   const measured = readings.length > 0 ? new Date(readings[readings.length - 1].at) : new Date();
@@ -51,11 +53,13 @@ export function Certificate({
     <div className="certificate" aria-hidden="true">
       <header className="certificate__head">
         {/* The positive mark: this prints on white paper. */}
-        <img
-          className="certificate__logo"
-          src={`${import.meta.env.BASE_URL}mac-logo-pos.png`}
-          alt="MAC Bespoke Watch Co."
-        />
+        {showLogo && (
+          <img
+            className="certificate__logo"
+            src={`${import.meta.env.BASE_URL}mac-logo-pos.png`}
+            alt="MAC Bespoke Watch Co."
+          />
+        )}
         <div className="certificate__title">Timing Certificate</div>
       </header>
 

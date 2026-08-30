@@ -16,11 +16,24 @@ export interface Settings {
   zoomMs: number;
   /** Seconds of history the trace shows. */
   traceSeconds: number;
+  /*
+     Whether the MAC mark appears — in the app, on the certificate and on a
+     saved reading.
+
+     Branding is not covered by the GPL the way the code is, so a fork or
+     another shop running this has every reason to turn it off. The source link
+     in the footer is a licence obligation and is not affected by this.
+  */
+  showLogo: boolean;
 }
 
 /* Auto by default: the operator should not have to work out that +17 s/day
    over thirty seconds needs more than ten milliseconds of strip. */
-export const DEFAULT_SETTINGS: Settings = { zoomMs: ZOOM_AUTO, traceSeconds: 30 };
+export const DEFAULT_SETTINGS: Settings = {
+  zoomMs: ZOOM_AUTO,
+  traceSeconds: 30,
+  showLogo: true,
+};
 
 /* Magnification in the units a watchmaker already thinks in, plus Auto. */
 const ZOOM_CHOICES = [ZOOM_AUTO, ...ZOOM_STEPS];
@@ -156,6 +169,23 @@ export function SettingsSheet({
                 effect of moving the regulator. <strong>Inspection</strong> steps
                 through six positions, restarting the average at each one, and
                 ends in a printable certificate.
+              </p>
+
+              <div style={{ marginBottom: 16 }}>
+                <div className="eyebrow" style={{ marginBottom: 8 }}>Branding</div>
+                <label className="setting-toggle">
+                  <input
+                    type="checkbox"
+                    checked={settings.showLogo}
+                    onChange={(e) => onChange({ ...settings, showLogo: e.target.checked })}
+                  />
+                  <span>Show the MAC mark</span>
+                </label>
+              </div>
+              <p className="dim">
+                Hides the logo in the app, on the certificate and on a saved
+                reading. The open-source notice in the footer stays either way —
+                that one is a licence condition, not branding.
               </p>
 
               <Choice
