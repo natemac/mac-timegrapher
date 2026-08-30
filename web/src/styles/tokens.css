@@ -954,3 +954,17 @@ select {
   justify-content: center;
   margin-bottom: 14px;
 }
+
+/* The wizard's eyebrow doubles as its own explanation, like every panel head. */
+.wizard__help {
+  align-self: center;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-faint);
+  cursor: pointer;
+}

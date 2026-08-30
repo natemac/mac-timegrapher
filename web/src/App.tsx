@@ -781,6 +781,7 @@ export default function App() {
               onRestart={restartWizard}
               onOpenSummary={() => setSessionOpen(true)}
               onJump={jumpWizard}
+              onHelp={showHelp}
             />
           )}
 

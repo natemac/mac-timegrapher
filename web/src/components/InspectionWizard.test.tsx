@@ -37,6 +37,7 @@ function panel(state: WizardState, over: Record<string, unknown> = {}) {
       onRestart={() => {}}
       onOpenSummary={() => {}}
       onJump={() => {}}
+      onHelp={() => {}}
       {...over}
     />
   );

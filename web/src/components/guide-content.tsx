@@ -17,7 +17,9 @@ import type { ReactNode } from 'react';
    drift, and the shorter one would end up being the wrong one.
 */
 
-export type Topic = 'input' | 'measurement' | 'settling' | 'signal' | 'trace' | 'waveform';
+export type Topic =
+  | 'modes' | 'input' | 'measurement' | 'settling' | 'signal' | 'trace'
+  | 'waveform' | 'inspection';
 
 export interface GuideEntry {
   title: string;
@@ -27,6 +29,89 @@ export interface GuideEntry {
 }
 
 export const GUIDE: Record<Topic, GuideEntry> = {
+  modes: {
+    title: 'Measure or Inspection',
+    lede: 'Two jobs. You choose which one you are doing before the watch goes on the sensor.',
+    body: (
+      <>
+        <p>
+          <strong>Measure</strong> is one live reading. Use it with a
+          screwdriver in your other hand: you watch the rate move as you adjust
+          the regulator. Nothing is recorded unless you press Capture, which
+          saves the readings on screen as an image.
+        </p>
+        <p>
+          <strong>Inspection</strong> takes the watch through six positions,
+          records each one, and produces a printable document. It is the slower
+          job and the one that ends in something you can hand over.
+        </p>
+        <p>
+          The choice is made on the opening screen, and again in these settings.
+        </p>
+      </>
+    ),
+  },
+
+  inspection: {
+    title: 'Running an inspection',
+    lede: 'Six positions, one press of Start each, and a document at the end.',
+    body: (
+      <>
+        <p>
+          A single reading tells you whether a watch is fast. Six tell you why.
+          A movement that is fine dial up and poor crown down has a poising or
+          pivot problem; one that is uniformly fast just needs the regulator
+          moved. The difference between the best and worst position — the
+          positional spread — is what separates those two cases, and it is the
+          reason a bench measures more than once.
+        </p>
+
+        <h4>The loop</h4>
+        <p>
+          The panel names a position. Put the watch that way on the sensor and
+          press <strong>Start</strong>. It counts three seconds down — that is
+          for you to take your hand off, because letting go of a watch is itself
+          a noise the analysis cannot tell from the movement misbehaving. Then
+          it listens, and the reading is recorded once it settles. Capture stops
+          on its own, the panel names the next position, and you press Start
+          again.
+        </p>
+        <p>
+          With <strong>Auto</strong> on, that is the whole job: turn the watch,
+          press Start, wait. Turn it off and a Record button appears so you
+          decide the moment yourself.
+        </p>
+        <p>
+          Nothing recorded before you pressed Start can reach a reading. The
+          average is thrown away and restarted every time, which is the point of
+          running it this way rather than leaving the microphone open.
+        </p>
+
+        <h4>If it will not settle</h4>
+        <p>
+          After a minute the panel says so and lets you record it anyway. A
+          reading that will not settle is usually poor contact with the sensor,
+          or a room that is too noisy — but it can also be the watch, which is
+          worth knowing rather than hiding.
+        </p>
+
+        <h4>Before and after</h4>
+        <p>
+          A run records into <strong>As found</strong> until every position has
+          been measured, then the next run becomes <strong>As left</strong>.
+          That gives a document showing what the watch arrived doing and what it
+          left doing, which is far more useful than a single column — "+2 s/day"
+          means little without the "+27" it started at. You can set which pass
+          you are on by hand from the session sheet.
+        </p>
+        <p>
+          You do not have to do all six. Skip moves past a position, and Finish
+          early closes the run with whatever has been recorded.
+        </p>
+      </>
+    ),
+  },
+
   input: {
     title: 'Audio input',
     lede: 'Which microphone the app is listening to, and how fast it is sampling.',
@@ -174,4 +259,7 @@ export const GUIDE: Record<Topic, GuideEntry> = {
   },
 };
 
-export const GUIDE_ORDER: Topic[] = ['input', 'measurement', 'settling', 'signal', 'trace', 'waveform'];
+export const GUIDE_ORDER: Topic[] = [
+  'modes', 'input', 'measurement', 'settling', 'signal', 'trace', 'waveform',
+  'inspection',
+];

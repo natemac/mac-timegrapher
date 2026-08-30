@@ -11,6 +11,7 @@ import {
   WIZARD_ORDER, STALL_SECONDS, positionAt, skipped, type WizardState,
 } from '../timegrapher/wizard';
 import type { Settling } from '../timegrapher/stability';
+import type { Topic } from './guide-content';
 
 /*
    The inspection run, as one instruction at a time.
@@ -51,6 +52,7 @@ interface Props {
   onRestart: () => void;
   onOpenSummary: () => void;
   onJump: (step: number) => void;
+  onHelp: (t: Topic) => void;
 }
 
 /*
@@ -84,6 +86,7 @@ function Dots({ state, onJump }: { state: WizardState; onJump: (step: number) =>
 export function InspectionWizard({
   state, capturing, phase, settling, valid, seconds, countdown, auto, onAutoChange,
   onCapture, onSkip, onNext, onRetry, onFinish, onRestart, onOpenSummary, onJump,
+  onHelp,
 }: Props) {
   const position = positionAt(state.step);
   const settled = settling === 'settled';
@@ -115,9 +118,17 @@ export function InspectionWizard({
 
   return (
     <div className="panel wizard" data-stage={state.stage}>
-      <div className="eyebrow">
-        {phaseName(phase)} · Position {state.step + 1} of {WIZARD_ORDER.length}
-      </div>
+      <button className="panel__help wizard__help" onClick={() => onHelp('inspection')}>
+        <span className="eyebrow">
+          {phaseName(phase)} · Position {state.step + 1} of {WIZARD_ORDER.length}
+        </span>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+          <circle cx="12" cy="12" r="10" />
+          <path d="M9.2 9a2.9 2.9 0 0 1 5.6 1c0 2-2.8 2.6-2.8 2.6" strokeLinecap="round" />
+          <circle cx="12" cy="17.2" r="0.9" fill="currentColor" stroke="none" />
+        </svg>
+        <span className="visually-hidden">— how does an inspection work?</span>
+      </button>
 
       {/* The position is the largest thing on the panel. It is what the
           operator has to act on, and they are looking at a watch. */}
