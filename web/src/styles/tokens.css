@@ -219,3 +219,10 @@ select {
   font-size: 13px;
   padding: 9px 0;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .app__logo,
+  .segmented button {
+    transition: none;
+  }
+}

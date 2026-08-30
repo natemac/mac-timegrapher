@@ -45,7 +45,7 @@ const WINDOW_SECONDS = 30;
  * day is well inside the tolerance the project validates to, and a tenth of a
  * millisecond of beat error is below what any adjustment can act on.
  */
-const SETTLED_BOUNDS = {
+export const SETTLED_BOUNDS = {
   rate: 0.5,        // s/day
   amplitude: 3,     // degrees
   beatError: 0.1,   // ms

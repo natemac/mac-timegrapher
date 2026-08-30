@@ -8,6 +8,7 @@
 */
 import type { Measurement } from '../timegrapher/tg-engine';
 import type { Settling, Spread } from '../timegrapher/stability';
+import { SettlingIndicator } from './SettlingIndicator';
 
 interface Props {
   measurement: Measurement | null;
@@ -26,13 +27,6 @@ const MIN_SECONDS = 2;
 
 /** An em dash, not a zero: an untrustworthy reading must not look measured. */
 const DASH = '—';
-
-const SETTLING_LABEL: Record<Settling, string> = {
-  waiting: 'Listening',
-  moving: 'Moving',
-  settling: 'Settling',
-  settled: 'Settled',
-};
 
 function Reading({
   label, value, unit, spread, format,
@@ -77,22 +71,7 @@ export function MeasurementPanel({
 
   return (
     <div className="panel panel--tight">
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-        <span className="eyebrow">Measurement</span>
-        {capturing && (
-          <span
-            className="mono"
-            style={{
-              fontSize: 10,
-              letterSpacing: '0.16em',
-              textTransform: 'uppercase',
-              color: settling === 'settled' ? 'var(--ok)' : 'var(--text-faint)',
-            }}
-          >
-            {SETTLING_LABEL[settling]}
-          </span>
-        )}
-      </div>
+      <div className="eyebrow" style={{ marginBottom: 10 }}>Measurement</div>
 
       {/* Two by two so all four read at a glance without scrolling. */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 18px' }}>
@@ -125,7 +104,17 @@ export function MeasurementPanel({
         />
       </div>
 
-      <p className="dim" style={{ fontSize: 12, marginBottom: 0, marginTop: 4 }}>
+      {capturing && (
+        <div style={{ marginTop: 10 }}>
+          <SettlingIndicator
+            settling={settling}
+            rate={show ? m!.rate : null}
+            spread={show ? spreads.rate : null}
+          />
+        </div>
+      )}
+
+      <p className="dim" style={{ fontSize: 12, marginBottom: 0, marginTop: 6 }}>
         {!capturing
           ? 'Press Start, then hold the watch against the sensor.'
           : warmingUp

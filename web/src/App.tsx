@@ -316,8 +316,6 @@ export default function App() {
             )}
           </div>
 
-          <SourceFooter />
-
           <div className="segmented">
             {(['trace', 'waveform'] as const).map((g) => (
               <button
@@ -330,6 +328,8 @@ export default function App() {
               </button>
             ))}
           </div>
+
+          <SourceFooter />
         </>
       )}
     </div>
