@@ -18,3 +18,21 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 );
+
+/*
+   Register the offline shell.
+
+   Deliberately after load: the worker is a nicety, and competing with the app's
+   own first paint for bandwidth on a bad connection would make the thing it is
+   meant to speed up slower to start.
+
+   Failure is silent by design. A browser with service workers disabled, or a
+   private window, should still get a working timegrapher.
+*/
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register(`${import.meta.env.BASE_URL}sw.js`, { scope: import.meta.env.BASE_URL })
+      .catch(() => {});
+  });
+}
