@@ -94,13 +94,20 @@ export function WaveformCanvas({ latest }: { latest: Float32Array | null }) {
   }, [latest]);
 
   return (
-    <div className="panel">
-      <h2 style={{ marginTop: 0 }}>Waveform</h2>
-      <canvas ref={canvasRef} width={900} height={220} style={{ width: '100%', height: 220 }} />
-      <p className="dim" style={{ marginBottom: 0, fontSize: 13 }}>
-        About one second of audio. A healthy movement shows evenly spaced
-        impulse pairs.
-      </p>
+    <div
+      className="panel panel--tight"
+      style={{ flex: '1 1 auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+        <span className="eyebrow">Waveform</span>
+        <span className="dim mono" style={{ fontSize: 10 }}>1s</span>
+      </div>
+      <canvas
+        ref={canvasRef}
+        width={900}
+        height={240}
+        style={{ width: '100%', flex: '1 1 auto', minHeight: 0, display: 'block' }}
+      />
     </div>
   );
 }

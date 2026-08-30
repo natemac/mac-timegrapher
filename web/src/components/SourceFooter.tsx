@@ -10,12 +10,13 @@ const REPO = 'https://github.com/natemac/mac-timegrapher';
 
 export function SourceFooter() {
   return (
-    <footer className="dim" style={{ fontSize: 13, lineHeight: 1.7, paddingTop: 8 }}>
-      <p>
-        Open source (GPLv2) — <a href={REPO}>view source</a>. Derived from{' '}
-        <a href="https://github.com/vacaboja/tg">tg</a> by Marcello Mamino.
-      </p>
-      <p>Audio is processed entirely in your browser and never uploaded.</p>
+    <footer
+      className="dim"
+      style={{ fontSize: 10.5, lineHeight: 1.5, textAlign: 'center', flex: '0 0 auto' }}
+    >
+      Open source (GPLv2) — <a href={REPO}>view source</a>. Derived from{' '}
+      <a href="https://github.com/vacaboja/tg">tg</a> by Marcello Mamino. Audio
+      never leaves this device.
     </footer>
   );
 }

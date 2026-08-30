@@ -21,7 +21,7 @@ interface Props {
   };
 }
 
-/** The shortest analysis window is two seconds; nothing is shown before that. */
+/** The shortest analysis window is two seconds. */
 const MIN_SECONDS = 2;
 
 /** An em dash, not a zero: an untrustworthy reading must not look measured. */
@@ -35,11 +35,7 @@ const SETTLING_LABEL: Record<Settling, string> = {
 };
 
 function Reading({
-  label,
-  value,
-  unit,
-  spread,
-  format,
+  label, value, unit, spread, format,
 }: {
   label: string;
   value: string;
@@ -48,34 +44,31 @@ function Reading({
   format?: (n: number) => string;
 }) {
   return (
-    <div style={{ flex: '1 1 150px', minWidth: 150 }}>
-      <div
-        className="dim"
-        style={{ fontSize: 11, letterSpacing: '0.1em', textTransform: 'uppercase' }}
-      >
-        {label}
-      </div>
+    <div>
+      <div className="eyebrow">{label}</div>
       <div
         className="mono"
-        style={{ fontSize: 36, lineHeight: 1.1, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}
+        style={{
+          fontSize: 'clamp(26px, 8vw, 34px)',
+          lineHeight: 1.1,
+          fontWeight: 500,
+          fontVariantNumeric: 'tabular-nums',
+          letterSpacing: '-0.02em',
+        }}
       >
         {value}
-        {unit && <span className="dim" style={{ fontSize: 14, marginLeft: 5 }}>{unit}</span>}
+        {unit && <span className="dim" style={{ fontSize: 13, marginLeft: 4 }}>{unit}</span>}
       </div>
-      {/* The spread is the point: a number without it cannot be judged. */}
-      <div className="mono dim" style={{ fontSize: 12, minHeight: 17 }}>
-        {spread && format ? `±${format(spread.plusMinus)} over ${Math.round(spread.count / 2)}s` : ''}
+      {/* Spread is the point: a reading cannot be judged without it. */}
+      <div className="mono dim" style={{ fontSize: 11, minHeight: 15 }}>
+        {spread && format ? `±${format(spread.plusMinus)}` : ''}
       </div>
     </div>
   );
 }
 
 export function MeasurementPanel({
-  measurement,
-  capturing,
-  secondsCaptured,
-  settling,
-  spreads,
+  measurement, capturing, secondsCaptured, settling, spreads,
 }: Props) {
   const m = measurement;
   const show = m?.valid ?? false;
@@ -83,24 +76,17 @@ export function MeasurementPanel({
   const hasAmplitude = show && m!.amplitude > 0;
 
   return (
-    <div className="panel">
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'baseline',
-          marginBottom: 14,
-        }}
-      >
-        <h2 style={{ margin: 0, fontSize: 15 }}>Measurement</h2>
+    <div className="panel panel--tight">
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+        <span className="eyebrow">Measurement</span>
         {capturing && (
           <span
             className="mono"
             style={{
-              fontSize: 11,
-              letterSpacing: '0.1em',
+              fontSize: 10,
+              letterSpacing: '0.16em',
               textTransform: 'uppercase',
-              color: settling === 'settled' ? 'var(--ok)' : 'var(--text-dim)',
+              color: settling === 'settled' ? 'var(--ok)' : 'var(--text-faint)',
             }}
           >
             {SETTLING_LABEL[settling]}
@@ -108,11 +94,12 @@ export function MeasurementPanel({
         )}
       </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 22 }}>
+      {/* Two by two so all four read at a glance without scrolling. */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 18px' }}>
         <Reading
           label="Rate"
           value={show ? `${m!.rate >= 0 ? '+' : ''}${m!.rate.toFixed(1)}` : DASH}
-          unit={show ? 's/day' : undefined}
+          unit={show ? 's/d' : undefined}
           spread={show ? spreads.rate : null}
           format={(n) => n.toFixed(1)}
         />
@@ -138,23 +125,17 @@ export function MeasurementPanel({
         />
       </div>
 
-      <p className="dim" style={{ fontSize: 13, marginBottom: 0, marginTop: 6 }}>
+      <p className="dim" style={{ fontSize: 12, marginBottom: 0, marginTop: 4 }}>
         {!capturing
           ? 'Press Start, then hold the watch against the sensor.'
           : warmingUp
-            ? `Listening… ${secondsCaptured.toFixed(0)} s of the ${MIN_SECONDS} s needed for a first reading.`
+            ? `Listening… ${secondsCaptured.toFixed(0)}s of ${MIN_SECONDS}s.`
             : !show
-              ? 'No stable reading yet. Check the watch is in firm contact with the sensor.'
+              ? 'No stable reading. Check the watch is in firm contact.'
               : settling === 'settled'
-                ? 'Readings have stopped moving. Safe to record.'
-                : 'Readings are still moving. Give it a few more seconds.'}
+                ? 'Readings have stopped moving.'
+                : 'Still moving. Give it a few more seconds.'}
       </p>
-
-      {show && !hasAmplitude && (
-        <p className="warn" style={{ fontSize: 13, marginBottom: 0 }}>
-          Amplitude is outside the measurable range. Rate and beat error are still valid.
-        </p>
-      )}
     </div>
   );
 }

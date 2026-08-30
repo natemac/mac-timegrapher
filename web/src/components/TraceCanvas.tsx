@@ -56,7 +56,7 @@ export function TraceCanvas({ beats, bph, windowSeconds = 30, capturing }: Props
     // difference between a crisp trace and a grey smear.
     const dpr = window.devicePixelRatio || 1;
     const cssWidth = canvas.clientWidth || 900;
-    const cssHeight = canvas.clientHeight || 320;
+    const cssHeight = canvas.clientHeight || 240;
     if (canvas.width !== Math.round(cssWidth * dpr) || canvas.height !== Math.round(cssHeight * dpr)) {
       canvas.width = Math.round(cssWidth * dpr);
       canvas.height = Math.round(cssHeight * dpr);
@@ -125,29 +125,21 @@ export function TraceCanvas({ beats, bph, windowSeconds = 30, capturing }: Props
   }, [beats, bph, windowSeconds, capturing]);
 
   return (
-    <div className="panel">
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'baseline',
-          marginBottom: 10,
-        }}
-      >
-        <h2 style={{ margin: 0 }}>Trace</h2>
-        <span className="dim mono" style={{ fontSize: 12 }}>
-          {windowSeconds}s · {SWEEP_PERIODS} beats wide
+    <div
+      className="panel panel--tight"
+      style={{ flex: '1 1 auto', minHeight: 0, display: 'flex', flexDirection: 'column' }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+        <span className="eyebrow">Trace</span>
+        <span className="dim mono" style={{ fontSize: 10 }}>
+          {windowSeconds}s · {SWEEP_PERIODS} beats
         </span>
       </div>
+      {/* The canvas is the only thing that grows. */}
       <canvas
         ref={canvasRef}
-        style={{ width: '100%', height: 320, display: 'block' }}
+        style={{ width: '100%', flex: '1 1 auto', minHeight: 0, display: 'block' }}
       />
-      <p className="dim" style={{ fontSize: 13, marginBottom: 0, marginTop: 10 }}>
-        Two lines, tick and tock. Straight down means on time; leaning right
-        means gaining, left means losing. The horizontal gap between the lines
-        is the beat error.
-      </p>
     </div>
   );
 }

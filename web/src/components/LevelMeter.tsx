@@ -37,16 +37,16 @@ export function LevelMeter({ signal }: { signal: SignalState | null }) {
   const clipped = signal?.clipped ?? false;
 
   return (
-    <div className="panel">
+    <div className="panel panel--tight">
       <div
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'baseline',
-          marginBottom: 10,
+          marginBottom: 8,
         }}
       >
-        <h2 style={{ margin: 0, fontSize: 15 }}>Signal</h2>
+        <span className="eyebrow">Signal</span>
         <span
           className="mono"
           style={{

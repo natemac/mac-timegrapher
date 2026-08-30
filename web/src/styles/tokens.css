@@ -78,3 +78,96 @@ select {
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
 }
+
+/* ---------- App shell ----------
+   The app fills the viewport exactly once and never scrolls: on a bench the
+   operator's hands are on a watch and a screwdriver, so anything that needs
+   scrolling to reach may as well not be there. Everything lives in one view
+   and the trace takes whatever height is left over.
+
+   100dvh rather than 100vh so iOS Safari's collapsing address bar does not
+   push the bottom of the app off screen. */
+.app {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
+  gap: 10px;
+}
+
+.app__masthead {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* The logo already ends in a letter-spaced line ("WATCH CO."), so the product
+     name needs real separation or it reads as a fourth line of the mark. */
+  gap: 14px;
+  padding-top: max(2px, env(safe-area-inset-top));
+  padding-bottom: 2px;
+  flex: 0 0 auto;
+}
+
+.app__logo {
+  width: 118px;
+  max-width: 40vw;
+  height: auto;
+  display: block;
+  transition: width 220ms ease;
+}
+
+/* Once measuring, the identity has done its job and the readings need the
+   room. The mark shrinks rather than disappearing — it is still a MAC
+   instrument, just not the thing you are looking at. */
+.app--measuring .app__masthead { gap: 8px; padding-bottom: 0; }
+.app--measuring .app__logo { width: 74px; }
+.app--measuring .app__wordmark { font-size: 9px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .app__logo { transition: none; }
+}
+
+.app__wordmark {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  /* The letter-spacing pushes the block right; pull it back so it optically
+     centres under the logo. */
+  text-indent: 0.34em;
+}
+
+/* The graph is the only element that grows. min-height:0 is what lets a flex
+   child actually shrink inside a fixed-height column. */
+.app__graph {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel--tight {
+  padding: 12px 14px;
+  margin-bottom: 0;
+}
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.segmented {
+  display: flex;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.segmented button {
+  flex: 1;
+  font-size: 13px;
+  padding: 9px 0;
+}
