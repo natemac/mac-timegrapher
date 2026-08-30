@@ -23,6 +23,13 @@ export function WaveformCanvas({ latest }: { latest: Float32Array | null }) {
     const canvasEl = canvasRef.current;
     const context = canvasEl?.getContext('2d');
 
+    // Colours come from the theme rather than being hardcoded, so the trace
+    // reads correctly whether the operator's system is light or dark. Resolved
+    // per draw, since that setting can change while measuring.
+    const style = canvasEl ? getComputedStyle(canvasEl) : null;
+    const line = style?.getPropertyValue('--wave-line').trim() || '#e9ebee';
+    const axis = style?.getPropertyValue('--wave-axis').trim() || '#262b31';
+
     // No block means capture has stopped. Returning early here would leave the
     // last pre-stop frame painted, which is the frozen display this is meant
     // to avoid — clearing the state does not clear the pixels. Reset the ring
@@ -34,7 +41,7 @@ export function WaveformCanvas({ latest }: { latest: Float32Array | null }) {
       if (canvasEl && context) {
         const mid = canvasEl.height / 2;
         context.clearRect(0, 0, canvasEl.width, canvasEl.height);
-        context.strokeStyle = '#262b31';
+        context.strokeStyle = axis;
         context.beginPath();
         context.moveTo(0, mid);
         context.lineTo(canvasEl.width, mid);
@@ -57,7 +64,7 @@ export function WaveformCanvas({ latest }: { latest: Float32Array | null }) {
     const mid = height / 2;
     ctx.clearRect(0, 0, width, height);
 
-    ctx.strokeStyle = '#262b31';
+    ctx.strokeStyle = axis;
     ctx.beginPath();
     ctx.moveTo(0, mid);
     ctx.lineTo(width, mid);
@@ -70,7 +77,7 @@ export function WaveformCanvas({ latest }: { latest: Float32Array | null }) {
     // fixed stride: floor(48000 / 900) is 53, and 900 columns of 53 frames
     // cover only 47,700 of the 48,000, so the newest ~300 frames — the ones
     // that just arrived — would never be drawn.
-    ctx.strokeStyle = '#e9ebee';
+    ctx.strokeStyle = line;
     ctx.beginPath();
     for (let x = 0; x < width; x++) {
       const start = Math.round((x * HISTORY_FRAMES) / width);

@@ -236,9 +236,15 @@ export default function App() {
     <div className={granted ? 'app app--measuring' : 'app'}>
       <header className="app__masthead">
         <img
-          className="app__logo"
-          src={`${import.meta.env.BASE_URL}mac-logo.png`}
+          className="app__logo app__logo--neg"
+          src={`${import.meta.env.BASE_URL}mac-logo-neg.png`}
           alt="MAC Bespoke Watch Co."
+        />
+        <img
+          className="app__logo app__logo--pos"
+          src={`${import.meta.env.BASE_URL}mac-logo-pos.png`}
+          alt=""
+          aria-hidden="true"
         />
         <span className="app__wordmark">Timegrapher</span>
       </header>

@@ -39,10 +39,20 @@ interface Props {
 /** How many beat periods wide the strip is. Two keeps tick and tock apart. */
 const SWEEP_PERIODS = 2;
 
-const INK = '#e8e0cf';        // warm bone, the colour of ink on paper tape
-const INK_FADED = 'rgba(232, 224, 207, 0.28)';
-const RULE = '#22262b';
-const RULE_CENTRE = '#333a41';
+/* Read from CSS custom properties so the strip follows the theme: bone on
+   black in the dark, ink on paper in the light. Resolved per draw rather than
+   cached, since the operator can change the system theme while measuring. */
+function themeColours(el: HTMLElement) {
+  const s = getComputedStyle(el);
+  const v = (name: string, fallback: string) => s.getPropertyValue(name).trim() || fallback;
+  return {
+    ink: v('--trace-ink', '#e8e0cf'),
+    inkFaded: v('--trace-ink-faded', 'rgba(232, 224, 207, 0.28)'),
+    rule: v('--trace-rule', '#22262b'),
+    ruleCentre: v('--trace-rule-centre', '#333a41'),
+    dim: v('--text-dim', '#9aa2ab'),
+  };
+}
 
 export function TraceCanvas({ beats, bph, windowSeconds = 30, capturing }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -63,6 +73,8 @@ export function TraceCanvas({ beats, bph, windowSeconds = 30, capturing }: Props
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
+    const colour = themeColours(canvas);
+
     const w = cssWidth;
     const h = cssHeight;
     ctx.clearRect(0, 0, w, h);
@@ -71,7 +83,7 @@ export function TraceCanvas({ beats, bph, windowSeconds = 30, capturing }: Props
     // running dead on time keeps its marks parallel to it.
     ctx.lineWidth = 1;
     for (let i = 1; i < 4; i++) {
-      ctx.strokeStyle = i === 2 ? RULE_CENTRE : RULE;
+      ctx.strokeStyle = i === 2 ? colour.ruleCentre : colour.rule;
       const x = Math.round((w * i) / 4) + 0.5;
       ctx.beginPath();
       ctx.moveTo(x, 0);
@@ -80,7 +92,7 @@ export function TraceCanvas({ beats, bph, windowSeconds = 30, capturing }: Props
     }
 
     if (!capturing || beats.length === 0 || bph <= 0) {
-      ctx.fillStyle = 'rgba(154, 162, 171, 0.65)';
+      ctx.fillStyle = colour.dim;
       ctx.font = '13px "JetBrains Mono", ui-monospace, monospace';
       ctx.textAlign = 'center';
       ctx.fillText(
@@ -113,7 +125,7 @@ export function TraceCanvas({ beats, bph, windowSeconds = 30, capturing }: Props
       // Older marks fade, so the eye follows the current slope rather than
       // averaging over the whole strip.
       const fade = 1 - age / windowSeconds;
-      ctx.fillStyle = fade > 0.75 ? INK : INK_FADED;
+      ctx.fillStyle = fade > 0.75 ? colour.ink : colour.inkFaded;
 
       // Ticks read as marks, tocks as lighter ones — the pair is what makes
       // beat error legible as the gap between two lines.

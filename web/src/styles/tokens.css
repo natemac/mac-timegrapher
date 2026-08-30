@@ -33,6 +33,42 @@
   --radius-sm: 7px;
   --font: 'Archivo', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Warm bone, the colour of ink dried on paper tape. */
+  --trace-ink: #e8e0cf;
+  --trace-ink-faded: rgba(232, 224, 207, 0.28);
+  --trace-rule: #22262b;
+  --trace-rule-centre: #333a41;
+  --wave-line: #e9ebee;
+  --wave-axis: #262b31;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --ink: #f7f6f3;
+    --panel: #ffffff;
+    --panel-2: #f1efeb;
+    --panel-3: #e7e4de;
+    --line: #dcd8d1;
+    --text: #16181b;
+    --text-dim: #5c636b;
+    --text-faint: #8b929a;
+    --accent: #16181b;
+    --accent-ink: #ffffff;
+
+    --ok: #2f7d55;
+    --warn: #9a6b1f;
+    --bad: #a63f36;
+
+    /* Ink on paper, which is what the strip always was. */
+    --trace-ink: #1d2024;
+    --trace-ink-faded: rgba(29, 32, 36, 0.26);
+    --trace-rule: #e2ded7;
+    --trace-rule-centre: #c9c4bb;
+    --wave-line: #16181b;
+    --wave-axis: #ddd9d2;
+  }
 }
 
 * { box-sizing: border-box; }
@@ -42,6 +78,18 @@ body {
   background: var(--ink);
   color: var(--text);
   font-family: var(--font);
+}
+
+/* Only one of the two marks is ever shown.
+
+   Two classes rather than one: `.app__logo` also sets display, and at equal
+   specificity the later rule in the file wins — which showed both marks
+   stacked. Doubling the selector makes this independent of source order. */
+.app__logo.app__logo--neg { display: block; }
+.app__logo.app__logo--pos { display: none; }
+@media (prefers-color-scheme: light) {
+  .app__logo.app__logo--neg { display: none; }
+  .app__logo.app__logo--pos { display: block; }
 }
 
 .panel {
@@ -110,8 +158,8 @@ select {
 }
 
 .app__logo {
-  width: 118px;
-  max-width: 40vw;
+  width: 148px;
+  max-width: 46vw;
   height: auto;
   display: block;
   transition: width 220ms ease;
@@ -121,7 +169,7 @@ select {
    room. The mark shrinks rather than disappearing — it is still a MAC
    instrument, just not the thing you are looking at. */
 .app--measuring .app__masthead { gap: 8px; padding-bottom: 0; }
-.app--measuring .app__logo { width: 74px; }
+.app--measuring .app__logo { width: 96px; }
 .app--measuring .app__wordmark { font-size: 9px; }
 
 @media (prefers-reduced-motion: reduce) {
