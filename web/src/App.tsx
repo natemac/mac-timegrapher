@@ -49,7 +49,7 @@ import type { PositionId } from './timegrapher/session';
 import {
   createInspection, upsertReading, putInspection, removeInspection,
   loadInspections, saveInspections, loadCurrentId, saveCurrentId,
-  type Inspection, type Phase,
+  type Inspection,
 } from './timegrapher/inspections';
 import { Certificate } from './components/Certificate';
 import { DEFAULT_LIFT_ANGLE } from './timegrapher/movements';
@@ -347,9 +347,11 @@ export default function App() {
      not: it is what identifies the watch, and inheriting it would silently
      pair the new run with the old one's opposite pass.
   */
-  const startNewInspection = useCallback((phase: Phase) => {
+  const startNewInspection = useCallback(() => {
     const next = createInspection({
-      phase,
+      // Before regulation, because that is what a watch arriving is. The
+      // switch changes it in one tap when this is the second visit.
+      phase: 'pre',
       technician: currentRef.current.technician,
       movementId: movementIdRef.current,
       movementName: movementLabelRef.current,

@@ -9,7 +9,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   createInspection, upsertReading, sameWatch, findPair, orderPair, comparePair,
-  inspectionAverage, formatAverage, inspectionTitle, phaseName, otherPhase,
+  inspectionAverage, formatAverage, inspectionTitle, phaseName, phaseShort, otherPhase,
   loadInspections, saveInspections, putInspection, removeInspection, byRecency,
   loadCurrentId, saveCurrentId, MAX_INSPECTIONS,
   type Inspection,
@@ -33,8 +33,8 @@ function run(over: Partial<Inspection> = {}): Inspection {
 
 describe('pairing a before with an after', () => {
   it('knows which phase is the other one', () => {
-    expect(otherPhase('as-found')).toBe('as-left');
-    expect(otherPhase('as-left')).toBe('as-found');
+    expect(otherPhase('pre')).toBe('post');
+    expect(otherPhase('post')).toBe('pre');
   });
 
   /*
@@ -44,12 +44,12 @@ describe('pairing a before with an after', () => {
      timing, or what was measured in between.
   */
   it('pairs two runs on the reference alone, whatever happened in between', () => {
-    const before = run({ phase: 'as-found', readings: [reading('dial-up', 25)], updatedAt: '2026-08-01T09:00:00Z' });
+    const before = run({ phase: 'pre', readings: [reading('dial-up', 25)], updatedAt: '2026-08-01T09:00:00Z' });
     const others = [
-      run({ reference: 'MB-0199', phase: 'as-found', readings: [reading('dial-up', 3)], updatedAt: '2026-08-05T09:00:00Z' }),
-      run({ reference: 'MB-0200', phase: 'as-left', readings: [reading('dial-up', 8)], updatedAt: '2026-08-09T09:00:00Z' }),
+      run({ reference: 'MB-0199', phase: 'pre', readings: [reading('dial-up', 3)], updatedAt: '2026-08-05T09:00:00Z' }),
+      run({ reference: 'MB-0200', phase: 'post', readings: [reading('dial-up', 8)], updatedAt: '2026-08-09T09:00:00Z' }),
     ];
-    const after = run({ phase: 'as-left', readings: [reading('dial-up', 2)], updatedAt: '2026-08-30T09:00:00Z' });
+    const after = run({ phase: 'post', readings: [reading('dial-up', 2)], updatedAt: '2026-08-30T09:00:00Z' });
 
     expect(findPair([before, ...others, after], after)?.id).toBe(before.id);
   });
@@ -63,50 +63,50 @@ describe('pairing a before with an after', () => {
   /* Otherwise every unnamed run would pair with every other unnamed run. */
   it('never pairs runs with no reference', () => {
     expect(sameWatch('', '')).toBe(false);
-    const a = run({ reference: '', phase: 'as-found', readings: [reading('dial-up', 25)] });
-    const b = run({ reference: '  ', phase: 'as-left', readings: [reading('dial-up', 2)] });
+    const a = run({ reference: '', phase: 'pre', readings: [reading('dial-up', 25)] });
+    const b = run({ reference: '  ', phase: 'post', readings: [reading('dial-up', 2)] });
     expect(findPair([a, b], b)).toBeNull();
   });
 
   it('ignores a run of the same phase', () => {
-    const a = run({ phase: 'as-found', readings: [reading('dial-up', 25)] });
-    const b = run({ phase: 'as-found', readings: [reading('dial-up', 24)] });
+    const a = run({ phase: 'pre', readings: [reading('dial-up', 25)] });
+    const b = run({ phase: 'pre', readings: [reading('dial-up', 24)] });
     expect(findPair([a, b], b)).toBeNull();
   });
 
   it('ignores an empty run', () => {
-    const empty = run({ phase: 'as-found', readings: [] });
-    const after = run({ phase: 'as-left', readings: [reading('dial-up', 2)] });
+    const empty = run({ phase: 'pre', readings: [] });
+    const after = run({ phase: 'post', readings: [reading('dial-up', 2)] });
     expect(findPair([empty, after], after)).toBeNull();
   });
 
   it('never pairs a run with itself', () => {
-    const only = run({ phase: 'as-found', readings: [reading('dial-up', 25)] });
+    const only = run({ phase: 'pre', readings: [reading('dial-up', 25)] });
     expect(findPair([only], only)).toBeNull();
   });
 
   /* A watch regulated twice should report against the state it was actually
      in when this pass began. */
   it('takes the most recent of several candidates', () => {
-    const old = run({ phase: 'as-found', readings: [reading('dial-up', 40)], updatedAt: '2026-01-01T00:00:00Z' });
-    const recent = run({ phase: 'as-found', readings: [reading('dial-up', 25)], updatedAt: '2026-08-01T00:00:00Z' });
-    const after = run({ phase: 'as-left', readings: [reading('dial-up', 2)], updatedAt: '2026-08-30T00:00:00Z' });
+    const old = run({ phase: 'pre', readings: [reading('dial-up', 40)], updatedAt: '2026-01-01T00:00:00Z' });
+    const recent = run({ phase: 'pre', readings: [reading('dial-up', 25)], updatedAt: '2026-08-01T00:00:00Z' });
+    const after = run({ phase: 'post', readings: [reading('dial-up', 2)], updatedAt: '2026-08-30T00:00:00Z' });
     expect(findPair([old, recent, after], after)?.id).toBe(recent.id);
   });
 
   it('puts as-found first however the pair was measured', () => {
-    const before = run({ phase: 'as-found' });
-    const after = run({ phase: 'as-left' });
-    expect(orderPair(after, before).map((i) => i.phase)).toEqual(['as-found', 'as-left']);
-    expect(orderPair(before, after).map((i) => i.phase)).toEqual(['as-found', 'as-left']);
+    const before = run({ phase: 'pre' });
+    const after = run({ phase: 'post' });
+    expect(orderPair(after, before).map((i) => i.phase)).toEqual(['pre', 'post']);
+    expect(orderPair(before, after).map((i) => i.phase)).toEqual(['pre', 'post']);
     expect(orderPair(before, null)).toEqual([before]);
   });
 });
 
 describe('comparePair', () => {
   it('reports what the work achieved', () => {
-    const before = run({ phase: 'as-found', readings: [reading('dial-up', 25), reading('dial-down', 15)] });
-    const after = run({ phase: 'as-left', readings: [reading('dial-up', 3), reading('dial-down', 1)] });
+    const before = run({ phase: 'pre', readings: [reading('dial-up', 25), reading('dial-down', 15)] });
+    const after = run({ phase: 'post', readings: [reading('dial-up', 3), reading('dial-down', 1)] });
 
     const c = comparePair(before, after)!;
     expect(c.positions).toBe(2);
@@ -119,14 +119,14 @@ describe('comparePair', () => {
   /* Dial up against crown down would be reporting the difference between two
      positions, not the difference the regulation made. */
   it('is null when the two runs share no position', () => {
-    const before = run({ phase: 'as-found', readings: [reading('dial-up', 25)] });
-    const after = run({ phase: 'as-left', readings: [reading('crown-down', 2)] });
+    const before = run({ phase: 'pre', readings: [reading('dial-up', 25)] });
+    const after = run({ phase: 'post', readings: [reading('crown-down', 2)] });
     expect(comparePair(before, after)).toBeNull();
   });
 
   it('counts only the positions measured in both', () => {
-    const before = run({ phase: 'as-found', readings: [reading('dial-up', 25), reading('crown-up', 99)] });
-    const after = run({ phase: 'as-left', readings: [reading('dial-up', 3)] });
+    const before = run({ phase: 'pre', readings: [reading('dial-up', 25), reading('crown-up', 99)] });
+    const after = run({ phase: 'post', readings: [reading('dial-up', 3)] });
     const c = comparePair(before, after)!;
     expect(c.positions).toBe(1);
     expect(c.rateBefore).toBe(25);
@@ -163,22 +163,26 @@ describe('readings', () => {
 
 describe('naming', () => {
   it('names a run by its watch and its pass', () => {
-    expect(inspectionTitle(run({ phase: 'as-left' }))).toBe('MB-0142 — As left');
+    expect(inspectionTitle(run({ phase: 'post' }))).toBe('MB-0142 — After regulation');
   });
 
   it('says so when a run has no reference', () => {
-    expect(inspectionTitle(run({ reference: '' }))).toBe('Unnamed — As found');
+    expect(inspectionTitle(run({ reference: '' }))).toBe('Unnamed — Before regulation');
   });
 
-  it('names both phases', () => {
-    expect(phaseName('as-found')).toBe('As found');
-    expect(phaseName('as-left')).toBe('As left');
+  /* Plain words, not the trade's. Someone reading a document should not need
+     to know what "as found" means. */
+  it('names both phases in words a reader knows', () => {
+    expect(phaseName('pre')).toBe('Before regulation');
+    expect(phaseName('post')).toBe('After regulation');
+    expect(phaseShort('pre')).toBe('Before');
+    expect(phaseShort('post')).toBe('After');
   });
 });
 
 describe('storage', () => {
   it('round trips', () => {
-    const a = run({ phase: 'as-found' });
+    const a = run({ phase: 'pre' });
     saveInspections([a]);
     expect(loadInspections().map((i) => i.id)).toEqual([a.id]);
   });
@@ -233,6 +237,25 @@ describe('storage', () => {
   });
 });
 
+describe('renaming the phases', () => {
+  /* Runs recorded before the trade terms were dropped must still load, and as
+     the same pass they were recorded as. */
+  it('reads runs stored under the old names', () => {
+    localStorage.setItem('mac-timegrapher.inspections', JSON.stringify([
+      { ...run({ reference: 'MB-0142' }), phase: 'as-found' },
+      { ...run({ reference: 'MB-0142' }), phase: 'as-left' },
+    ]));
+    expect(loadInspections().map((i) => i.phase).sort()).toEqual(['post', 'pre']);
+  });
+
+  it('treats an unrecognised phase as before regulation', () => {
+    localStorage.setItem('mac-timegrapher.inspections', JSON.stringify([
+      { ...run(), phase: 'nonsense' },
+    ]));
+    expect(loadInspections()[0].phase).toBe('pre');
+  });
+});
+
 describe('migration from the single-session store', () => {
   /* A session open across the change should survive it, split back into the
      runs it was really two of. */
@@ -249,8 +272,8 @@ describe('migration from the single-session store', () => {
     const loaded = loadInspections();
     expect(loaded).toHaveLength(2);
 
-    const found = loaded.find((i) => i.phase === 'as-found')!;
-    const left = loaded.find((i) => i.phase === 'as-left')!;
+    const found = loaded.find((i) => i.phase === 'pre')!;
+    const left = loaded.find((i) => i.phase === 'post')!;
     expect(found.reference).toBe('MB-0142');
     expect(found.summaryText).toBe('arrived fast');
     expect(left.summaryText).toBe('within tolerance');
@@ -260,13 +283,13 @@ describe('migration from the single-session store', () => {
     expect('phase' in found.readings[0]).toBe(false);
   });
 
-  it('treats untagged readings as as-found, which is what one pass is', () => {
+  it('treats untagged readings as before regulation, which is what one pass is', () => {
     localStorage.setItem('mac-timegrapher.session', JSON.stringify([
       { position: 'dial-up', rate: 12, amplitude: 260, beatError: 0.3, bph: 21600, at: '2026-08-01T00:00:00Z' },
     ]));
     const loaded = loadInspections();
     expect(loaded).toHaveLength(1);
-    expect(loaded[0].phase).toBe('as-found');
+    expect(loaded[0].phase).toBe('pre');
   });
 
   it('does not migrate again once the new store exists', () => {

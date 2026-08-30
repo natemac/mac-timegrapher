@@ -185,8 +185,8 @@ export function Certificate({
           <thead>
             <tr>
               <th />
-              <th>As found</th>
-              <th>As left</th>
+              <th>{phaseName('pre')}</th>
+              <th>{phaseName('post')}</th>
             </tr>
           </thead>
           <tbody>
@@ -240,7 +240,7 @@ export function Certificate({
         <p>
           This inspection records measurements. It does not assert conformance
           to any standard.
-          {regulated && ' Readings are reported as the watch was received and as it was left.'}
+          {regulated && ' Readings are reported both before and after the regulation.'}
         </p>
         <p>
           Measured with the MAC Bespoke Web Timegrapher, derived from tg by

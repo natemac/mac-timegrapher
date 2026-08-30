@@ -21,7 +21,7 @@ function panel(state: WizardState, over: Record<string, unknown> = {}) {
   return (
     <InspectionWizard
       state={state}
-      phase="as-found"
+      phase="pre"
       capturing={state.stage === 'countdown' || state.stage === 'measuring'}
       settling="settled"
       valid

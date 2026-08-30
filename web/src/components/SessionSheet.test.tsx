@@ -137,7 +137,7 @@ describe('the run summary line', () => {
     const user = userEvent.setup();
     render(<Host />);
 
-    const field = screen.getByLabelText('As found summary');
+    const field = screen.getByLabelText('Before regulation summary');
     await user.click(field);
     await user.keyboard('+27, uniformly fast');
 
@@ -152,7 +152,7 @@ describe('the run summary line', () => {
     render(<Host />);
 
     await user.click(screen.getByRole('button', { name: "Fill with this run's measured average" }));
-    expect(screen.getByLabelText('As found summary'))
+    expect(screen.getByLabelText('Before regulation summary'))
       .toHaveValue('+12.4 s/day average over 1 position');
   });
 
@@ -160,9 +160,9 @@ describe('the run summary line', () => {
     const user = userEvent.setup();
     render(<Host />);
 
-    await user.click(screen.getByRole('button', { name: 'As left' }));
-    expect(screen.getByLabelText('As left summary')).toBeInTheDocument();
-    expect(screen.queryByLabelText('As found summary')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'After regulation' }));
+    expect(screen.getByLabelText('After regulation summary')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Before regulation summary')).not.toBeInTheDocument();
   });
 });
 
@@ -171,9 +171,9 @@ describe('marking a run', () => {
     const user = userEvent.setup();
     render(<Host />);
 
-    expect(screen.getByRole('button', { name: 'As found' })).toHaveAttribute('aria-pressed', 'true');
-    await user.click(screen.getByRole('button', { name: 'As left' }));
-    expect(screen.getByRole('button', { name: 'As left' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Before regulation' })).toHaveAttribute('aria-pressed', 'true');
+    await user.click(screen.getByRole('button', { name: 'After regulation' }));
+    expect(screen.getByRole('button', { name: 'After regulation' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   /*
@@ -184,17 +184,17 @@ describe('marking a run', () => {
     const user = userEvent.setup();
     const earlier = createInspection({
       reference: 'MB-0142',
-      phase: 'as-left',
+      phase: 'post',
       readings: [READING],
       updatedAt: '2026-08-01T09:00:00.000Z',
     });
     render(<Host saved={[earlier]} />);
 
-    expect(screen.getByText(/paired with the as left run/i)).toBeInTheDocument();
+    expect(screen.getByText(/paired with the after reading/i)).toBeInTheDocument();
 
-    // Marking this run as-left too leaves nothing to pair with.
-    await user.click(screen.getByRole('button', { name: 'As left' }));
-    expect(screen.getByText(/no as found run for this reference yet/i)).toBeInTheDocument();
+    // Marking this run "after" too leaves nothing to pair with.
+    await user.click(screen.getByRole('button', { name: 'After regulation' }));
+    expect(screen.getByText(/nothing recorded before regulation/i)).toBeInTheDocument();
   });
 
   it('explains that a run needs a reference before it can pair', async () => {

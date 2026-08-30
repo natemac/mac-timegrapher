@@ -7,7 +7,7 @@
     published by the Free Software Foundation.
 */
 import { positionName } from '../timegrapher/session';
-import { phaseName, type Phase } from '../timegrapher/inspections';
+import { phaseShort, type Phase } from '../timegrapher/inspections';
 import {
   WIZARD_ORDER, STALL_SECONDS, positionAt, skipped, type WizardState,
 } from '../timegrapher/wizard';
@@ -97,7 +97,7 @@ export function InspectionWizard({
     const missed = skipped(state);
     return (
       <div className="panel wizard wizard--done">
-        <div className="eyebrow">{phaseName(phase)} · Run complete</div>
+        <div className="eyebrow">{phaseShort(phase)} · Run complete</div>
         <div className="wizard__headline">
           {state.recorded.length} of {WIZARD_ORDER.length} recorded
         </div>
@@ -121,7 +121,7 @@ export function InspectionWizard({
     <div className="panel wizard" data-stage={state.stage}>
       <button className="panel__help wizard__help" onClick={() => onHelp('inspection')}>
         <span className="eyebrow">
-          {phaseName(phase)} · Position {state.step + 1} of {WIZARD_ORDER.length}
+          {phaseShort(phase)} · Position {state.step + 1} of {WIZARD_ORDER.length}
         </span>
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
           <circle cx="12" cy="12" r="10" />

@@ -1192,3 +1192,18 @@ html.is-measuring body { overscroll-behavior-y: none; }
     font-style: italic;
   }
 }
+
+/* The phase switch carries full labels — "Before regulation", not "Before" —
+   so it needs no explanation beside it. Smaller type is what makes them fit. */
+.switch--phase { width: 100%; }
+.switch--phase .switch__option {
+  padding: 8px 6px;
+  font-size: 11.5px;
+  letter-spacing: 0;
+}
+
+.run-new {
+  width: 100%;
+  margin-top: 18px;
+  font-size: 13px;
+}

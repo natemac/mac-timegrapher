@@ -32,9 +32,19 @@ import {
    "MB-0142" and "mb-0142 " are one watch and a bench types both.
 */
 
+/*
+   Before and after the work, in plain words.
+
+   These were "As found" and "As left" — what a service trade calls them, and
+   nothing to anyone else. A tool a customer might read should not need a
+   glossary, so the label says what it means.
+
+   `short` is for a switch or a list, where "Before regulation" would wrap;
+   `name` is for the printed document, where it should say so in full.
+*/
 export const PHASES = [
-  { id: 'as-found', name: 'As found', short: 'Before' },
-  { id: 'as-left', name: 'As left', short: 'After' },
+  { id: 'pre', name: 'Before regulation', short: 'Before' },
+  { id: 'post', name: 'After regulation', short: 'After' },
 ] as const;
 
 export type Phase = (typeof PHASES)[number]['id'];
@@ -43,8 +53,12 @@ export function phaseName(id: Phase): string {
   return PHASES.find((p) => p.id === id)?.name ?? id;
 }
 
+export function phaseShort(id: Phase): string {
+  return PHASES.find((p) => p.id === id)?.short ?? id;
+}
+
 export function otherPhase(id: Phase): Phase {
-  return id === 'as-found' ? 'as-left' : 'as-found';
+  return id === 'pre' ? 'post' : 'pre';
 }
 
 export interface Inspection {
@@ -85,7 +99,7 @@ export function createInspection(over: Partial<Inspection> = {}): Inspection {
     reference: '',
     movementId: null,
     movementName: null,
-    phase: 'as-found',
+    phase: 'pre',
     readings: [],
     technician: '',
     summaryText: '',
@@ -137,10 +151,10 @@ export function findPair(all: Inspection[], current: Inspection): Inspection | n
   return matches[0] ?? null;
 }
 
-/** As found first, whichever way round the pair was measured. */
+/** Before regulation first, whichever way round the pair was measured. */
 export function orderPair(a: Inspection, b: Inspection | null): Inspection[] {
   if (!b) return [a];
-  return a.phase === 'as-found' ? [a, b] : [b, a];
+  return a.phase === 'pre' ? [a, b] : [b, a];
 }
 
 export interface PairComparison {
@@ -224,15 +238,15 @@ function readLegacy(): Inspection[] {
     // into a run each, so a session open across the change survives it.
     for (const phase of PHASES.map((p) => p.id)) {
       const readings = parsed
-        .filter((r: Reading & { phase?: Phase }) => (r.phase ?? 'as-found') === phase)
-        .map(({ phase: _drop, ...r }: Reading & { phase?: Phase }) => r as Reading);
+        .filter((r: Reading & { phase?: string }) => renamePhase(r.phase) === phase)
+        .map(({ phase: _drop, ...r }: Reading & { phase?: string }) => r as Reading);
       if (readings.length === 0) continue;
 
       out.push(createInspection({
         reference: meta.reference ?? '',
         technician: meta.technician ?? '',
         notes: meta.notes ?? '',
-        summaryText: phase === 'as-found' ? (meta.preRegulation ?? '') : (meta.postRegulation ?? ''),
+        summaryText: phase === 'pre' ? (meta.preRegulation ?? '') : (meta.postRegulation ?? ''),
         phase,
         readings,
       }));
@@ -243,12 +257,20 @@ function readLegacy(): Inspection[] {
   }
 }
 
+/** The phases were named for the trade before they were named for the reader. */
+function renamePhase(value: unknown): Phase {
+  if (value === 'as-left' || value === 'post') return 'post';
+  return 'pre';
+}
+
 export function loadInspections(): Inspection[] {
   try {
     const raw = localStorage.getItem(STORE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed)) {
+        return parsed.map((i: Inspection) => ({ ...i, phase: renamePhase(i.phase) }));
+      }
       return [];
     }
     // Nothing in the new store: bring anything from the old one across once.

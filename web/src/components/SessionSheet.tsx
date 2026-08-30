@@ -9,9 +9,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { POSITIONS, summarise } from '../timegrapher/session';
 import {
-  PHASES, findPair, orderPair, comparePair, phaseName, inspectionAverage,
+  PHASES, findPair, orderPair, comparePair, phaseName, phaseShort, inspectionAverage,
   formatAverage, byRecency, pairToTable,
-  type Inspection, type Phase,
+  type Inspection,
 } from '../timegrapher/inspections';
 import { SlideSwitch } from './SlideSwitch';
 import { Sheet } from './Sheet';
@@ -23,7 +23,7 @@ interface Props {
   saved: Inspection[];
   onChange: (next: Inspection) => void;
   onPrint: () => void;
-  onNew: (phase: Phase) => void;
+  onNew: () => void;
   onOpen: (id: string) => void;
   onDelete: (id: string) => void;
 }
@@ -119,7 +119,6 @@ export function SessionSheet({
 
       <div className="sheet__head sheet__head--title">
         <span style={{ fontWeight: 600, fontSize: 15 }}>{title}</span>
-        <span className="eyebrow">{phaseName(current.phase)}</span>
       </div>
 
       <div className="sheet__body prose" data-sheet-scroll>
@@ -137,17 +136,20 @@ export function SessionSheet({
             onChange={(e) => set({ reference: e.target.value })}
           />
           <SlideSwitch
+            className="switch--phase"
             value={current.phase}
             options={PHASES.map((p) => ({ id: p.id, label: p.name }))}
             onChange={(phase) => set({ phase })}
-            label="Which pass this run is"
+            label="Before or after regulation"
           />
           <p className="dim run-identity__note">
             {pair
-              ? `Paired with the ${phaseName(pair.phase).toLowerCase()} run of ${new Date(pair.updatedAt).toLocaleDateString()}.`
+              ? `Paired with the ${phaseShort(pair.phase).toLowerCase()} reading of ${new Date(pair.updatedAt).toLocaleDateString()}.`
               : current.reference.trim()
-                ? `No ${phaseName(current.phase === 'as-found' ? 'as-left' : 'as-found').toLowerCase()} run for this reference yet.`
-                : 'Give it a reference and a before-and-after will pair itself, however long apart.'}
+                ? current.phase === 'pre'
+                  ? 'Nothing recorded after regulation for this reference yet.'
+                  : 'Nothing recorded before regulation for this reference yet.'
+                : 'Give it a reference and the before and after will pair themselves, however long apart.'}
           </p>
         </div>
 
@@ -268,20 +270,13 @@ export function SessionSheet({
           />
         </div>
 
-        <div className="run-actions">
-          <button className="secondary" onClick={() => onNew('as-found')}>
-            New — as found
-          </button>
-          <button className="secondary" onClick={() => onNew('as-left')}>
-            New — as left
-          </button>
-        </div>
+        <button className="secondary run-new" onClick={onNew}>
+          Start a new reading
+        </button>
 
-        {/*
-          Past runs. Reopening one is how an as-left pass gets added to a watch
-          that went out weeks ago — though the document pairs them either way,
-          on the reference alone.
-        */}
+        {/* Kept for looking back at and for clearing out. Nothing in the
+            normal flow needs them: the document pairs a before with an after on
+            the reference by itself. */}
         {history.length > 0 && (
           <>
             <button
@@ -290,7 +285,7 @@ export function SessionSheet({
               style={{ width: '100%', marginTop: 18, fontSize: 13 }}
               aria-expanded={showHistory}
             >
-              {showHistory ? 'Hide saved runs' : `Saved runs — ${history.length}`}
+              {showHistory ? 'Hide past readings' : `Past readings — ${history.length}`}
             </button>
 
             {showHistory && (
@@ -300,14 +295,14 @@ export function SessionSheet({
                     <button className="run-list__open" onClick={() => onOpen(i.id)}>
                       <span className="run-list__name">{i.reference.trim() || 'Unnamed'}</span>
                       <span className="dim run-list__meta">
-                        {phaseName(i.phase)} · {i.readings.length} of {POSITIONS.length} ·{' '}
+                        {phaseShort(i.phase)} · {i.readings.length} of {POSITIONS.length} ·{' '}
                         {new Date(i.updatedAt).toLocaleDateString()}
                       </span>
                     </button>
                     <button
                       className="secondary run-list__delete"
                       onClick={() => (confirmDelete === i.id ? onDelete(i.id) : setConfirmDelete(i.id))}
-                      aria-label={`Delete the ${phaseName(i.phase).toLowerCase()} run for ${i.reference.trim() || 'this unnamed watch'}`}
+                      aria-label={`Delete the ${phaseName(i.phase).toLowerCase()} reading for ${i.reference.trim() || 'this unnamed watch'}`}
                     >
                       {confirmDelete === i.id ? 'Sure?' : 'Delete'}
                     </button>
