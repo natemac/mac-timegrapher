@@ -75,6 +75,9 @@ web/src/components/      one panel each; guide-content.tsx holds every explanati
   in `timegrapher/amplitude-scale.ts`, not in `BeatCanvas.tsx`, because the
   ruler and the reading have to agree. Solid rules are time, dashed are degrees;
   they share one axis and must not look alike.
+- **Calibration is its own sheet tab** (`CalibrationPanel.tsx`), not a setting.
+  It needs the microphone and an input chosen, so it carries both — it is
+  reachable before the measuring screen has ever asked for permission.
 - **Two ways to correct the sound-card clock, and they are not equivalent.**
   Against the system clock (`audio/clock-calibration.ts`, NTP-disciplined) or
   against a quartz watch on the sensor (upstream's algorithm, already in
@@ -159,7 +162,7 @@ focus effects keyed on what actually opened the thing, never on a callback.
 ## Commands
 
 ```sh
-cd web && npm test          # 383 tests across 26 files
+cd web && npm test          # 388 tests across 26 files
 cd web && npm run build     # tsc -b && vite build
 cd web && npm run dev       # http://localhost:5173/tools/timegrapher/
 

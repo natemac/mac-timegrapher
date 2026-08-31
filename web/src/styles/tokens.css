@@ -763,6 +763,59 @@ select {
   margin-top: 8px;
 }
 
+/* ---------- Calibration tab ---------- */
+.calibration { display: flex; flex-direction: column; gap: 14px; }
+
+.calibration__device,
+.calibration__correction {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.calibration__device select { flex: 1 1 auto; min-width: 0; }
+.calibration__rate { flex: 0 0 auto; }
+.calibration__correction .field { width: 7.5em; flex: 0 0 auto; padding: 6px 8px; text-align: right; }
+
+/* Each method is a boxed instrument of its own. Sharing one undivided block is
+   what made the two indistinguishable in the first place. */
+.calibration__method {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.calibration__method-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.calibration__method p { margin: 0; font-size: 12px; }
+
+/* What it needs, before what it is doing. */
+.calibration__needs {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.calibration__needs li { margin: 2px 0; }
+
+.calibration__note { font-size: 11px; margin: 0; }
+
+.calibration__what {
+  align-self: flex-start;
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 /* ---------- Graph switch ---------- */
 .switch {
   position: relative;

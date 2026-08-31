@@ -105,8 +105,11 @@ own audio clock against the system clock, which is disciplined and far steadier
 than any sound card. It has to be one uninterrupted run; a new capture starts
 the measurement over.
 
-You can also **check it against a quartz watch**, which is how native tg does
-it: an analogue quartz movement with a ticking seconds hand goes on the sensor
+Both live under **Calibration**, their own tab beside Guide and Settings, each
+stating what it needs before what it does — the system-clock one wants nothing
+on the sensor at all, which is the opposite of the other.
+
+The second method is a **quartz watch**, which is how native tg does it: an analogue quartz movement with a ticking seconds hand goes on the sensor
 and the app tracks its once-a-second tick for about fifteen minutes. That result
 is only as good as the reference watch — it cannot tell the card apart from the
 watch — so it is offered as a second opinion and applied only when you press

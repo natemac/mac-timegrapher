@@ -900,6 +900,16 @@ export default function App() {
         clockCheck={clockCheck}
         onStartClockCheck={startClockCheck}
         onStopClockCheck={stopClockCheck}
+        granted={granted}
+        onRequestMic={grant}
+        busy={busy}
+        devices={devices}
+        selectedId={selectedId}
+        onSelectDevice={setSelectedId}
+        sampleRate={sampleRate}
+        capturing={capturing}
+        onStartCapture={start}
+        onStopCapture={stop}
       />
 
       {!secure && (
