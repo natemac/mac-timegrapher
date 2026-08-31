@@ -8,7 +8,7 @@
 */
 import { describe, it, expect } from 'vitest';
 import {
-  DiagnosticsLog, diagnosticsFilename,
+  DiagnosticsLog, diagnosticsFilename, launchedAs,
   type DiagnosticContext, type DiagnosticSample,
 } from './diagnostics';
 
@@ -226,5 +226,42 @@ describe('the clock correction', () => {
     const log = new DiagnosticsLog();
     log.setContext({ ...CONTEXT, clockDriftSecondsPerDay: -4.32 });
     expect(log.toText()).toContain('-4.32 s/day');
+  });
+});
+
+describe('how the app was launched', () => {
+  const never = () => ({ matches: false });
+  const only = (mode: string) => (q: string) => ({ matches: q === `(display-mode: ${mode})` });
+
+  /*
+     The user agent is identical from a home-screen launch and a browser tab,
+     so without this a report of "the update did not arrive" cannot be told
+     apart from a service-worker cache that has not cycled yet.
+  */
+  it('reports a home-screen launch on iOS, where the media query is not the signal', () => {
+    expect(launchedAs(true, never)).toBe('installed app (home screen)');
+  });
+
+  it('falls back to the standard media query elsewhere', () => {
+    expect(launchedAs(false, only('standalone'))).toBe('installed app (standalone)');
+    expect(launchedAs(undefined, only('fullscreen'))).toBe('installed app (fullscreen)');
+    expect(launchedAs(undefined, only('minimal-ui'))).toBe('installed app (minimal-ui)');
+  });
+
+  it('reports a browser tab when neither signal is set', () => {
+    expect(launchedAs(false, never)).toBe('browser tab');
+    expect(launchedAs(undefined, never)).toBe('browser tab');
+  });
+
+  /* A browser too old to report either is a browser tab, so the absence of
+     both signals is not an error worth surfacing in the log. */
+  it('says browser tab rather than failing when nothing can be asked', () => {
+    expect(launchedAs(undefined, undefined)).toBe('browser tab');
+  });
+
+  it('puts the answer in the exported log', () => {
+    const log = new DiagnosticsLog();
+    log.setContext(CONTEXT);
+    expect(log.toText()).toMatch(/launched as {2,}(installed app.*|browser tab)/);
   });
 });

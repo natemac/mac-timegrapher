@@ -74,6 +74,42 @@ export interface DiagnosticContext {
   clockDriftSecondsPerDay: number;
 }
 
+/*
+   Whether the app was opened from the home screen or in a browser tab.
+
+   The user agent cannot tell these apart — it is byte-identical either way —
+   but they behave differently in exactly the ways a bug report is about. An
+   installed app has no address bar, no reload and no pull-to-refresh, and it
+   picks up a new deploy on its own service-worker cycle rather than when the
+   page is refreshed. "It still looks the same" means something different in
+   each, and without this line it cannot be told which.
+
+   navigator.standalone is Apple's and is the signal that actually works on
+   iOS; the media query is the standard one everywhere else. The arguments
+   default to the real globals and exist so this can be tested without
+   stubbing them.
+*/
+export function launchedAs(
+  standalone: boolean | undefined =
+    typeof navigator === 'undefined'
+      ? undefined
+      : (navigator as Navigator & { standalone?: boolean }).standalone,
+  matchMedia: ((query: string) => { matches: boolean }) | undefined =
+    typeof window === 'undefined' || typeof window.matchMedia !== 'function'
+      ? undefined
+      : (query: string) => window.matchMedia(query),
+): string {
+  if (standalone) return 'installed app (home screen)';
+  if (matchMedia) {
+    for (const mode of ['standalone', 'fullscreen', 'minimal-ui'] as const) {
+      if (matchMedia(`(display-mode: ${mode})`).matches) return `installed app (${mode})`;
+    }
+  }
+  // Also what a browser too old to report either looks like, which is fine:
+  // a browser that old is a browser tab.
+  return 'browser tab';
+}
+
 function fmt(n: number | null, places: number): string {
   return n === null || Number.isNaN(n) ? '' : n.toFixed(places);
 }
@@ -139,9 +175,10 @@ export class DiagnosticsLog {
        deciding whether to pass one on is often not the person who exported it.
        It is worth being able to see at a glance what is in it.
     */
-    lines.push('Contains: the audio device name, the browser version, and every');
-    lines.push('reading the analysis produced. It does not contain the build');
-    lines.push('number, the technician, any notes, or any audio.');
+    lines.push('Contains: the audio device name, the browser version and how it');
+    lines.push('was launched, and every reading the analysis produced. It');
+    lines.push('does not contain the build number, the technician, any notes,');
+    lines.push('or any audio.');
     lines.push('');
 
     lines.push('## Setup');
@@ -168,6 +205,7 @@ export class DiagnosticsLog {
     }`);
     lines.push(`settled bounds    rate ±${c?.settledBounds.rate}  amplitude ±${c?.settledBounds.amplitude}  beat ±${c?.settledBounds.beatError}`);
     lines.push(`user agent        ${typeof navigator === 'undefined' ? '?' : navigator.userAgent}`);
+    lines.push(`launched as       ${launchedAs()}`);
     lines.push('');
 
     lines.push('## What the spreads managed');
