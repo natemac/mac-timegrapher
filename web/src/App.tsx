@@ -34,7 +34,7 @@ import {
   SettingsSheet, DEFAULT_SETTINGS, loadSettings, saveSettings, type Settings,
 } from './components/SettingsSheet';
 import { GUIDE, type Topic } from './components/guide-content';
-import { findMovement, engineConfigFor, isQuartz } from './timegrapher/movements';
+import { findMovement, engineConfigFor, isQuartz, loadMovementId, saveMovementId } from './timegrapher/movements';
 import { useWakeLock } from './hooks/useWakeLock';
 import { useInspectionRun } from './hooks/useInspectionRun';
 import { SessionSheet } from './components/SessionSheet';
@@ -103,26 +103,15 @@ export default function App() {
      first-time user can tell the sensor is hearing the watch before any
      reading exists. The trace needs beats before it draws anything at all. */
   const [graph, setGraph] = useState<Graph>('waveform');
-  // Remembered: a bench usually works through a batch of the same calibre.
-  const [movementId, setMovementId] = useState<string | null>(
-    () => {
-      try {
-        return localStorage.getItem('mac-timegrapher.movement');
-      } catch {
-        return null;
-      }
-    },
-  );
+  /* Remembered: a bench usually works through a batch of the same calibre.
+     Nothing stored means nothing has been chosen yet, which gets the default
+     rather than automatic detection — see DEFAULT_MOVEMENT_ID. Automatic is
+     stored explicitly so choosing it survives a reload. */
+  const [movementId, setMovementId] = useState<string | null>(loadMovementId);
 
   const selectMovement = useCallback((id: string | null) => {
     setMovementId(id);
-    try {
-      if (id) localStorage.setItem('mac-timegrapher.movement', id);
-      else localStorage.removeItem('mac-timegrapher.movement');
-    } catch {
-      // Private browsing or a full quota; a forgotten preference is not worth
-      // failing over.
-    }
+    saveMovementId(id);
   }, []);
   // null topic means the full guide; a topic means one section's note.
   const [helpTopic, setHelpTopic] = useState<Topic | null>(null);

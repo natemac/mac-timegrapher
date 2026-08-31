@@ -6,9 +6,10 @@
     it under the terms of the GNU General Public License version 2 as
     published by the Free Software Foundation.
 */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
   MOVEMENTS, findMovement, engineConfigFor, isQuartz, DEFAULT_LIFT_ANGLE,
+  DEFAULT_MOVEMENT_ID, AUTO_MOVEMENT_ID, loadMovementId, saveMovementId,
 } from './movements';
 
 const mechanical = MOVEMENTS.filter((m) => !isQuartz(m));
@@ -132,5 +133,49 @@ describe('the bench figures', () => {
   it('has the Miyota 9015 at the higher beat rate', () => {
     expect(findMovement('miyota9015')?.bph).toBe(28800);
     expect(findMovement('miyota8215')?.bph).toBe(21600);
+  });
+});
+
+describe('which calibre a bench starts on', () => {
+  beforeEach(() => localStorage.clear());
+
+  /*
+     Automatic detection sounds like the safer default and is not. It finds the
+     beat rate but cannot find the lift angle — that is escapement geometry, not
+     something you can hear — so amplitude falls back to a generic figure and is
+     quietly wrong for whatever is on the sensor. A named calibre is at least
+     wrong in a way you can see and correct.
+  */
+  it('is a real calibre rather than automatic detection', () => {
+    expect(loadMovementId()).toBe(DEFAULT_MOVEMENT_ID);
+    expect(findMovement(DEFAULT_MOVEMENT_ID)).toBeTruthy();
+    expect(findMovement(DEFAULT_MOVEMENT_ID)?.liftAngle).toBeGreaterThan(0);
+  });
+
+  it('remembers a chosen calibre', () => {
+    saveMovementId('eta2824');
+    expect(loadMovementId()).toBe('eta2824');
+  });
+
+  /*
+     The regression this exists to catch. Automatic used to be stored by
+     removing the key, which made "I chose automatic" and "I have never chosen"
+     the same state — so introducing a default would silently overwrite a
+     deliberate choice on the next reload.
+  */
+  it('keeps automatic detection when it was chosen on purpose', () => {
+    saveMovementId(null);
+    expect(localStorage.getItem('mac-timegrapher.movement')).toBe(AUTO_MOVEMENT_ID);
+    expect(loadMovementId()).toBeNull();
+  });
+
+  it('survives storage being unavailable', () => {
+    const real = Storage.prototype.getItem;
+    Storage.prototype.getItem = () => { throw new Error('denied'); };
+    try {
+      expect(loadMovementId()).toBe(DEFAULT_MOVEMENT_ID);
+    } finally {
+      Storage.prototype.getItem = real;
+    }
   });
 });

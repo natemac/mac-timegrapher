@@ -116,6 +116,44 @@ export function isQuartz(movement: Movement | null): boolean {
   return movement !== null && movement.liftAngle === null;
 }
 
+/*
+   What a bench sees on first run, before anything is chosen.
+
+   Automatic beat-rate detection sounds like the safer default and is not: it
+   detects the beat rate but cannot detect the lift angle, so amplitude falls
+   back to a generic figure and is quietly wrong for whatever is on the sensor.
+   A named calibre is at least wrong in a way you can see and change.
+*/
+export const DEFAULT_MOVEMENT_ID = 'nh35';
+
+/* Stored in place of a calibre when automatic detection is chosen on purpose.
+   Without it, "I picked automatic" and "I have never chosen" are the same
+   absent key, and the default would overwrite a deliberate choice on reload. */
+export const AUTO_MOVEMENT_ID = 'auto';
+
+const MOVEMENT_KEY = 'mac-timegrapher.movement';
+
+/* null means automatic detection. Nothing stored is a first run, which gets
+   the default; a stored AUTO_MOVEMENT_ID is a deliberate choice and is kept. */
+export function loadMovementId(): string | null {
+  try {
+    const stored = localStorage.getItem(MOVEMENT_KEY);
+    if (stored === AUTO_MOVEMENT_ID) return null;
+    return stored ?? DEFAULT_MOVEMENT_ID;
+  } catch {
+    return DEFAULT_MOVEMENT_ID;
+  }
+}
+
+export function saveMovementId(id: string | null): void {
+  try {
+    localStorage.setItem(MOVEMENT_KEY, id ?? AUTO_MOVEMENT_ID);
+  } catch {
+    // Private browsing or a full quota; a forgotten preference is not worth
+    // failing over.
+  }
+}
+
 export function findMovement(id: string | null): Movement | null {
   if (!id) return null;
   return MOVEMENTS.find((m) => m.id === id) ?? null;

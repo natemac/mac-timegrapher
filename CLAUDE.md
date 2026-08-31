@@ -159,7 +159,7 @@ focus effects keyed on what actually opened the thing, never on a callback.
 ## Commands
 
 ```sh
-cd web && npm test          # 363 tests across 25 files
+cd web && npm test          # 367 tests across 25 files
 cd web && npm run build     # tsc -b && vite build
 cd web && npm run dev       # http://localhost:5173/tools/timegrapher/
 
