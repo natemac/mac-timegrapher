@@ -44,6 +44,9 @@
 */
 export interface ClockDebug {
   points: number;
+  /** Steps offered, accepted or not — the denominator for the rejection rate. */
+  steps: number;
+  elapsedSeconds: number;
   wallSeconds: number;
   audioSeconds: number;
   /** Slope of the fit, and the plain ratio of the totals. They should agree;
@@ -172,6 +175,10 @@ export class ClockCalibrator {
   private minStepRatio: number | null = null;
   private maxStepRatio: number | null = null;
   private frameTotal = 0;
+  /* Real elapsed time, including the steps the fit threw away. Kept apart from
+     wallTotal, which is only what the fit was built from. */
+  private firstWall: number | null = null;
+  private latestWall: number | null = null;
 
   /**
    * A new capture. Everything measured under the previous audio context goes,
@@ -193,6 +200,8 @@ export class ClockCalibrator {
     this.minStepRatio = null;
     this.maxStepRatio = null;
     this.frameTotal = 0;
+    this.firstWall = null;
+    this.latestWall = null;
   }
 
   /**
@@ -223,12 +232,34 @@ export class ClockCalibrator {
       }
     }
 
+    if (this.firstWall === null) this.firstWall = wallMs;
+    this.latestWall = wallMs;
+
     this.lastAudio = audioTime;
     this.lastWall = wallMs;
   }
 
+  /*
+     What the fit was built from — the wall time of accepted steps only, which
+     is the right denominator for the ratio and the wrong number to show a
+     person. A rejected step's wall time is discarded with it, so this runs
+     behind the clock on the wall by however much was thrown away.
+  */
   get seconds(): number {
     return this.wallTotal;
+  }
+
+  /*
+     Real time since the run started, whatever was rejected.
+
+     This is what a progress counter has to show. Showing `seconds` meant the
+     display crept: on an iPhone rejecting 87 steps in a minute it reached
+     "60s" about four seconds after the wall clock did, which is exactly the
+     discrepancy that got timed against a real watch.
+  */
+  get elapsedSeconds(): number {
+    if (this.firstWall === null || this.latestWall === null) return 0;
+    return (this.latestWall - this.firstWall) / 1000;
   }
 
   /*
@@ -238,8 +269,11 @@ export class ClockCalibrator {
   debug(sampleRate: number | null = null): ClockDebug {
     const fit = this.fit();
     const totalsRatio = this.wallTotal > 0 ? this.audioTotal / this.wallTotal : null;
+    const rejected = this.rejectedGap + this.rejectedRatio + this.rejectedBackwards;
     return {
       points: this.points.length,
+      steps: this.points.length + rejected,
+      elapsedSeconds: this.elapsedSeconds,
       wallSeconds: this.wallTotal,
       audioSeconds: this.audioTotal,
       fittedRatio: fit ? fit.ratio : null,

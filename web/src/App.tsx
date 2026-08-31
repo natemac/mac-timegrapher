@@ -895,7 +895,7 @@ export default function App() {
         onExportDiagnostics={exportDiagnostics}
         diagnosticSamples={diagnosticSamples}
         clock={clock}
-        clockSeconds={calibrator.current.seconds}
+        clockSeconds={calibrator.current.elapsedSeconds}
         clockDisturbed={calibrator.current.disturbed}
         clockDebug={calibrator.current.debug(sampleRate)}
         clockCheck={clockCheck}

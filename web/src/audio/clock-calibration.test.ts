@@ -225,3 +225,52 @@ describe('a run that was disturbed rather than measured', () => {
     expect(MAX_PLAUSIBLE_DRIFT).toBeLessThan(98);
   });
 });
+
+describe('the progress counter', () => {
+  /*
+     Timed against a real watch on an iPhone, the on-screen "60s" arrived about
+     four seconds after the wall clock did. The counter was showing wallTotal,
+     which only accumulates steps the fit accepted — so every rejected step's
+     wall time was silently dropped from the display as well as from the fit.
+  */
+  it('counts real time, not just the time the fit could use', () => {
+    const c = new ClockCalibrator();
+    c.beginSession();
+    let wall = 0;
+    let audio = 0;
+    let firstWall: number | null = null;
+    let rejectedWallMs = 0;
+    for (let i = 0; i < 200; i++) {
+      // Every twentieth block arrives 46 ms late — rejected by the ratio
+      // check, since it carries the same audio as any other block.
+      const late = i % 20 === 19;
+      const step = late ? 46 : 10;
+      wall += step;
+      audio += 0.01;
+      // The first call establishes the origin and produces no step.
+      if (firstWall === null) firstWall = wall;
+      else if (late) rejectedWallMs += step;
+      c.sample(audio, wall);
+    }
+
+    expect(c.elapsedSeconds).toBeCloseTo((wall - firstWall!) / 1000, 6);
+    // The fit's own total is short by exactly the wall time it threw away.
+    expect(c.seconds).toBeCloseTo(c.elapsedSeconds - rejectedWallMs / 1000, 6);
+    expect(c.elapsedSeconds - c.seconds).toBeGreaterThan(0.4);
+  });
+
+  it('reports how many blocks it threw away, and out of how many', () => {
+    const c = new ClockCalibrator();
+    c.beginSession();
+    let wall = 0;
+    let audio = 0;
+    for (let i = 0; i < 100; i++) {
+      wall += i % 10 === 9 ? 46 : 10;
+      audio += 0.01;
+      c.sample(audio, wall);
+    }
+    const d = c.debug();
+    expect(d.steps).toBe(d.points + d.rejectedGap + d.rejectedRatio + d.rejectedBackwards);
+    expect(d.steps).toBeGreaterThan(d.points);
+  });
+});

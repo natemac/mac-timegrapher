@@ -13,7 +13,7 @@ import type { Calibration } from '../timegrapher/tg-engine';
 import type { ClockResult, ClockDebug } from '../audio/clock-calibration';
 
 const DEBUG: ClockDebug = {
-  points: 0, wallSeconds: 0, audioSeconds: 0,
+  points: 0, steps: 0, elapsedSeconds: 0, wallSeconds: 0, audioSeconds: 0,
   fittedRatio: null, totalsRatio: null,
   fittedDriftSecondsPerDay: null, totalsDriftSecondsPerDay: null,
   rejectedGap: 0, rejectedRatio: 0, rejectedBackwards: 0,

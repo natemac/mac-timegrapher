@@ -108,9 +108,16 @@ function Details({ d, sampleRate }: { d: ClockDebug; sampleRate: number | null }
     );
   }
 
+  const dropped = d.steps - d.points;
   const rows: [string, string][] = [
+    ['blocks seen', String(d.steps)],
     ['points used', String(d.points)],
-    ['wall time', `${d.wallSeconds.toFixed(2)} s`],
+    /* A high rate here means audio is arriving in fits and starts. It also
+       explains any gap between the two times below: a rejected step's wall
+       time is discarded along with it. */
+    ['rejected', d.steps > 0 ? `${dropped} (${((dropped / d.steps) * 100).toFixed(1)}%)` : '0'],
+    ['real elapsed', `${d.elapsedSeconds.toFixed(2)} s`],
+    ['wall time in fit', `${d.wallSeconds.toFixed(2)} s`],
     ['audio time', `${d.audioSeconds.toFixed(2)} s`],
     ['fitted slope', `${ppm(d.fittedRatio)}  ${sd(d.fittedDriftSecondsPerDay)}`],
     ['ratio of totals', `${ppm(d.totalsRatio)}  ${sd(d.totalsDriftSecondsPerDay)}`],
