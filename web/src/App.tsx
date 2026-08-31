@@ -35,12 +35,13 @@ import {
 import type { Topic } from './components/guide-content';
 import { findMovement, engineConfigFor, isQuartz } from './timegrapher/movements';
 import { useWakeLock } from './hooks/useWakeLock';
+import { useInspectionRun } from './hooks/useInspectionRun';
 import { SessionSheet } from './components/SessionSheet';
 import { loadMode, saveMode, type Mode } from './components/ModeSwitch';
 import { InspectionWizard } from './components/InspectionWizard';
 import {
-  startWizard, begin, armed, abort, captured, advance, finish, retry, jumpTo,
-  positionAt, shouldAutoCapture, loadAutoCapture, saveAutoCapture,
+  startWizard, begin, abort, captured, advance, finish, retry, jumpTo,
+  positionAt, loadAutoCapture, saveAutoCapture,
   COUNTDOWN_SECONDS, type WizardState,
 } from './timegrapher/wizard';
 import {
@@ -396,63 +397,29 @@ export default function App() {
     settledRuns.current = settling === 'settled' ? settledRuns.current + 1 : 0;
   }, [settling, secondsCaptured]);
 
-  useEffect(() => {
-    if (mode !== 'inspection') return;
-    if (
-      !shouldAutoCapture({
-        stage: wizard.stage,
-        auto: autoCapture,
-        valid: measurement?.valid ?? false,
-        settling,
-        settledRuns: settledRuns.current,
-      })
-    ) {
-      return;
-    }
-    diagnostics.current.event('auto-record fired');
-    wizardCapture();
-  }, [mode, wizard.stage, autoCapture, measurement, settling, secondsCaptured, wizardCapture]);
-
   /*
-     The get-clear grace.
-
-     Audio is already running — it has to be, or the first seconds of the
-     reading would be spent opening the device. What the grace buys is the
-     right to throw those seconds away: the operator's hand was on the watch
-     when they reached for Start, and letting go of it is itself a noise. When
-     it expires the average restarts, so nothing heard during it can reach a
-     reading.
+     The sequencing of a position — the grace, the unattended capture, and
+     capture stopping once a reading is kept. It lived here as three effects
+     and was verified by reading them; it is a hook now so it can be driven by
+     a test, because it is the part that decides what lands on a document.
   */
-  useEffect(() => {
-    if (wizard.stage !== 'countdown') return;
-
-    if (countdown <= 0) {
-      settledRuns.current = 0;
-      diagnostics.current.event('grace elapsed — now counting');
-      resetAverage();
-      setWizard(armed);
-      return;
-    }
-    const id = window.setTimeout(() => setCountdown((n) => n - 1), 1000);
-    return () => window.clearTimeout(id);
-  }, [wizard.stage, countdown, resetAverage]);
-
-  /*
-     One position per press of Start.
-
-     Capture stops as soon as a reading is recorded, so the numbers on screen
-     are the ones that were kept rather than a live feed that has moved on, and
-     so the operator can handle the watch without the microphone listening. The
-     panel then names the next position and Start begins it.
-  */
-  useEffect(() => {
-    if (mode !== 'inspection' || wizard.stage !== 'captured') return;
-    const id = window.setTimeout(() => {
-      void stopRef.current?.();
-      setWizard(advance);
-    }, 1600);
-    return () => window.clearTimeout(id);
-  }, [mode, wizard.stage, wizard.step]);
+  useInspectionRun({
+    active: mode === 'inspection',
+    wizard,
+    setWizard,
+    countdown,
+    tickCountdown: () => setCountdown((n) => n - 1),
+    settling,
+    valid: measurement?.valid ?? false,
+    auto: autoCapture,
+    reportTick: secondsCaptured,
+    settledRuns: () => settledRuns.current,
+    resetSettledRuns: () => { settledRuns.current = 0; },
+    resetAverage,
+    capture: wizardCapture,
+    stop: () => { void stopRef.current?.(); },
+    note: (label) => diagnostics.current.event(label),
+  })
 
   // The engine is built from the movement, so it is created by an effect rather
   // than inside start(): changing the movement mid-capture has to rebuild it,
