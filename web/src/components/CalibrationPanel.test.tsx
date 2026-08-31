@@ -130,7 +130,7 @@ describe('the system clock method', () => {
   */
   it('reports a disturbed run rather than asking for more time', () => {
     const { container } = render(panel({ clockDisturbed: true, capturing: true, clockSeconds: 63 }));
-    expect(container.textContent).toMatch(/no crystal could produce/);
+    expect(container.textContent).toMatch(/too large for a crystal/);
     expect(container.textContent).not.toMatch(/63s of 60s/);
   });
 });

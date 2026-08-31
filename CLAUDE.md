@@ -78,6 +78,13 @@ web/src/components/      one panel each; guide-content.tsx holds every explanati
 - **Calibration is its own sheet tab** (`CalibrationPanel.tsx`), not a setting.
   It needs the microphone and an input chosen, so it carries both — it is
   reachable before the measuring screen has ever asked for permission.
+- **`AudioContext.currentTime` is not an independent clock on iOS.** Measured on
+  an iPhone: frames delivered / nominal rate came out exactly equal to elapsed
+  `currentTime`, so the system-clock method reduces to frames-against-wall-time
+  and cannot distinguish a slow crystal from dropped frames. It read -855 to
+  -945 ppm over two uninterrupted runs with zero gaps rejected. Unresolved —
+  the quartz reference is the only method here that can tell the two apart,
+  because it is physical. Don't trust a large system-clock figure alone.
 - **Two ways to correct the sound-card clock, and they are not equivalent.**
   Against the system clock (`audio/clock-calibration.ts`, NTP-disciplined) or
   against a quartz watch on the sensor (upstream's algorithm, already in

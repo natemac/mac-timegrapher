@@ -122,11 +122,13 @@ export const GUIDE: Record<Topic, GuideEntry> = {
         </p>
 
         <p className="dim">
-          A figure beyond about thirty seconds a day is not reported at all. No
-          crystal is that far out, so a result like it means the audio stream
-          was interrupted — a lock screen, an incoming call, or switching apps
-          — rather than that the device is unusual. Leave the app in front and
-          the screen awake for the run.
+          A figure beyond about thirty seconds a day is not offered. Sometimes
+          that is an interrupted run — a lock screen, a call, switching apps.
+          Sometimes it is not: this method compares the audio frames delivered
+          against elapsed time, and a slow crystal and frames going missing
+          look identical to it. Either way it is too large to apply on one
+          method's word, so check it against the quartz reference, which uses a
+          physical clock and can tell the two apart.
         </p>
 
         <h4>Quartz reference — about fifteen minutes</h4>

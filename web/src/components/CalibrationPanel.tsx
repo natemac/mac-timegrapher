@@ -234,9 +234,12 @@ export function CalibrationPanel(p: Props) {
           </>
         ) : p.clockDisturbed ? (
           <p className="dim">
-            That run gave a figure no crystal could produce, so it is being
-            ignored. Something interrupted the audio — a lock screen, a call, or
-            switching apps. Start a fresh run and leave the app in front.
+            That run measured a shift too large for a crystal, so it is not
+            being offered. It may be real — a cheap USB device can be this far
+            out — or it may be frames going missing rather than the clock being
+            slow, which this method cannot tell apart. Run the quartz check: it
+            uses a physical reference and will say which. The figures are under
+            <em> Show the numbers</em>.
           </p>
         ) : p.capturing ? (
           <p className="dim">

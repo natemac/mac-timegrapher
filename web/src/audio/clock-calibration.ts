@@ -122,7 +122,7 @@ const MAX_STEP_ERROR = 0.05;
 const MAX_STEP_SECONDS = 5;
 
 /*
-   Beyond this the run was disturbed, not the crystal.
+   Beyond this the figure is not offered without corroboration.
 
    A sound card's crystal is tens of parts per million out; a hundred is a poor
    one, and a couple of hundred is the worst thing that ships. Thirty seconds a
@@ -131,9 +131,17 @@ const MAX_STEP_SECONDS = 5;
    which is 72 ms of divergence over a 63-second run and is what an interrupted
    context looks like rather than a measurement.
 
-   The per-step check cannot catch this. It rejects a single gap of more than
-   five percent, which is one hard stall; many small slips each under that
-   threshold accumulate into a steady, wrong, beautifully straight line.
+   It may not always be wrong. On one iPhone, over two uninterrupted runs with
+   no gaps rejected, this read -855 to -945 ppm consistently — and the frame
+   count divided by the nominal rate came out exactly equal to
+   AudioContext.currentTime, which means currentTime carries no information
+   this method does not already have. Frames delivered against wall time cannot
+   distinguish a slow crystal from frames going missing; both look the same.
+
+   So the bound is not a claim that the run was broken. It is a refusal to
+   apply a correction of that size on the strength of one method that cannot
+   tell those two apart. The quartz reference can, because it is a physical
+   one.
 */
 export const MAX_PLAUSIBLE_DRIFT = 30;
 
