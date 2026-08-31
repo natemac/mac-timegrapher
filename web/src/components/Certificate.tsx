@@ -46,7 +46,88 @@ function fmtRate(v: number): string {
   return `${v >= 0 ? '+' : ''}${v.toFixed(1)}`;
 }
 
-/** One phase's table. Rendered once, or twice when the watch was regulated. */
+function summaryFor(run: Inspection) {
+  return summarise(run.readings);
+}
+
+function fmtAmplitude(v: number | undefined): string {
+  return v && v > 0 ? `${v.toFixed(0)}°` : '—';
+}
+
+function fmtBeat(v: number | undefined): string {
+  return v === undefined ? '—' : `${v.toFixed(2)} ms`;
+}
+
+/*
+   Both passes, a position to a line.
+
+   Only the positions measured in both are compared; one measured in a single
+   pass still prints, with a dash where the other reading would be, because
+   leaving it out would quietly shorten the record.
+*/
+function PairedTable({
+  before, after, quartz,
+}: { before: Inspection; after: Inspection; quartz: boolean }) {
+  const seen = POSITIONS.filter(
+    (p) => before.readings.some((r) => r.position === p.id)
+      || after.readings.some((r) => r.position === p.id),
+  );
+
+  const cell = (run: Inspection, id: string, pick: (r: Reading) => string) => {
+    const r = run.readings.find((x) => x.position === id);
+    return r ? pick(r) : '—';
+  };
+
+  return (
+    <section className="certificate__phase">
+      <h2 className="certificate__phase-title">
+        {phaseName(before.phase)} → {phaseName(after.phase)}
+      </h2>
+      <table className="certificate__table certificate__paired">
+        <thead>
+          <tr>
+            <th>Position</th>
+            <th>Rate<span> s/day</span></th>
+            <th>Amplitude<span> degrees</span></th>
+            <th>Beat error<span> ms</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {seen.map((p) => (
+            <tr key={p.id}>
+              <td>{positionName(p.id)}</td>
+              <td>
+                {cell(before, p.id, (r) => fmtRate(r.rate))}
+                <span className="certificate__to"> → </span>
+                {cell(after, p.id, (r) => fmtRate(r.rate))}
+              </td>
+              <td>
+                {quartz ? '—' : (
+                  <>
+                    {cell(before, p.id, (r) => (r.amplitude > 0 ? r.amplitude.toFixed(0) : '—'))}
+                    <span className="certificate__to"> → </span>
+                    {cell(after, p.id, (r) => (r.amplitude > 0 ? r.amplitude.toFixed(0) : '—'))}
+                  </>
+                )}
+              </td>
+              <td>
+                {quartz ? '—' : (
+                  <>
+                    {cell(before, p.id, (r) => r.beatError.toFixed(2))}
+                    <span className="certificate__to"> → </span>
+                    {cell(after, p.id, (r) => r.beatError.toFixed(2))}
+                  </>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
+/** One phase's table. Rendered when there is only the one pass. */
 function RunTable({
   run, label, quartz,
 }: { run: Inspection; label: string; quartz: boolean }) {
@@ -158,7 +239,16 @@ export function Certificate({
         <dd>{quartz ? 'Not applicable — quartz' : `${liftAngle}°`}</dd>
         <dt>Measured</dt>
         <dd>
-          {measured.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+          {/* The time as well as the day: a watch measured twice in an
+              afternoon otherwise produces two documents that cannot be told
+              apart. */}
+          {measured.toLocaleString(undefined, {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+          })}
         </dd>
         {meta.technician && (
           <>
@@ -170,19 +260,27 @@ export function Certificate({
 
       {/* One table when a watch was only measured, two when it was regulated:
           the second is only meaningful next to the first. */}
-      {runs.map((run) => (
+      {/*
+        Two passes go in one table, a position to a line, rather than two tables
+        stacked. It reads better — the change at each position is on one row
+        instead of thirty lines apart — and it is what keeps a regulated watch's
+        document to a single page. Stacked, it ran to two, the second carrying
+        little but the footer.
+      */}
+      {regulated ? (
+        <PairedTable before={runs[0]} after={runs[1]} quartz={quartz} />
+      ) : (
         <RunTable
-          key={run.id}
-          run={run}
+          run={runs[0]}
           /*
-             Always named, not only when there are two. A reading marked after
-             regulation and printed as plain "Measurements" throws the mark
-             away — the one fact the operator went out of their way to record.
+             Named even when it is alone. A reading marked after regulation and
+             printed as plain "Measurements" throws the mark away — the one fact
+             the operator went out of their way to record.
           */
-          label={phaseName(run.phase)}
+          label={phaseName(runs[0].phase)}
           quartz={quartz}
         />
-      ))}
+      )}
 
       {comparison && (
         <table className="certificate__summary certificate__compare">
@@ -204,6 +302,20 @@ export function Certificate({
               <td>{comparison.spreadBefore.toFixed(1)} s/day</td>
               <td>{comparison.spreadAfter.toFixed(1)} s/day</td>
             </tr>
+            {!quartz && (
+              <>
+                <tr>
+                  <th>Lowest amplitude</th>
+                  <td>{fmtAmplitude(summaryFor(runs[0])?.minAmplitude)}</td>
+                  <td>{fmtAmplitude(summaryFor(runs[1])?.minAmplitude)}</td>
+                </tr>
+                <tr>
+                  <th>Greatest beat error</th>
+                  <td>{fmtBeat(summaryFor(runs[0])?.maxBeatError)}</td>
+                  <td>{fmtBeat(summaryFor(runs[1])?.maxBeatError)}</td>
+                </tr>
+              </>
+            )}
           </tbody>
         </table>
       )}

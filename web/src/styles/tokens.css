@@ -499,7 +499,7 @@ select {
     line-height: 1.45;
   }
 
-  .certificate__phase { margin-bottom: 14pt; }
+  .certificate__phase { margin-bottom: 9pt; }
 
   .certificate__phase-title {
     font-size: 10pt;
@@ -532,14 +532,22 @@ select {
   }
   .certificate__regulation dd { margin: 0; }
 
-  /* Three short paragraphs that belong together. Left to break, the last of
-     them took a second page to itself — one line of attribution under an inch
-     of white, which reads as a fault rather than a footer. */
-  .certificate__method {
-    break-inside: avoid;
-    page-break-inside: avoid;
-  }
-  .certificate__method p { margin: 0 0 3pt; }
+  /*
+     The whole document is one page, and the spacing below is what keeps it
+     there.
+
+     It used to run to a second page carrying a single line of attribution. Not
+     because the page was full — measured against A4 the content was well
+     inside it — but because Safari prints its own header and footer above and
+     below the @page margin, and the usable height is smaller than the box the
+     stylesheet is given. Rather than guess at another browser's furniture, the
+     content is short enough that it does not matter.
+
+     `break-inside: avoid` is deliberately not used on the footer: it does not
+     make anything fit, it moves the whole block to the next page instead of
+     half of it, which is two pages either way.
+  */
+  .certificate__method p { margin: 0 0 2.5pt; }
   .certificate__method p:last-child { margin-bottom: 0; }
 
   .certificate__head {
@@ -547,11 +555,11 @@ select {
     align-items: flex-end;
     justify-content: space-between;
     border-bottom: 1.5pt solid #000;
-    padding-bottom: 8pt;
-    margin-bottom: 16pt;
+    padding-bottom: 6pt;
+    margin-bottom: 11pt;
   }
 
-  .certificate__logo { width: 46mm; height: auto; }
+  .certificate__logo { width: 36mm; height: auto; }
 
   .certificate__title {
     font-size: 13pt;
@@ -562,8 +570,8 @@ select {
   .certificate__facts {
     display: grid;
     grid-template-columns: max-content 1fr max-content 1fr;
-    gap: 4pt 10pt;
-    margin: 0 0 18pt;
+    gap: 3pt 10pt;
+    margin: 0 0 11pt;
   }
   .certificate__facts dt {
     font-size: 8pt;
@@ -577,7 +585,7 @@ select {
   .certificate__table {
     width: 100%;
     border-collapse: collapse;
-    margin-bottom: 14pt;
+    margin-bottom: 9pt;
   }
   .certificate__table th {
     text-align: right;
@@ -598,7 +606,7 @@ select {
   .certificate__table td:first-child { text-align: left; }
   .certificate__table td {
     text-align: right;
-    padding: 5pt 0;
+    padding: 3.5pt 0;
     border-bottom: 0.25pt solid #bbb;
     font-variant-numeric: tabular-nums;
   }
@@ -606,7 +614,7 @@ select {
   .certificate__summary {
     width: 100%;
     border-collapse: collapse;
-    margin-bottom: 16pt;
+    margin-bottom: 10pt;
   }
   .certificate__summary th {
     text-align: left;
@@ -625,7 +633,18 @@ select {
     font-variant-numeric: tabular-nums;
   }
 
-  .certificate__notes { margin-bottom: 16pt; }
+  /* Before and after in one cell, so the arrow has to read as a connector
+     rather than as another figure. */
+  .certificate__to { color: #888; }
+  .certificate__paired td { font-variant-numeric: tabular-nums; }
+
+  /* A pass and its numbers stay together if the document ever does run over. */
+  .certificate__phase {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .certificate__notes { margin-bottom: 10pt; }
   .certificate__notes-label {
     font-size: 8pt;
     letter-spacing: 0.1em;
@@ -638,7 +657,7 @@ select {
   .certificate__sign {
     display: flex;
     gap: 16mm;
-    margin: 22pt 0 16pt;
+    margin: 16pt 0 11pt;
   }
   .certificate__sign-line { flex: 1; }
   .certificate__sign-line span {
@@ -653,7 +672,7 @@ select {
 
   .certificate__method {
     border-top: 0.25pt solid #bbb;
-    padding-top: 8pt;
+    padding-top: 6pt;
     font-size: 7.5pt;
     line-height: 1.5;
     color: #444;
