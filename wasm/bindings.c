@@ -126,6 +126,47 @@ int tgw_waveform(tg_handle h, float *out_tic, float *out_toc, double *out_info)
 	return n;
 }
 
+/* Same reasoning as R_* above: named writes rather than struct offsets. */
+enum {
+	C_COLLECTED = 0,
+	C_NEEDED,
+	C_SIGNAL,
+	C_STATE,
+	C_DRIFT,
+	C_FIELDS
+};
+
+EMSCRIPTEN_KEEPALIVE
+int tgw_cal_fields(void)
+{
+	return C_FIELDS;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int tgw_cal_begin(tg_handle h)
+{
+	return tg_cal_begin(h);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void tgw_cal_update(tg_handle h, double *out)
+{
+	if(!out) return;
+
+	tg_cal c = tg_cal_update(h);
+	out[C_COLLECTED] = c.collected;
+	out[C_NEEDED]    = c.needed;
+	out[C_SIGNAL]    = c.signal;
+	out[C_STATE]     = c.state;
+	out[C_DRIFT]     = c.drift_seconds_per_day;
+}
+
+EMSCRIPTEN_KEEPALIVE
+void tgw_cal_end(tg_handle h)
+{
+	tg_cal_end(h);
+}
+
 EMSCRIPTEN_KEEPALIVE
 void tgw_reset(tg_handle h)
 {

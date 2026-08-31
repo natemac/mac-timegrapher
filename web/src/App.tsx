@@ -22,7 +22,7 @@ import { LevelMeter } from './components/LevelMeter';
 import { WaveformCanvas } from './components/WaveformCanvas';
 import { SourceFooter } from './components/SourceFooter';
 import { MeasurementPanel } from './components/MeasurementPanel';
-import { TimegrapherEngine, type Measurement, type Beat, type BeatWaveform } from './timegrapher/tg-engine';
+import { TimegrapherEngine, type Measurement, type Beat, type BeatWaveform, type Calibration } from './timegrapher/tg-engine';
 import {
   StabilityTracker, SETTLED_BOUNDS, type BestSpread, type Settling, type Spread,
 } from './timegrapher/stability';
@@ -88,6 +88,10 @@ export default function App() {
   const [measurement, setMeasurement] = useState<Measurement | null>(null);
   const [beats, setBeats] = useState<Beat[]>([]);
   const [beatWaveform, setBeatWaveform] = useState<BeatWaveform | null>(null);
+  /* A quartz clock check. Non-null only while one is running or has just
+     finished; it is deliberately not persisted, because the result is a
+     measurement of this session's audio path and nothing else. */
+  const [clockCheck, setClockCheck] = useState<Calibration | null>(null);
   const [settling, setSettling] = useState<Settling>('waiting');
   const [spreads, setSpreads] = useState<{ rate: Spread | null; amplitude: Spread | null; beatError: Spread | null }>({ rate: null, amplitude: null, beatError: null });
   // Read when the settings sheet opens rather than tracked continuously: it is
@@ -485,6 +489,7 @@ export default function App() {
           clipped: signalRef.current?.clipped ?? false,
         });
       },
+      onCalibration: (c) => setClockCheck(c),
       // Capture still works without measurement — the meter, waveform and trace
       // are useful on their own — so report and carry on.
       onError: (message) => {
@@ -777,6 +782,23 @@ export default function App() {
     setError(null);
   };
 
+  /*
+     The quartz clock check. It needs a live capture with the reference watch
+     on the sensor, so it starts one if there is not already one running —
+     otherwise the button would silently do nothing on the settings screen,
+     which is where it lives.
+  */
+  const startClockCheck = async () => {
+    setClockCheck(null);
+    if (!capturing) await start();
+    engine.current?.startClockCheck();
+  };
+
+  const stopClockCheck = () => {
+    engine.current?.stopClockCheck();
+    setClockCheck(null);
+  };
+
   /* Both marks are always rendered; CSS shows whichever suits the theme.
      Extracted only so the masthead can wrap them in a button without the
      markup appearing twice. */
@@ -871,6 +893,9 @@ export default function App() {
         diagnosticSamples={diagnosticSamples}
         clock={clock}
         clockSeconds={calibrator.current.seconds}
+        clockCheck={clockCheck}
+        onStartClockCheck={startClockCheck}
+        onStopClockCheck={stopClockCheck}
       />
 
       {!secure && (

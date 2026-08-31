@@ -51,6 +51,12 @@ function parseArgs(argv) {
     tockRingRatio: 0.8,  // tock ring frequency relative to tick
     out: null,
     seed: 1,
+    // A quartz reference instead of a mechanical movement: one impulse per
+    // second, no tock. This is what the Calibrate path measures, and `rate`
+    // then means the sound card's error rather than the watch's — a card
+    // running fast makes a true one-second tick span more than sampleRate
+    // samples, which is the drift the fit recovers.
+    quartz: 0,
   };
   for (let i = 0; i < argv.length; i += 2) {
     const key = argv[i].replace(/^--/, '');
@@ -121,6 +127,20 @@ export function synthesise(opts) {
   };
 
   let beatIndex = 0;
+
+  if (opts.quartz) {
+    /* One tick a second, measured on the sound card's clock. A card running
+       `rate` seconds a day fast fits more of its own samples into each real
+       second, so the spacing grows — the opposite sign to a fast watch, and
+       the reason the two cases are separate here rather than sharing a
+       period. */
+    const tickPeriod = (SECONDS_PER_DAY + rate) / SECONDS_PER_DAY;
+    for (let t = 0; t < seconds; t += tickPeriod, beatIndex++) {
+      addImpulse(buf, Math.round(t * sampleRate), opts, rand);
+    }
+    return { samples: buf, sampleRate, channelCount: 1, beatPeriod: tickPeriod, beatIndex };
+  }
+
   for (let t = 0; t < seconds; t += beatPeriod, beatIndex++) {
     addImpulse(buf, Math.round(t * sampleRate), opts, rand);
     addImpulse(buf, Math.round((t + tockOffset) * sampleRate), tockOpts, rand);

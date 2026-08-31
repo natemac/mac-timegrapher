@@ -14,6 +14,7 @@ import { ZOOM_STEPS, ZOOM_AUTO } from '../timegrapher/trace-zoom';
 import { SourceFooter } from './SourceFooter';
 import { MOVEMENTS } from '../timegrapher/movements';
 import { SETTLED_BOUNDS, type BestSpread } from '../timegrapher/stability';
+import type { Calibration } from '../timegrapher/tg-engine';
 import { MIN_SECONDS, type ClockResult } from '../audio/clock-calibration';
 
 export interface Settings {
@@ -103,6 +104,10 @@ interface Props {
   clock: ClockResult | null;
   /** How far into that run it is, so the wait is visible. */
   clockSeconds: number;
+  /** A quartz clock check in progress, or its result. Null when none is running. */
+  clockCheck: Calibration | null;
+  onStartClockCheck: () => void;
+  onStopClockCheck: () => void;
 }
 
 type Tab = 'guide' | 'settings';
@@ -115,6 +120,94 @@ type Tab = 'guide' | 'settings';
    unchanged and still come from guide-content — the single source — but they
    are now asked for rather than imposed.
 */
+/*
+   The quartz clock check.
+
+   Fifteen minutes is a long time to look at nothing, so every state says what
+   is happening: whether the tick is being heard at all, how far through it is,
+   and roughly how long is left. Without the lock indicator a run that never
+   heard the watch looks identical to one that is simply not finished yet.
+
+   Nothing is applied on its own. The number lands in the correction field only
+   when it is pressed, because this measurement carries the reference watch's
+   own error and that is the operator's call to accept.
+*/
+export function ClockCheck({
+  check, onStart, onStop, onUse,
+}: {
+  check: Calibration | null;
+  onStart: () => void;
+  onStop: () => void;
+  onUse: (value: number) => void;
+}) {
+  if (!check) {
+    return (
+      <button
+        className="secondary settings__clock-check"
+        onClick={onStart}
+        style={{ width: '100%', fontSize: 13 }}
+      >
+        Check against a quartz watch
+      </button>
+    );
+  }
+
+  if (check.state === 1) {
+    return (
+      <div className="settings__clock-check">
+        <p className="dim settings__clock-measured">
+          Against the reference, this device measures{' '}
+          <strong className="mono">{formatDrift(check.driftSecondsPerDay)} s/day</strong>.
+        </p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            className="secondary"
+            style={{ flex: '1 1 auto', fontSize: 13 }}
+            onClick={() => onUse(check.driftSecondsPerDay)}
+          >
+            Use it
+          </button>
+          <button className="secondary" style={{ flex: '0 0 auto', fontSize: 13 }} onClick={onStop}>
+            Discard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (check.state === -1) {
+    return (
+      <div className="settings__clock-check">
+        <p className="dim settings__clock-measured">
+          Finished, but the fit was too scattered to trust. Hold the watch firmly
+          against the sensor, somewhere quiet, and run it again.
+        </p>
+        <button className="secondary" style={{ width: '100%', fontSize: 13 }} onClick={onStop}>
+          Close
+        </button>
+      </div>
+    );
+  }
+
+  /* Still collecting. One sample a second, so what is left in samples is also
+     what is left in seconds. */
+  const remaining = Math.max(0, check.needed - check.collected);
+  const heard = check.signal >= LOCKED_SIGNAL;
+
+  return (
+    <div className="settings__clock-check">
+      <p className="dim settings__clock-measured">
+        {heard
+          ? `Heard it — ${check.collected} of ${check.needed} ticks, about ${Math.ceil(remaining / 60)} min left.`
+          : 'Listening for a once-a-second tick. Put the quartz watch on the sensor and leave it still.'}
+      </p>
+      <button className="secondary" style={{ width: '100%', fontSize: 13 }} onClick={onStop}>
+        Stop
+      </button>
+    </div>
+  );
+}
+
 function Setting({
   label, topic, onInfo, children,
 }: {
@@ -174,6 +267,10 @@ function Choice<T extends number>({
 */
 const MAX_DRIFT = 200;
 
+/* NSTEPS in the core: every analysis window converged on the one-second tick.
+   Anything less means it is not hearing the reference cleanly. */
+const LOCKED_SIGNAL = 4;
+
 function clampDrift(value: number): number {
   return Math.max(-MAX_DRIFT, Math.min(MAX_DRIFT, value));
 }
@@ -202,7 +299,7 @@ export function parseDrift(text: string): number | null {
 export function SettingsSheet({
   open, topic, onClose, onShowFullGuide, settings, onChange,
   movementId, onSelectMovement, best, onExportDiagnostics, diagnosticSamples,
-  clock, clockSeconds,
+  clock, clockSeconds, clockCheck, onStartClockCheck, onStopClockCheck,
 }: Props) {
   /* Settings first. The guide is read once; the settings are the reason the
      cog gets pressed again. */
@@ -430,6 +527,20 @@ export function SettingsSheet({
                       : `Measure it by leaving a capture running for ${MIN_SECONDS} seconds or more, in one go.`}
                   </p>
                 )}
+
+                {/*
+                   A second, independent way to get the same number: upstream's
+                   Calibrate, driven by a quartz watch on the sensor. It is a
+                   check rather than a replacement — it measures the difference
+                   between the card and the watch and blames all of it on the
+                   card, so it is only ever as good as the reference.
+                */}
+                <ClockCheck
+                  check={clockCheck}
+                  onStart={onStartClockCheck}
+                  onStop={onStopClockCheck}
+                  onUse={(v) => { applyDrift(v); onStopClockCheck(); }}
+                />
               </Setting>
 
               {/* A readout rather than a setting, but it is what the Settled

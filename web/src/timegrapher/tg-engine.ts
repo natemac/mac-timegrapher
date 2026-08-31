@@ -48,6 +48,22 @@ export interface BeatWaveform {
   tocPulseMs: number | null;
 }
 
+/*
+   A clock check in progress, or its result.
+ 
+   `state` is 0 while collecting, 1 once the fit has been accepted, and -1 when
+   it finished but was too noisy to trust. `signal` is 0..4 — how well the
+   once-a-second tick is locked, which is the only feedback there is during a
+   run that takes a quarter of an hour.
+*/
+export interface Calibration {
+  collected: number;
+  needed: number;
+  signal: number;
+  state: number;
+  driftSecondsPerDay: number;
+}
+
 export interface EngineOptions {
   sampleRate: number;
   /** 0 to detect the beat rate automatically. */
@@ -60,6 +76,8 @@ export interface EngineOptions {
     waveform: BeatWaveform | null,
   ) => void;
   onError: (message: string) => void;
+  /** Progress of a clock check, about once a second while one is running. */
+  onCalibration?: (c: Calibration, secondsCaptured: number) => void;
 }
 
 /**
@@ -74,11 +92,13 @@ export class TimegrapherEngine {
   private worker: Worker | null;
   private readonly onMeasurement: EngineOptions['onMeasurement'];
   private readonly onError: EngineOptions['onError'];
+  private readonly onCalibration: EngineOptions['onCalibration'];
 
   private constructor(worker: Worker, options: EngineOptions) {
     this.worker = worker;
     this.onMeasurement = options.onMeasurement;
     this.onError = options.onError;
+    this.onCalibration = options.onCalibration;
 
     worker.onmessage = (event: MessageEvent) => {
       const msg = event.data;
@@ -87,6 +107,9 @@ export class TimegrapherEngine {
         const beats: Beat[] = new Array(times.length);
         for (let i = 0; i < times.length; i++) beats[i] = { time: times[i], isTick: isTick[i] === 1 };
         this.onMeasurement(msg.measurement, msg.secondsCaptured, beats, msg.waveform ?? null);
+      }
+      else if (msg.type === 'calibration') {
+        this.onCalibration?.(msg.calibration, msg.secondsCaptured);
       }
       else if (msg.type === 'error') this.onError(msg.message);
     };
@@ -123,6 +146,20 @@ export class TimegrapherEngine {
    */
   reset(): void {
     this.worker?.postMessage({ type: 'reset' });
+  }
+
+  /*
+     Starts a clock check against a quartz reference. Measurement stops while
+     it runs: the thing on the sensor is a quartz watch, and readings taken
+     from it would not be readings of anything.
+  */
+  startClockCheck(): void {
+    this.worker?.postMessage({ type: 'calibrate-start' });
+  }
+
+  /** Abandons or finishes a clock check and resumes measuring. */
+  stopClockCheck(): void {
+    this.worker?.postMessage({ type: 'calibrate-stop' });
   }
 
   /** Stops the engine and frees the wasm heap behind it. */

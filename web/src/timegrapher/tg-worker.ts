@@ -39,6 +39,21 @@ const W_TIC_PULSE_MS = 4;
 const W_TOC_PULSE_MS = 5;
 const W_VALID = 6;
 
+/** Field order must match the third enum in wasm/bindings.c. */
+const C_COLLECTED = 0;
+const C_NEEDED = 1;
+const C_SIGNAL = 2;
+const C_STATE = 3;
+const C_DRIFT = 4;
+
+/*
+   The calibration takes at most one phase sample per call by design — the
+   algorithm rejects anything less than 0.9 s after the last one — so polling
+   it faster than this buys nothing and costs an FFT over a sixteen-second
+   window each time.
+*/
+const CAL_INTERVAL_MS = 1000;
+
 const MEASURE_INTERVAL_MS = 500;
 
 interface WasmModule {
@@ -49,6 +64,10 @@ interface WasmModule {
   _tgw_waveform(handle: number, ticPtr: number, tocPtr: number, infoPtr: number): number;
   _tgw_waveform_fields(): number;
   _tgw_waveform_points(): number;
+  _tgw_cal_begin(handle: number): number;
+  _tgw_cal_update(handle: number, ptr: number): void;
+  _tgw_cal_end(handle: number): void;
+  _tgw_cal_fields(): number;
   _tgw_reset(handle: number): void;
   _tgw_destroy(handle: number): void;
   _tgw_result_fields(): number;
@@ -70,6 +89,8 @@ let wfTicPtr = 0;
 let wfTocPtr = 0;
 let wfInfoPtr = 0;
 let wfPoints = 0;
+let calPtr = 0;
+let calTimer: ReturnType<typeof setInterval> | null = null;
 
 /** Matches EVENTS_MAX in core/tg_core.h. */
 const MAX_EVENTS = 100;
@@ -82,6 +103,11 @@ function release() {
     clearInterval(timer);
     timer = null;
   }
+  if (calTimer !== null) {
+    clearInterval(calTimer);
+    calTimer = null;
+  }
+  if (mod && handle) mod._tgw_cal_end(handle);
   if (mod && handle) {
     mod._tgw_destroy(handle);
     if (scratch) mod._free(scratch);
@@ -91,6 +117,7 @@ function release() {
     if (wfTicPtr) mod._free(wfTicPtr);
     if (wfTocPtr) mod._free(wfTocPtr);
     if (wfInfoPtr) mod._free(wfInfoPtr);
+    if (calPtr) mod._free(calPtr);
   }
   handle = 0;
   scratch = 0;
@@ -102,6 +129,7 @@ function release() {
   wfTocPtr = 0;
   wfInfoPtr = 0;
   wfPoints = 0;
+  calPtr = 0;
   samplesSeen = 0;
 }
 
@@ -165,6 +193,31 @@ function emitMeasurement() {
   });
 }
 
+/*
+   One calibration cycle. Reported every time rather than only on completion,
+   because fifteen minutes with nothing on screen is indistinguishable from
+   fifteen minutes of it not working — the operator needs to see the tick being
+   heard and the count going up.
+*/
+function emitCalibration() {
+  if (!mod || !handle || !calPtr) return;
+  mod._tgw_cal_update(handle, calPtr);
+  const h = mod.HEAPF64;
+  const base = calPtr >> 3;
+
+  self.postMessage({
+    type: 'calibration',
+    calibration: {
+      collected: h[base + C_COLLECTED],
+      needed: h[base + C_NEEDED],
+      signal: h[base + C_SIGNAL],
+      state: h[base + C_STATE],
+      driftSecondsPerDay: h[base + C_DRIFT],
+    },
+    secondsCaptured: sampleRate > 0 ? samplesSeen / sampleRate : 0,
+  });
+}
+
 self.onmessage = async (event: MessageEvent) => {
   const msg = event.data;
 
@@ -191,6 +244,7 @@ self.onmessage = async (event: MessageEvent) => {
         wfTicPtr = mod._malloc(wfPoints * 4);
         wfTocPtr = mod._malloc(wfPoints * 4);
         wfInfoPtr = mod._malloc(mod._tgw_waveform_fields() * 8);
+        calPtr = mod._malloc(mod._tgw_cal_fields() * 8);
         timer = setInterval(emitMeasurement, MEASURE_INTERVAL_MS);
         self.postMessage({ type: 'ready' });
         break;
@@ -222,6 +276,37 @@ self.onmessage = async (event: MessageEvent) => {
           samplesSeen = 0;
         }
         break;
+
+      /*
+         Calibration and measurement are exclusive: the calibration discards
+         the ring buffer when it starts, and while it runs the audio on the
+         sensor is a quartz watch rather than the movement. Stopping the
+         measurement timer says that plainly instead of leaving readings
+         updating from a signal that is not the watch.
+      */
+      case 'calibrate-start': {
+        if (!mod || !handle) return;
+        if (timer !== null) { clearInterval(timer); timer = null; }
+        if (!mod._tgw_cal_begin(handle)) {
+          self.postMessage({ type: 'error', message: 'Could not start the clock check.' });
+          return;
+        }
+        samplesSeen = 0;
+        if (calTimer === null) calTimer = setInterval(emitCalibration, CAL_INTERVAL_MS);
+        break;
+      }
+
+      case 'calibrate-stop': {
+        if (calTimer !== null) { clearInterval(calTimer); calTimer = null; }
+        if (mod && handle) {
+          mod._tgw_cal_end(handle);
+          mod._tgw_reset(handle);
+          samplesSeen = 0;
+          // Measurement was stopped when the check began; put it back.
+          if (timer === null) timer = setInterval(emitMeasurement, MEASURE_INTERVAL_MS);
+        }
+        break;
+      }
 
       case 'destroy':
         release();

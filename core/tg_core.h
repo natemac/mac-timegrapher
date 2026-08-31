@@ -199,6 +199,46 @@ typedef struct {
 */
 int tg_get_waveform(tg_handle h, float *out_tic, float *out_toc, tg_waveform *info);
 
+/*
+   ------------------------------------------------------------ calibration
+
+   Measuring the sound card's own clock against a quartz watch, which is what
+   upstream's Calibrate menu item does. The algorithm is already in tg_algo.c
+   (test_cal, process_cal, compute_cal) and unchanged; this only drives it.
+
+   A quartz movement with a ticking seconds hand gives one impulse per second.
+   Its phase is tracked against the audio clock and a line fitted through the
+   drift, so the slope is the sound card's error in seconds per day. The fit is
+   only accepted when its own uncertainty is under 0.1 s/day, which takes
+   CAL_DATA_SIZE samples at roughly one a second — about fifteen minutes.
+
+   It runs on the same handle and the same audio, because a bench never
+   calibrates and measures at once. While calibration is running tg_get_result
+   is not meaningful: begin, feed audio, read, end.
+
+   What this cannot do is tell the sound card apart from the watch. The result
+   is the difference between the two, and all of it is attributed to the card.
+   A reference watch specified to +/-20 s/month carries +/-0.66 s/day of its
+   own into every figure this produces.
+*/
+typedef struct {
+	int    collected;   /* phase samples taken so far */
+	int    needed;      /* how many it wants; CAL_DATA_SIZE */
+	int    signal;      /* 0..NSTEPS — how well the once-a-second tick is locked */
+	int    state;       /* 0 still running, 1 accepted, -1 finished but too noisy */
+	double drift_seconds_per_day;  /* meaningful only when state is 1 */
+} tg_cal;
+
+/* Starts a calibration run, discarding any previous one. 0 if allocation fails. */
+int tg_cal_begin(tg_handle h);
+
+/* Runs one calibration cycle over the audio pushed so far. Call about once a
+   second; it takes at most one phase sample per call by design. */
+tg_cal tg_cal_update(tg_handle h);
+
+/* Ends the run and frees its data. Safe to call when none is running. */
+void tg_cal_end(tg_handle h);
+
 /* Discards accumulated audio, keeping the configuration. */
 void tg_reset(tg_handle h);
 

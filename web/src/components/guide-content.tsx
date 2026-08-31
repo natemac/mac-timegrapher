@@ -113,6 +113,23 @@ export const GUIDE: Record<Topic, GuideEntry> = {
           than any wristwatch.
         </p>
 
+        <h4>Checking it against a quartz watch</h4>
+        <p>
+          <strong>Check against a quartz watch</strong> is the method native tg
+          uses. Put an analogue quartz watch with a <em>ticking seconds hand</em>
+          on the sensor, leave it still, and the app tracks the once-a-second
+          tick against its own audio clock for about fifteen minutes. It reports
+          a figure; it applies nothing until you press <strong>Use it</strong>.
+        </p>
+        <p className="dim">
+          It cannot tell the sound card apart from the watch. What it measures
+          is the difference between the two, and it attributes all of it to the
+          card — so the result carries the reference watch's own error. A
+          movement specified to ±20 seconds a month brings ±0.66 s/day with it.
+          Treat it as a second opinion on the system-clock figure rather than a
+          better one.
+        </p>
+
         <h4>What it does not fix</h4>
         <p>
           Amplitude comes from the shape of the escapement impulse and the lift

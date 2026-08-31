@@ -759,6 +759,10 @@ select {
   text-align: right;
 }
 
+.settings__clock-check {
+  margin-top: 8px;
+}
+
 /* ---------- Graph switch ---------- */
 .switch {
   position: relative;

@@ -36,6 +36,8 @@ static void usage(const char *argv0)
 		"  --lift N    lift angle in degrees (default %d)\n"
 		"  --json      emit JSON instead of a human-readable report\n"
 		"  --waveform  add the averaged tick and tock windows to the JSON\n"
+		"  --calibrate treat the file as a quartz reference and measure the\n"
+		"              sound card's clock error instead of timing a watch\n"
 		"  --version   print the core version and exit\n"
 		"\n"
 		"Reads 32-bit float or 16-bit PCM WAV. Multi-channel input is\n"
@@ -76,18 +78,67 @@ static void print_waveform(tg_handle h)
 	printf("  }");
 }
 
+/*
+   Feeds the file a second at a time, because the calibration takes at most one
+   phase sample per call by design — hand it everything at once and it records
+   a single point. Live, the browser calls it at about this rate for the same
+   reason.
+*/
+static int run_calibration(tg_handle h, struct tg_wav *wav, int json)
+{
+	if(!tg_cal_begin(h)) {
+		fprintf(stderr, "error: could not start calibration\n");
+		return 1;
+	}
+
+	int block = wav->sample_rate;
+	tg_cal c = { 0, 0, 0, 0, 0 };
+
+	for(uint64_t at = 0; at < wav->frame_count; at += block) {
+		int n = (int)(wav->frame_count - at);
+		if(n > block) n = block;
+		tg_push_samples(h, wav->samples + at, n);
+		c = tg_cal_update(h);
+	}
+
+	if(json) {
+		printf("{\n");
+		printf("  \"collected\": %d,\n", c.collected);
+		printf("  \"needed\": %d,\n", c.needed);
+		printf("  \"signal\": %d,\n", c.signal);
+		printf("  \"state\": %d,\n", c.state);
+		printf("  \"driftSecondsPerDay\": %.4f\n", c.drift_seconds_per_day);
+		printf("}\n");
+	} else {
+		printf("  SIGNAL      %d of %d\n", c.signal, NSTEPS);
+		printf("  SAMPLES     %d of %d\n", c.collected, c.needed);
+		if(c.state == 1)
+			printf("  CLOCK       %+.2f s/day\n", c.drift_seconds_per_day);
+		else if(c.state == -1)
+			printf("  CLOCK       inconclusive - the fit was too noisy to accept\n");
+		else
+			printf("  CLOCK       still collecting\n");
+	}
+
+	tg_cal_end(h);
+	return c.state == 1 ? 0 : 3;
+}
+
 int main(int argc, char **argv)
 {
 	int bph = 0;
 	double lift = DEFAULT_LA;
 	int json = 0;
 	int waveform = 0;
+	int calibrate = 0;
 	const char *path = NULL;
 
 	for(int i = 1; i < argc; i++) {
 		if(!strcmp(argv[i], "--version")) {
 			printf("%s\n", tg_version());
 			return 0;
+		} else if(!strcmp(argv[i], "--calibrate")) {
+			calibrate = 1;
 		} else if(!strcmp(argv[i], "--waveform")) {
 			waveform = 1;
 			json = 1;
@@ -122,6 +173,13 @@ int main(int argc, char **argv)
 		        wav.sample_rate, bph, lift);
 		tg_wav_free(&wav);
 		return 1;
+	}
+
+	if(calibrate) {
+		int rc = run_calibration(h, &wav, json);
+		tg_destroy(h);
+		tg_wav_free(&wav);
+		return rc;
 	}
 
 	tg_push_samples(h, wav.samples, (int)wav.frame_count);

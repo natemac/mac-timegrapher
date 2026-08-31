@@ -41,6 +41,9 @@ struct tg_state {
 	/* The window whose analysis was accepted by the last tg_get_result, so
 	   tg_get_events can read the beat positions it found. NULL until then. */
 	struct processing_buffers *selected;
+
+	/* Non-NULL only while a calibration run is going. */
+	struct calibration_data *cal;
 };
 
 /*
@@ -285,6 +288,80 @@ int tg_get_waveform(tg_handle h, float *out_tic, float *out_toc, tg_waveform *in
 	return TG_WAVEFORM_POINTS;
 }
 
+/*
+   analyze_pa_data_cal() from audio.c, with the buffer filling replaced by our
+   ring copy. The shorter windows are only run to gauge how well the tick is
+   locked; the fit itself always uses the longest one, because a fifteen-minute
+   measurement of a one-second period has no reason to settle for less.
+*/
+int tg_cal_begin(tg_handle h)
+{
+	if(!h) return 0;
+	tg_cal_end(h);
+
+	h->cal = calloc(1, sizeof(*h->cal));
+	if(!h->cal) return 0;
+	setup_cal_data(h->cal);
+	if(!h->cal->times || !h->cal->phases || !h->cal->events) {
+		tg_cal_end(h);
+		return 0;
+	}
+	/* The audio already in the ring belongs to whatever was on the sensor
+	   before, which is not the reference watch. */
+	tg_reset(h);
+	return 1;
+}
+
+void tg_cal_end(tg_handle h)
+{
+	if(!h || !h->cal) return;
+	cal_data_destroy(h->cal);
+	free(h->cal);
+	h->cal = NULL;
+}
+
+tg_cal tg_cal_update(tg_handle h)
+{
+	tg_cal r = { 0, CAL_DATA_SIZE, 0, 0, 0 };
+	if(!h || !h->cal) return r;
+
+	r.collected = h->cal->wp;
+	r.state = h->cal->state;
+	if(h->cal->state == 1)
+		r.drift_seconds_per_day = h->cal->calibration;
+
+	/* A one-second period needs at least two seconds of window to be seen at
+	   all, which is the shortest step we build. */
+	int first = 0;
+	while(first < NSTEPS && h->steps[first].sample_count < 2 * h->config.sample_rate)
+		first++;
+	if(first >= NSTEPS) return r;
+
+	/* Nothing to analyse until the longest window has been filled once. */
+	if(h->total_pushed < (uint64_t)h->steps[NSTEPS - 1].sample_count) return r;
+
+	for(int i = first; i < NSTEPS - 1; i++) {
+		fill_step(h, &h->steps[i]);
+		if(test_cal(&h->steps[i])) {
+			r.signal = i > first ? i : 0;
+			return r;
+		}
+	}
+
+	fill_step(h, &h->steps[NSTEPS - 1]);
+	if(process_cal(&h->steps[NSTEPS - 1], h->cal)) {
+		r.signal = NSTEPS - 1;
+		return r;
+	}
+	r.signal = NSTEPS;
+
+	r.collected = h->cal->wp;
+	r.state = h->cal->state;
+	if(h->cal->state == 1)
+		r.drift_seconds_per_day = h->cal->calibration;
+	return r;
+}
+
 void tg_reset(tg_handle h)
 {
 	if(!h) return;
@@ -297,6 +374,7 @@ void tg_reset(tg_handle h)
 void tg_destroy(tg_handle h)
 {
 	if(!h) return;
+	tg_cal_end(h);
 	for(int i = 0; i < h->initialized_steps; i++)
 		pb_destroy(&h->steps[i]);
 	free(h->steps);

@@ -75,6 +75,13 @@ web/src/components/      one panel each; guide-content.tsx holds every explanati
   in `timegrapher/amplitude-scale.ts`, not in `BeatCanvas.tsx`, because the
   ruler and the reading have to agree. Solid rules are time, dashed are degrees;
   they share one axis and must not look alike.
+- **Two ways to correct the sound-card clock, and they are not equivalent.**
+  Against the system clock (`audio/clock-calibration.ts`, NTP-disciplined) or
+  against a quartz watch on the sensor (upstream's algorithm, already in
+  `tg_algo.c`, driven by `tg_cal_*`). The quartz route measures the difference
+  between card and watch and blames all of it on the card, so it inherits the
+  reference's own error — a ±20 s/month movement carries ±0.66 s/day. It is a
+  second opinion, not a better one, and nothing is applied without a press.
 - **Lift angle comes from the movement preset**, not a constant. Amplitude is
   calculated directly from it, so a wrong preset is a wrong amplitude.
 - **`guide-content.tsx` is the single source for every explanation**, read by
@@ -152,7 +159,7 @@ focus effects keyed on what actually opened the thing, never on a callback.
 ## Commands
 
 ```sh
-cd web && npm test          # 345 tests across 24 files
+cd web && npm test          # 358 tests across 25 files
 cd web && npm run build     # tsc -b && vite build
 cd web && npm run dev       # http://localhost:5173/tools/timegrapher/
 
@@ -161,6 +168,7 @@ make -f Makefile.core check # synthetic-signal tests
 ./wasm/build-wasm.sh        # rebuild the WebAssembly core
 node tests/compare-wasm-native.mjs FILE.wav   # wasm vs native on one file
 ./tg-process --waveform FILE.wav              # the averaged beat, as JSON
+./tg-process --calibrate QUARTZ.wav           # sound-card clock error from a 1 Hz reference
 ```
 
 `base` is `/tools/timegrapher/`, overridable via `VITE_BASE` for forks — the dev
