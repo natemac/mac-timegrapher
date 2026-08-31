@@ -124,4 +124,4 @@ into any calibration.
 
 ---
 
-*339 tests across 24 files as of 2026-08-31.*
+*339 tests across 23 files as of 2026-08-31.*
