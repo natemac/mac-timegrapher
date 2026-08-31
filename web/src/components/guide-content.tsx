@@ -19,7 +19,7 @@ import type { ReactNode } from 'react';
 
 export type Topic =
   | 'modes' | 'input' | 'measurement' | 'settling' | 'signal' | 'trace'
-  | 'waveform' | 'inspection'
+  | 'waveform' | 'beat' | 'inspection'
   // Settings. Explained here rather than beside the controls, so the settings
   // page is a list of controls and not a wall of prose.
   | 'setting-movement' | 'setting-steadiness' | 'setting-branding'
@@ -433,6 +433,36 @@ export const GUIDE: Record<Topic, GuideEntry> = {
     ),
   },
 
+  beat: {
+    title: 'Beat',
+    lede: 'One beat, averaged and magnified. The shape of the escapement itself.',
+    body: (
+      <>
+        <p>
+          Every reading in the app is a number the analysis worked out. This is
+          the sound it worked them out from — one beat, averaged over the last
+          few seconds, drawn around the tick and again around the tock.
+        </p>
+        <p>
+          A healthy beat is <strong>two or three sharp bursts</strong> close
+          together: the escape wheel unlocking, the impulse to the balance, and
+          the drop onto the next tooth. The green line marks the impulse.
+        </p>
+        <ul>
+          <li><strong>Read down from the top scale</strong> at the green line — that is amplitude. It is the same measurement the readings show, shown as a position rather than a number.</li>
+          <li><strong>Tick and tock should look alike.</strong> One weaker or smeared means the two pallet stones are not doing the same work.</li>
+          <li><strong>A smeared, spread-out impulse</strong> — a chipped or dirty pallet stone.</li>
+          <li><strong>The impulse buried in the unlocking</strong> — poor lock, or the escapement out of adjustment.</li>
+          <li><strong>Extra bursts where nothing should be</strong> — often rebanking, the balance swinging so far it knocks the escapement.</li>
+        </ul>
+        <p className="dim">
+          The bottom scale is milliseconds before the beat. Both curves share it,
+          so anything that differs between them differs in the watch.
+        </p>
+      </>
+    ),
+  },
+
   waveform: {
     title: 'Waveform',
     lede: 'The raw sound, for checking the sensor is hearing the watch.',
@@ -453,6 +483,6 @@ export const GUIDE: Record<Topic, GuideEntry> = {
 };
 
 export const GUIDE_ORDER: Topic[] = [
-  'modes', 'input', 'measurement', 'settling', 'signal', 'trace', 'waveform',
-  'inspection',
+  'modes', 'input', 'measurement', 'settling', 'signal', 'trace', 'beat',
+  'waveform', 'inspection',
 ];

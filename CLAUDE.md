@@ -68,6 +68,13 @@ web/src/components/      one panel each; guide-content.tsx holds every explanati
   through seven FFTs; on the main thread that visibly stutters the UI.
 - **The trace is folded and magnified.** A full beat period across the width
   makes a 10 s/day error move two pixels. See `TraceCanvas.tsx`.
+- **The beat display's horizontal axis means two things at once.** Milliseconds
+  before the beat along the bottom, and the same positions read as amplitude
+  along the top — the two are related by `asin(lift angle / 2A) / pi`, which is
+  the arithmetic the core uses to measure amplitude in the first place. It lives
+  in `timegrapher/amplitude-scale.ts`, not in `BeatCanvas.tsx`, because the
+  ruler and the reading have to agree. Solid rules are time, dashed are degrees;
+  they share one axis and must not look alike.
 - **Lift angle comes from the movement preset**, not a constant. Amplitude is
   calculated directly from it, so a wrong preset is a wrong amplitude.
 - **`guide-content.tsx` is the single source for every explanation**, read by
@@ -145,7 +152,7 @@ focus effects keyed on what actually opened the thing, never on a callback.
 ## Commands
 
 ```sh
-cd web && npm test          # 88 tests across 9 files
+cd web && npm test          # 345 tests across 24 files
 cd web && npm run build     # tsc -b && vite build
 cd web && npm run dev       # http://localhost:5173/tools/timegrapher/
 
@@ -153,6 +160,7 @@ make -f Makefile.core       # native tg-process (needs brew fftw)
 make -f Makefile.core check # synthetic-signal tests
 ./wasm/build-wasm.sh        # rebuild the WebAssembly core
 node tests/compare-wasm-native.mjs FILE.wav   # wasm vs native on one file
+./tg-process --waveform FILE.wav              # the averaged beat, as JSON
 ```
 
 `base` is `/tools/timegrapher/`, overridable via `VITE_BASE` for forks — the dev

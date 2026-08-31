@@ -164,6 +164,41 @@ tg_result tg_get_result(tg_handle h);
 */
 int tg_get_events(tg_handle h, double *out_time, unsigned char *out_tictoc, int max);
 
+/*
+   The averaged beat waveform, windowed around the tick and around the tock.
+
+   This is the picture a watchmaker reads directly: the locking, the impulse
+   and the drop show up as distinct features, and a chipped pallet stone or a
+   poor lock is visible in the shape long before any single number moves. The
+   window and the 0.4 headroom factor are output_panel.c's, so the browser and
+   the GTK panel draw the same curve.
+
+   Amplitude is not returned here on purpose. It is read off the horizontal
+   position of the impulse: asin(lift_angle / 2A) / pi periods before the beat.
+   The caller has the lift angle and the period, so it can draw that scale
+   itself, and drawing it is the point of the display.
+*/
+#define TG_WAVEFORM_MS_BEFORE 25   /* NEGATIVE_SPAN in src/output_panel.c */
+#define TG_WAVEFORM_MS_AFTER  10   /* POSITIVE_SPAN */
+#define TG_WAVEFORM_POINTS    700  /* twenty per millisecond */
+
+typedef struct {
+	int    points;         /* points written to each of the two buffers */
+	double ms_before;      /* window start, milliseconds before the beat */
+	double ms_after;
+	double period_seconds; /* one beat; the amplitude scale needs it */
+	double tic_pulse_ms;   /* impulse, milliseconds BEFORE the beat; -1 if unknown */
+	double toc_pulse_ms;
+	int    valid;          /* 0 when there is no analysed window yet */
+} tg_waveform;
+
+/*
+   Writes TG_WAVEFORM_POINTS floats into each of out_tic and out_toc and fills
+   info. Returns the number of points written, or 0 if there is nothing to
+   draw yet. Both buffers must hold at least TG_WAVEFORM_POINTS floats.
+*/
+int tg_get_waveform(tg_handle h, float *out_tic, float *out_toc, tg_waveform *info);
+
 /* Discards accumulated audio, keeping the configuration. */
 void tg_reset(tg_handle h);
 

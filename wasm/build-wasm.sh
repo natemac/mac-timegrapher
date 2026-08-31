@@ -41,7 +41,7 @@ emit() { # environment output
 		-s ALLOW_MEMORY_GROWTH=1 \
 		-s STACK_SIZE=8MB \
 		-s EXPORTED_RUNTIME_METHODS='["ccall","cwrap","HEAPF32","HEAPF64","HEAPU8","UTF8ToString"]' \
-		-s EXPORTED_FUNCTIONS='["_tgw_init","_tgw_push","_tgw_result","_tgw_events","_tgw_reset","_tgw_destroy","_tgw_version","_tgw_result_fields","_malloc","_free"]'
+		-s EXPORTED_FUNCTIONS='["_tgw_init","_tgw_push","_tgw_result","_tgw_events","_tgw_waveform","_tgw_waveform_fields","_tgw_waveform_points","_tgw_reset","_tgw_destroy","_tgw_version","_tgw_result_fields","_malloc","_free"]'
 }
 
 emit web,worker "$OUT/tg-core.js"

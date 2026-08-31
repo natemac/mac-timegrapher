@@ -22,17 +22,18 @@ import { LevelMeter } from './components/LevelMeter';
 import { WaveformCanvas } from './components/WaveformCanvas';
 import { SourceFooter } from './components/SourceFooter';
 import { MeasurementPanel } from './components/MeasurementPanel';
-import { TimegrapherEngine, type Measurement, type Beat } from './timegrapher/tg-engine';
+import { TimegrapherEngine, type Measurement, type Beat, type BeatWaveform } from './timegrapher/tg-engine';
 import {
   StabilityTracker, SETTLED_BOUNDS, type BestSpread, type Settling, type Spread,
 } from './timegrapher/stability';
 import { TraceCanvas } from './components/TraceCanvas';
+import { BeatCanvas } from './components/BeatCanvas';
 import { GraphSwitch, type Graph } from './components/GraphSwitch';
 import { resolveZoom, ZOOM_AUTO } from './timegrapher/trace-zoom';
 import {
   SettingsSheet, DEFAULT_SETTINGS, loadSettings, saveSettings, type Settings,
 } from './components/SettingsSheet';
-import type { Topic } from './components/guide-content';
+import { GUIDE, type Topic } from './components/guide-content';
 import { findMovement, engineConfigFor, isQuartz } from './timegrapher/movements';
 import { useWakeLock } from './hooks/useWakeLock';
 import { useInspectionRun } from './hooks/useInspectionRun';
@@ -86,6 +87,7 @@ export default function App() {
   const [latest, setLatest] = useState<Float32Array | null>(null);
   const [measurement, setMeasurement] = useState<Measurement | null>(null);
   const [beats, setBeats] = useState<Beat[]>([]);
+  const [beatWaveform, setBeatWaveform] = useState<BeatWaveform | null>(null);
   const [settling, setSettling] = useState<Settling>('waiting');
   const [spreads, setSpreads] = useState<{ rate: Spread | null; amplitude: Spread | null; beatError: Spread | null }>({ rate: null, amplitude: null, beatError: null });
   // Read when the settings sheet opens rather than tracked continuously: it is
@@ -326,6 +328,7 @@ export default function App() {
     stability.current.reset();
     beatStore.current.clear();
     setBeats([]);
+    setBeatWaveform(null);
     setSpreads({ rate: null, amplitude: null, beatError: null });
     setSettling('waiting');
     engine.current?.reset();
@@ -441,8 +444,9 @@ export default function App() {
       sampleRate: correctedSampleRate(sampleRate, settings.clockDriftSecondsPerDay),
       bph,
       liftAngle,
-      onMeasurement: (m, seconds, newBeats) => {
+      onMeasurement: (m, seconds, newBeats, shape) => {
         setMeasurement(m);
+        setBeatWaveform(shape);
         measurementRef.current = m;
         setSecondsCaptured(seconds);
 
@@ -497,6 +501,7 @@ export default function App() {
       stability.current.reset();
       beatStore.current.clear();
       setBeats([]);
+      setBeatWaveform(null);
       setMeasurement(null);
       measurementRef.current = null;
       setSpreads({ rate: null, amplitude: null, beatError: null });
@@ -662,6 +667,7 @@ export default function App() {
     stability.current.reset();
     beatStore.current.clear();
     setBeats([]);
+    setBeatWaveform(null);
     setSettling('waiting');
     setSpreads({ rate: null, amplitude: null, beatError: null });
     setLatest(null);
@@ -945,12 +951,14 @@ export default function App() {
                 <span className="dim mono" style={{ fontSize: 10 }}>
                   {graph === 'trace'
                     ? `${settings.traceSeconds}s · ${effectiveZoom}ms${settings.zoomMs === ZOOM_AUTO ? ' auto' : ''}`
-                    : '1s'}
+                    : graph === 'beat'
+                      ? '35ms'
+                      : '1s'}
                 </span>
                 <button
                   className="panel__help-icon"
                   onClick={() => showHelp(graph)}
-                  aria-label={graph === 'trace' ? 'What is the trace?' : 'What is the waveform?'}
+                  aria-label={`What is the ${GUIDE[graph].title.toLowerCase()}?`}
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
                     <circle cx="12" cy="12" r="10" />
@@ -961,7 +969,7 @@ export default function App() {
               </div>
             </div>
 
-            {graph === 'trace' ? (
+            {graph === 'trace' && (
               <TraceCanvas
                 beats={beats}
                 bph={measurement?.detectedBph ?? 0}
@@ -970,9 +978,15 @@ export default function App() {
                 windowSeconds={settings.traceSeconds}
                 capturing={capturing}
               />
-            ) : (
-              <WaveformCanvas latest={latest} />
             )}
+            {graph === 'beat' && (
+              <BeatCanvas
+                waveform={beatWaveform}
+                liftAngle={chosenMovement?.liftAngle ?? DEFAULT_LIFT_ANGLE}
+                capturing={capturing}
+              />
+            )}
+            {graph === 'waveform' && <WaveformCanvas latest={latest} />}
           </div>
         </>
       )}

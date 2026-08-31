@@ -30,6 +30,15 @@ const R_DETECTED_BPH = 3;
 const R_SIGNAL_QUALITY = 4;
 const R_VALID = 5;
 
+/** Field order must match the second enum in wasm/bindings.c. */
+const W_POINTS = 0;
+const W_MS_BEFORE = 1;
+const W_MS_AFTER = 2;
+const W_PERIOD_SECONDS = 3;
+const W_TIC_PULSE_MS = 4;
+const W_TOC_PULSE_MS = 5;
+const W_VALID = 6;
+
 const MEASURE_INTERVAL_MS = 500;
 
 interface WasmModule {
@@ -37,6 +46,9 @@ interface WasmModule {
   _tgw_push(handle: number, ptr: number, count: number): void;
   _tgw_result(handle: number, ptr: number): void;
   _tgw_events(handle: number, timePtr: number, tictocPtr: number, max: number): number;
+  _tgw_waveform(handle: number, ticPtr: number, tocPtr: number, infoPtr: number): number;
+  _tgw_waveform_fields(): number;
+  _tgw_waveform_points(): number;
   _tgw_reset(handle: number): void;
   _tgw_destroy(handle: number): void;
   _tgw_result_fields(): number;
@@ -54,6 +66,10 @@ let scratchSamples = 0;
 let resultPtr = 0;
 let eventTimePtr = 0;
 let eventTicTocPtr = 0;
+let wfTicPtr = 0;
+let wfTocPtr = 0;
+let wfInfoPtr = 0;
+let wfPoints = 0;
 
 /** Matches EVENTS_MAX in core/tg_core.h. */
 const MAX_EVENTS = 100;
@@ -72,6 +88,9 @@ function release() {
     if (resultPtr) mod._free(resultPtr);
     if (eventTimePtr) mod._free(eventTimePtr);
     if (eventTicTocPtr) mod._free(eventTicTocPtr);
+    if (wfTicPtr) mod._free(wfTicPtr);
+    if (wfTocPtr) mod._free(wfTocPtr);
+    if (wfInfoPtr) mod._free(wfInfoPtr);
   }
   handle = 0;
   scratch = 0;
@@ -79,7 +98,39 @@ function release() {
   resultPtr = 0;
   eventTimePtr = 0;
   eventTicTocPtr = 0;
+  wfTicPtr = 0;
+  wfTocPtr = 0;
+  wfInfoPtr = 0;
+  wfPoints = 0;
   samplesSeen = 0;
+}
+
+/*
+   The averaged beat, windowed around the tick and the tock. Copied out of the
+   wasm heap rather than viewed into it: the views are invalidated whenever the
+   heap grows, and this crosses a postMessage boundary where a stale view would
+   read freed memory.
+*/
+function readWaveform() {
+  if (!mod || !handle) return null;
+  if (!mod._tgw_waveform(handle, wfTicPtr, wfTocPtr, wfInfoPtr)) return null;
+
+  const info = mod.HEAPF64;
+  const base = wfInfoPtr >> 3;
+  if (!info[base + W_VALID]) return null;
+
+  const points = info[base + W_POINTS];
+  const heap = mod.HEAPF32;
+  return {
+    tic: heap.slice(wfTicPtr >> 2, (wfTicPtr >> 2) + points),
+    toc: heap.slice(wfTocPtr >> 2, (wfTocPtr >> 2) + points),
+    msBefore: info[base + W_MS_BEFORE],
+    msAfter: info[base + W_MS_AFTER],
+    periodSeconds: info[base + W_PERIOD_SECONDS],
+    // The core returns -1 for "no impulse found"; null reads better upstream.
+    ticPulseMs: info[base + W_TIC_PULSE_MS] > 0 ? info[base + W_TIC_PULSE_MS] : null,
+    tocPulseMs: info[base + W_TOC_PULSE_MS] > 0 ? info[base + W_TOC_PULSE_MS] : null,
+  };
 }
 
 function emitMeasurement() {
@@ -101,6 +152,7 @@ function emitMeasurement() {
   self.postMessage({
     type: 'result',
     beats: { times, isTick },
+    waveform: readWaveform(),
     measurement: {
       rate: h[base + R_RATE],
       amplitude: h[base + R_AMPLITUDE],
@@ -135,6 +187,10 @@ self.onmessage = async (event: MessageEvent) => {
         resultPtr = mod._malloc(mod._tgw_result_fields() * 8);
         eventTimePtr = mod._malloc(MAX_EVENTS * 8);
         eventTicTocPtr = mod._malloc(MAX_EVENTS);
+        wfPoints = mod._tgw_waveform_points();
+        wfTicPtr = mod._malloc(wfPoints * 4);
+        wfTocPtr = mod._malloc(wfPoints * 4);
+        wfInfoPtr = mod._malloc(mod._tgw_waveform_fields() * 8);
         timer = setInterval(emitMeasurement, MEASURE_INTERVAL_MS);
         self.postMessage({ type: 'ready' });
         break;

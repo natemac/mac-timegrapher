@@ -47,6 +47,30 @@ int tgw_result_fields(void)
 	return R_FIELDS;
 }
 
+/* Same reasoning as R_* above: named writes rather than struct offsets. */
+enum {
+	W_POINTS = 0,
+	W_MS_BEFORE,
+	W_MS_AFTER,
+	W_PERIOD_SECONDS,
+	W_TIC_PULSE_MS,
+	W_TOC_PULSE_MS,
+	W_VALID,
+	W_FIELDS
+};
+
+EMSCRIPTEN_KEEPALIVE
+int tgw_waveform_fields(void)
+{
+	return W_FIELDS;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int tgw_waveform_points(void)
+{
+	return TG_WAVEFORM_POINTS;
+}
+
 EMSCRIPTEN_KEEPALIVE
 tg_handle tgw_init(int sample_rate, int bph, double lift_angle)
 {
@@ -81,6 +105,25 @@ EMSCRIPTEN_KEEPALIVE
 int tgw_events(tg_handle h, double *out_time, unsigned char *out_tictoc, int max)
 {
 	return tg_get_events(h, out_time, out_tictoc, max);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int tgw_waveform(tg_handle h, float *out_tic, float *out_toc, double *out_info)
+{
+	if(!out_info) return 0;
+
+	tg_waveform info;
+	int n = tg_get_waveform(h, out_tic, out_toc, &info);
+
+	out_info[W_POINTS]         = info.points;
+	out_info[W_MS_BEFORE]      = info.ms_before;
+	out_info[W_MS_AFTER]       = info.ms_after;
+	out_info[W_PERIOD_SECONDS] = info.period_seconds;
+	out_info[W_TIC_PULSE_MS]   = info.tic_pulse_ms;
+	out_info[W_TOC_PULSE_MS]   = info.toc_pulse_ms;
+	out_info[W_VALID]          = info.valid;
+
+	return n;
 }
 
 EMSCRIPTEN_KEEPALIVE

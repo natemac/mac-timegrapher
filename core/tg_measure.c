@@ -223,6 +223,68 @@ int tg_get_events(tg_handle h, double *out_time, unsigned char *out_tictoc, int 
 	return n;
 }
 
+/*
+   One window of the averaged beat, resampled to a fixed grid.
+
+   draw_graph() in the GTK panel reads p->waveform at pixel resolution with
+   nearest-neighbour indexing, which it can do because it knows the width of
+   the widget it is drawing into. Here the consumer is a canvas of unknown
+   size on a device of unknown sample rate, so the window is resampled once,
+   and each output point takes the MAXIMUM of the input samples falling in it
+   rather than one of them. At two input samples per point, nearest-neighbour
+   would drop the impulse spike about half the time, and the impulse is the
+   feature the whole display exists to show.
+*/
+static void window_waveform(struct processing_buffers *p, int offset,
+			double span, float *out, int points)
+{
+	double first = offset - span * TG_WAVEFORM_MS_BEFORE;
+	double width = span * (TG_WAVEFORM_MS_BEFORE + TG_WAVEFORM_MS_AFTER);
+	/* 0.4 is upstream's headroom factor, kept so the curve has the same
+	   proportions here as in the GTK panel. */
+	double scale = 0.4 / p->waveform_max;
+
+	for(int i = 0; i < points; i++) {
+		double from = first + i * width / points;
+		double to = first + (i + 1) * width / points;
+		double peak = 0;
+
+		for(double s = floor(from); s < to; s++) {
+			double x = fmod(s, p->period);
+			if(x < 0) x += p->period;
+			double y = p->waveform[(int)x];
+			if(y > peak) peak = y;
+		}
+		out[i] = (float)(peak * scale);
+	}
+}
+
+int tg_get_waveform(tg_handle h, float *out_tic, float *out_toc, tg_waveform *info)
+{
+	if(info) memset(info, 0, sizeof(*info));
+	if(!h || !h->selected || !out_tic || !out_toc || !info) return 0;
+
+	struct processing_buffers *p = h->selected;
+	/* waveform_max is the divisor; a silent window would divide by zero. */
+	if(p->period <= 0 || p->waveform_max <= 0) return 0;
+
+	double span = h->config.sample_rate / 1000.0; /* samples per millisecond */
+
+	window_waveform(p, p->tic, span, out_tic, TG_WAVEFORM_POINTS);
+	window_waveform(p, p->toc, span, out_toc, TG_WAVEFORM_POINTS);
+
+	info->points = TG_WAVEFORM_POINTS;
+	info->ms_before = TG_WAVEFORM_MS_BEFORE;
+	info->ms_after = TG_WAVEFORM_MS_AFTER;
+	info->period_seconds = p->period / h->config.sample_rate;
+	/* Upstream draws the marker only for a positive pulse; -1 says "no mark". */
+	info->tic_pulse_ms = p->tic_pulse > 0 ? p->tic_pulse / span : -1;
+	info->toc_pulse_ms = p->toc_pulse > 0 ? p->toc_pulse / span : -1;
+	info->valid = 1;
+
+	return TG_WAVEFORM_POINTS;
+}
+
 void tg_reset(tg_handle h)
 {
 	if(!h) return;

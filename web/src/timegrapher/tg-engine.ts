@@ -28,12 +28,37 @@ export interface Beat {
   isTick: boolean;
 }
 
+/**
+ * The averaged beat, windowed around the tick and around the tock.
+ *
+ * Each array is an envelope of one window, 0 at the baseline, scaled so that
+ * the tallest feature in the whole beat reads 0.4 — upstream's headroom
+ * factor, kept so the curve has the same proportions as the GTK panel's.
+ */
+export interface BeatWaveform {
+  tic: Float32Array;
+  toc: Float32Array;
+  /** Window extent either side of the beat, in milliseconds. */
+  msBefore: number;
+  msAfter: number;
+  /** One beat, in seconds. The degrees scale is derived from it. */
+  periodSeconds: number;
+  /** Impulse, milliseconds before the beat. null when the core found none. */
+  ticPulseMs: number | null;
+  tocPulseMs: number | null;
+}
+
 export interface EngineOptions {
   sampleRate: number;
   /** 0 to detect the beat rate automatically. */
   bph: number;
   liftAngle: number;
-  onMeasurement: (m: Measurement, secondsCaptured: number, beats: Beat[]) => void;
+  onMeasurement: (
+    m: Measurement,
+    secondsCaptured: number,
+    beats: Beat[],
+    waveform: BeatWaveform | null,
+  ) => void;
   onError: (message: string) => void;
 }
 
@@ -61,7 +86,7 @@ export class TimegrapherEngine {
         const { times, isTick } = msg.beats as { times: Float64Array; isTick: Uint8Array };
         const beats: Beat[] = new Array(times.length);
         for (let i = 0; i < times.length; i++) beats[i] = { time: times[i], isTick: isTick[i] === 1 };
-        this.onMeasurement(msg.measurement, msg.secondsCaptured, beats);
+        this.onMeasurement(msg.measurement, msg.secondsCaptured, beats, msg.waveform ?? null);
       }
       else if (msg.type === 'error') this.onError(msg.message);
     };

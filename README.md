@@ -115,6 +115,26 @@ figure you write down — a bench holding rate to ±0.4 s/day means a recorded
 +11.9 is really +11.9 ± 0.4. Steady is not the same as correct: it measures
 repeatability, not accuracy.
 
+### Three views of the same signal
+
+The graph switches between them.
+
+**Trace** is the paper strip: every beat as a mark, newest at the top. Slope is
+rate, the gap between the two lines is beat error, and you can read a regulator
+adjustment off it seconds before the numbers settle.
+
+**Beat** is one beat, averaged over the last few seconds and drawn around the
+tick and again around the tock. This is the escapement itself — the unlocking,
+the impulse and the drop arrive as separate bursts a few milliseconds apart, and
+their shape catches a chipped pallet stone, a poor lock or rebanking, none of
+which move any of the numbers. The green line marks the impulse; read it against
+the degrees scale along the top and you have the amplitude, as a position rather
+than a figure. Tick and tock share both scales, so anything that differs between
+the two curves differs in the watch.
+
+**Waveform** is the raw microphone, for confirming the sensor is hearing the
+watch and not the room.
+
 ### Session diagnostics
 
 **Settings → Session diagnostics** exports a text log of the last run: every
@@ -165,8 +185,7 @@ but it is the reference implementation the port is validated against.
 
 Upstream measures sound-card clock drift against a 1 Hz reference; this port
 measures it against the system clock instead, which needs no reference watch.
-Upstream's snapshot save/load and its per-half-beat tic and toc waveform
-displays have no equivalent here yet.
+Upstream's snapshot save/load has no equivalent here yet.
 
 See [NOTICE](NOTICE) for attribution and [docs/licensing.md](docs/licensing.md)
 for the modification record.

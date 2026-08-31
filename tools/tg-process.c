@@ -35,6 +35,7 @@ static void usage(const char *argv0)
 		"  --bph N     beat rate; omit or 0 to detect automatically\n"
 		"  --lift N    lift angle in degrees (default %d)\n"
 		"  --json      emit JSON instead of a human-readable report\n"
+		"  --waveform  add the averaged tick and tock windows to the JSON\n"
 		"  --version   print the core version and exit\n"
 		"\n"
 		"Reads 32-bit float or 16-bit PCM WAV. Multi-channel input is\n"
@@ -42,17 +43,54 @@ static void usage(const char *argv0)
 		argv0, DEFAULT_LA);
 }
 
+/*
+   The averaged beat, as the browser receives it. Printed so the display can be
+   checked against a recording without a bench: the impulse marker's position
+   is where amplitude comes from, and a sign error there would move it without
+   changing any number the report already prints.
+*/
+static void print_waveform(tg_handle h)
+{
+	static float tic[TG_WAVEFORM_POINTS], toc[TG_WAVEFORM_POINTS];
+	tg_waveform info;
+
+	if(!tg_get_waveform(h, tic, toc, &info)) {
+		printf(",\n  \"waveform\": null");
+		return;
+	}
+
+	printf(",\n  \"waveform\": {\n");
+	printf("    \"points\": %d,\n", info.points);
+	printf("    \"msBefore\": %g,\n", info.ms_before);
+	printf("    \"msAfter\": %g,\n", info.ms_after);
+	printf("    \"periodSeconds\": %.6f,\n", info.period_seconds);
+	printf("    \"ticPulseMs\": %.4f,\n", info.tic_pulse_ms);
+	printf("    \"tocPulseMs\": %.4f,\n", info.toc_pulse_ms);
+	for(int pass = 0; pass < 2; pass++) {
+		const float *v = pass ? toc : tic;
+		printf("    \"%s\": [", pass ? "toc" : "tic");
+		for(int i = 0; i < info.points; i++)
+			printf("%s%.5f", i ? "," : "", v[i]);
+		printf("]%s\n", pass ? "" : ",");
+	}
+	printf("  }");
+}
+
 int main(int argc, char **argv)
 {
 	int bph = 0;
 	double lift = DEFAULT_LA;
 	int json = 0;
+	int waveform = 0;
 	const char *path = NULL;
 
 	for(int i = 1; i < argc; i++) {
 		if(!strcmp(argv[i], "--version")) {
 			printf("%s\n", tg_version());
 			return 0;
+		} else if(!strcmp(argv[i], "--waveform")) {
+			waveform = 1;
+			json = 1;
 		} else if(!strcmp(argv[i], "--json")) {
 			json = 1;
 		} else if(!strcmp(argv[i], "--bph") && i + 1 < argc) {
@@ -101,8 +139,9 @@ int main(int argc, char **argv)
 		printf("  \"rate\": %.2f,\n", r.rate);
 		printf("  \"amplitude\": %.1f,\n", r.amplitude);
 		printf("  \"beatError\": %.3f,\n", r.beat_error);
-		printf("  \"signalQuality\": %.2f\n", r.signal_quality);
-		printf("}\n");
+		printf("  \"signalQuality\": %.2f", r.signal_quality);
+		if(waveform) print_waveform(h);
+		printf("\n}\n");
 	} else {
 		printf("%s\n", path);
 		printf("  %d Hz, %.1f s, %d ch %s\n", wav.sample_rate, seconds,

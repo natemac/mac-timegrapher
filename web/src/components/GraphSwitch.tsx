@@ -8,16 +8,19 @@
 */
 import { SlideSwitch, type SlideOption } from './SlideSwitch';
 
-export type Graph = 'trace' | 'waveform';
+export type Graph = 'trace' | 'waveform' | 'beat';
 
 const OPTIONS: SlideOption<Graph>[] = [
   { id: 'trace', label: 'Trace' },
+  { id: 'beat', label: 'Beat' },
   { id: 'waveform', label: 'Waveform' },
 ];
 
 /*
-   The two views are one thing seen two ways. The switch also costs a fraction
-   of the height two full-width buttons did, which the trace gets instead.
+   Three views of one thing, ordered by how far each is from the raw sound:
+   the trace is every beat over half a minute, the beat is one beat averaged,
+   the waveform is the microphone itself. The switch also costs a fraction of
+   the height full-width buttons did, which the graph gets instead.
 */
 export function GraphSwitch({ value, onChange }: { value: Graph; onChange: (g: Graph) => void }) {
   return <SlideSwitch value={value} options={OPTIONS} onChange={onChange} label="Graph" />;
