@@ -38,6 +38,13 @@ export interface SignalState {
   headroomDb: number;
   strength: SignalStrength;
   clipped: boolean;
+  /*
+     Close enough to full scale that a louder-than-usual tick will clip. Kept
+     apart from `strength`, which measures how far the ticks stand above the
+     room — the two are independent, and the case that prompted this was a
+     signal with excellent headroom sitting one decibel below clipping.
+  */
+  hot: boolean;
 }
 
 const SILENT: SignalState = {
@@ -47,6 +54,7 @@ const SILENT: SignalState = {
   headroomDb: 0,
   strength: 'none',
   clipped: false,
+  hot: false,
 };
 
 /**
@@ -61,6 +69,14 @@ const PEAK_FALL = 0.4;
 
 /** Below this the input is silent rather than quiet. */
 const NOISE_FLOOR_DB = -75;
+
+/*
+   Above this there is not enough room left for a transient. A well-set input
+   peaks around -12 to -6 dBFS; the MacBook that prompted this ran at -1.1
+   while two iOS devices on the same pickup sat at -6.3 and -7.5, so this
+   separates a hot host from a normal one with room to spare either side.
+*/
+const HOT_DB = -3;
 
 export class SignalMeter {
   private level = 0;
@@ -156,6 +172,7 @@ export class SignalMeter {
       headroomDb,
       strength: classify(headroomDb, levelDb),
       clipped: this.clipLatch > 0,
+      hot: levelDb > HOT_DB,
     };
   }
 }

@@ -7,6 +7,7 @@
     published by the Free Software Foundation.
 */
 import type { SignalState, SignalStrength } from '../audio/signal-strength';
+import { hasInputGainControl } from '../audio/platform';
 import { PanelHead } from './PanelHead';
 import type { Topic } from './guide-content';
 
@@ -37,6 +38,7 @@ export function LevelMeter({ signal, onHelp }: { signal: SignalState | null; onH
   const peak = signal ? toPercent(20 * Math.log10(Math.max(signal.peakHold, 1e-6))) : 0;
   const strength: SignalStrength = signal?.strength ?? 'none';
   const clipped = signal?.clipped ?? false;
+  const hot = (signal?.hot ?? false) && hasInputGainControl();
 
   return (
     <div className="panel panel--tight">
@@ -92,10 +94,26 @@ export function LevelMeter({ signal, onHelp }: { signal: SignalState | null; onH
         />
       </div>
 
-      <p className="dim" style={{ fontSize: 12, marginTop: 8, marginBottom: 0 }}>
-        {signal && signal.strength !== 'none'
-          ? `Ticks stand ${signal.headroomDb.toFixed(0)} dB above the room.`
-          : 'Nothing detected yet.'}
+      {/*
+         One line, replaced rather than added to. The app fits one screen and
+         the graph absorbs whatever the fixed panels leave, so a second line
+         here comes straight out of the trace.
+
+         The advice only appears where it can be acted on. On a laptop the
+         host applies its own gain to a USB pickup and hands you a slider for
+         it, usually defaulted high; on a phone there is no such control, and
+         telling someone to turn it down sends them looking for something that
+         does not exist. Clipping still shows as TOO LOUD everywhere.
+      */}
+      <p
+        className={hot ? undefined : 'dim'}
+        style={{ fontSize: 12, marginTop: 8, marginBottom: 0, color: hot ? 'var(--warn)' : undefined }}
+      >
+        {hot
+          ? 'Input is hot — turn the microphone down in your system sound settings.'
+          : signal && signal.strength !== 'none'
+            ? `Ticks stand ${signal.headroomDb.toFixed(0)} dB above the room.`
+            : 'Nothing detected yet.'}
       </p>
     </div>
   );

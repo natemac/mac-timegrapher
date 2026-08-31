@@ -83,3 +83,46 @@ describe('SignalMeter ballistics', () => {
     expect(s.strength).toBe('none');
   });
 });
+
+describe('an input close to full scale', () => {
+  /* Peak levels from three exports on the same pickup: a MacBook at -1.1 dBFS
+     against an iPad at -6.3 and an iPhone at -7.5. The threshold has to
+     separate them, and with room to spare on both sides. */
+  const at = (dbfs: number) => {
+    const meter = new SignalMeter();
+    const amplitude = Math.pow(10, dbfs / 20);
+    const block = new Float32Array(512);
+    let state = meter.push(block, 0.01);
+    // Long enough for the fast attack to reach the level.
+    for (let i = 0; i < 40; i++) {
+      for (let j = 0; j < block.length; j++) block[j] = j % 64 === 0 ? amplitude : amplitude * 0.01;
+      state = meter.push(block, 0.01);
+    }
+    return state;
+  };
+
+  it('is flagged hot where a laptop sat', () => {
+    expect(at(-1.1).hot).toBe(true);
+  });
+
+  it('is not flagged where the iOS devices sat', () => {
+    expect(at(-6.3).hot).toBe(false);
+    expect(at(-7.5).hot).toBe(false);
+  });
+
+  /* Hot is about headroom before clipping; strength is about the tick standing
+     clear of the room. The MacBook had excellent headroom AND was a decibel
+     from clipping, so folding one into the other would have hidden it. */
+  it('is independent of how well the ticks stand out', () => {
+    const s = at(-1.1);
+    expect(s.hot).toBe(true);
+    // A healthy tier, not a poor one: the point is that a signal can be
+    // standing clear of the room AND about to clip at the same time, which is
+    // exactly what the MacBook did — 26 to 32 dB of headroom at -1.1 dBFS.
+    expect(['good', 'excellent']).toContain(s.strength);
+  });
+
+  it('is false when there is no signal at all', () => {
+    expect(new SignalMeter().push(new Float32Array(512), 0.01).hot).toBe(false);
+  });
+});

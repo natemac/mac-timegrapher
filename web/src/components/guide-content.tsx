@@ -434,6 +434,18 @@ export const GUIDE: Record<Topic, GuideEntry> = {
           beats loud and distorted, because amplitude is measured from the shape
           of each tick.
         </p>
+        <p>
+          <strong>Input is hot</strong> means the level is within a few decibels
+          of clipping, so the next slightly louder tick will. It appears only on
+          a computer, because that is where the input level can be changed — a
+          laptop applies its own gain to a USB pickup and usually leaves it
+          high, while a phone or tablet gives you no control at all.
+        </p>
+        <p className="dim">
+          It matters more than it sounds. Amplitude is measured from the shape
+          of the impulse, and a clipped peak is a flattened one — a clipped tick
+          does not merely read loud, it reads as a different shape.
+        </p>
       </>
     ),
   },
