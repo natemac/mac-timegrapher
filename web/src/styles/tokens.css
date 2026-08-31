@@ -491,6 +491,15 @@ select {
   .certificate {
     display: block;
     font-family: var(--font);
+    /*
+       Safari inflates small text to what it judges readable, and it does so in
+       print too. Shrinking the footer to make it fit therefore made it larger
+       and pushed more of it onto a second page — the previous attempt at this
+       went 7.5pt to 6.5pt and spilled three paragraphs instead of one.
+       Point sizes here are meant literally.
+    */
+    -webkit-text-size-adjust: none;
+    text-size-adjust: none;
     color: #000;
     /* Print colour management varies; state black explicitly rather than
        relying on inherited theme tokens, which may be light-on-dark. */
@@ -658,7 +667,7 @@ select {
   .certificate__method {
     border-top: 0.25pt solid #bbb;
     padding-top: 5pt;
-    font-size: 6.5pt;
+    font-size: 7pt;
     line-height: 1.4;
     color: #444;
   }
@@ -1256,7 +1265,11 @@ html.is-measuring body { overscroll-behavior-y: none; }
   margin: 0;
   font: inherit;
   font-weight: 600;
-  font-size: 15px;
+  /* 16px exactly, like .field and for the same reason: below that, iOS Safari
+     zooms the page when the field takes focus and stays zoomed after the sheet
+     closes, which leaves the app clipped off the right of the screen. It was
+     15px to match the heading it replaced, and that was the bug. */
+  font-size: 16px;
   color: var(--text);
 }
 .run-name::placeholder { color: var(--text-faint); font-weight: 400; }
