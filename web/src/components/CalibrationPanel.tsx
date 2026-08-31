@@ -9,7 +9,8 @@
 import type { AudioInput } from '../audio/device-manager';
 import type { Calibration } from '../timegrapher/tg-engine';
 import type { ClockResult } from '../audio/clock-calibration';
-import { MIN_SECONDS } from '../audio/clock-calibration';
+import { MIN_SECONDS, type ClockDebug } from '../audio/clock-calibration';
+import { useState } from 'react';
 
 /*
    Calibrating the sound card's clock.
@@ -55,6 +56,8 @@ interface Props {
   onDraftCommit: () => void;
 
   clock: ClockResult | null;
+  /** The raw state of the fit, for when it produced nothing usable. */
+  clockDebug: ClockDebug;
   clockSeconds: number;
   clockDisturbed: boolean;
   onApplyClock: (value: number) => void;
@@ -80,6 +83,57 @@ function Method({ title, needs, children }: {
       </ul>
       {children}
     </section>
+  );
+}
+
+/*
+   The numbers behind a run, shown on request.
+
+   A failed calibration is otherwise a dead end: the figure is withheld, and
+   what is left says only that something went wrong. These are the values the
+   fit was built from, including the steps it threw away — which is the part
+   that distinguishes an interrupted run from a systematically wrong one, since
+   both produce an impossible answer and look identical from outside.
+*/
+function Details({ d, sampleRate }: { d: ClockDebug; sampleRate: number | null }) {
+  const [open, setOpen] = useState(false);
+  const ppm = (r: number | null) => (r === null ? '—' : `${((r - 1) * 1e6).toFixed(0)} ppm`);
+  const sd = (v: number | null) => (v === null ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(2)} s/day`);
+
+  if (!open) {
+    return (
+      <button className="calibration__what" onClick={() => setOpen(true)}>
+        Show the numbers
+      </button>
+    );
+  }
+
+  const rows: [string, string][] = [
+    ['points used', String(d.points)],
+    ['wall time', `${d.wallSeconds.toFixed(2)} s`],
+    ['audio time', `${d.audioSeconds.toFixed(2)} s`],
+    ['fitted slope', `${ppm(d.fittedRatio)}  ${sd(d.fittedDriftSecondsPerDay)}`],
+    ['ratio of totals', `${ppm(d.totalsRatio)}  ${sd(d.totalsDriftSecondsPerDay)}`],
+    ['step ratio range', `${ppm(d.minStepRatio)} … ${ppm(d.maxStepRatio)}`],
+    ['frames delivered', `${d.frames.toLocaleString()}`],
+    ['frames as time', d.framesSeconds === null ? '—' : `${d.framesSeconds.toFixed(2)} s  ${sd(d.framesDriftSecondsPerDay)}`],
+    ['rejected — gap', String(d.rejectedGap)],
+    ['rejected — ratio', String(d.rejectedRatio)],
+    ['rejected — backwards', String(d.rejectedBackwards)],
+    ['context rate', sampleRate ? `${sampleRate.toLocaleString()} Hz` : '—'],
+  ];
+
+  return (
+    <div className="calibration__details">
+      <table className="calibration__table">
+        <tbody>
+          {rows.map(([k, v]) => (
+            <tr key={k}><th>{k}</th><td className="mono">{v}</td></tr>
+          ))}
+        </tbody>
+      </table>
+      <button className="calibration__what" onClick={() => setOpen(false)}>Hide</button>
+    </div>
   );
 }
 
@@ -202,6 +256,8 @@ export function CalibrationPanel(p: Props) {
             {p.capturing ? 'Stop listening' : 'Start listening'}
           </button>
         )}
+
+        <Details d={p.clockDebug} sampleRate={p.sampleRate} />
       </Method>
 
       <Method

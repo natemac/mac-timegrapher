@@ -805,6 +805,26 @@ select {
 
 .calibration__note { font-size: 11px; margin: 0; }
 
+/* The numbers behind a run, for when it produced nothing usable. */
+.calibration__details { display: flex; flex-direction: column; gap: 6px; }
+.calibration__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+.calibration__table th {
+  text-align: left;
+  font-weight: 400;
+  color: var(--text-faint);
+  padding: 2px 8px 2px 0;
+  white-space: nowrap;
+}
+.calibration__table td {
+  text-align: right;
+  padding: 2px 0;
+  color: var(--text-dim);
+}
+
 .calibration__what {
   align-self: flex-start;
   background: none;

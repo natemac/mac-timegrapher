@@ -10,7 +10,16 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { CalibrationPanel } from './CalibrationPanel';
 import type { Calibration } from '../timegrapher/tg-engine';
-import type { ClockResult } from '../audio/clock-calibration';
+import type { ClockResult, ClockDebug } from '../audio/clock-calibration';
+
+const DEBUG: ClockDebug = {
+  points: 0, wallSeconds: 0, audioSeconds: 0,
+  fittedRatio: null, totalsRatio: null,
+  fittedDriftSecondsPerDay: null, totalsDriftSecondsPerDay: null,
+  rejectedGap: 0, rejectedRatio: 0, rejectedBackwards: 0,
+  minStepRatio: null, maxStepRatio: null,
+  frames: 0, framesSeconds: null, framesDriftSecondsPerDay: null,
+};
 
 const CHECK = (over: Partial<Calibration> = {}): Calibration => ({
   collected: 0, needed: 900, signal: 4, state: 0, driftSecondsPerDay: 0, ...over,
@@ -43,6 +52,7 @@ function panel(over: Partial<Parameters<typeof CalibrationPanel>[0]> = {}) {
       clock={null}
       clockSeconds={0}
       clockDisturbed={false}
+      clockDebug={DEBUG}
       onApplyClock={() => {}}
       onClearClock={() => {}}
       hasCorrection={false}
@@ -175,5 +185,56 @@ describe('the quartz method', () => {
     render(panel({ check: CHECK({ collected: 42 }), onStopCheck }));
     fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
     expect(onStopCheck).toHaveBeenCalled();
+  });
+});
+
+describe('the numbers behind a run', () => {
+  /*
+     A rejected fit is otherwise a dead end — the figure is withheld and all
+     that is left is that something went wrong. Two clean runs on an iPhone
+     both produced an impossible answer, and there was no way to tell an
+     interrupted run from a systematically wrong one, because both look the
+     same from outside.
+  */
+  it('is available even when the fit produced nothing usable', () => {
+    render(panel({
+      clockDisturbed: true,
+      clockDebug: {
+        ...DEBUG,
+        points: 126, wallSeconds: 63.4, audioSeconds: 63.33,
+        fittedRatio: 0.998859, totalsRatio: 0.998861,
+        fittedDriftSecondsPerDay: -98.58, totalsDriftSecondsPerDay: -98.4,
+        rejectedGap: 2, rejectedRatio: 11,
+        minStepRatio: 0.96, maxStepRatio: 1.02,
+      },
+    }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show the numbers' }));
+    const t = screen.getByRole('table').textContent ?? '';
+    expect(t).toMatch(/points used/);
+    expect(t).toMatch(/126/);
+    expect(t).toMatch(/-98\.58 s\/day/);
+    // The counts that say which kind of failure it was.
+    expect(t).toMatch(/rejected — gap/);
+    expect(t).toMatch(/rejected — ratio/);
+  });
+
+  /* Two ways of reducing the same points. They should agree; a disagreement
+     means the points are not evenly spread across the run. */
+  it('shows the fitted slope and the plain ratio of totals side by side', () => {
+    render(panel({
+      clockDebug: { ...DEBUG, points: 100, wallSeconds: 60, audioSeconds: 60,
+        fittedRatio: 1.000054, totalsRatio: 1.000054,
+        fittedDriftSecondsPerDay: 4.67, totalsDriftSecondsPerDay: 4.67 },
+    }));
+    fireEvent.click(screen.getByRole('button', { name: 'Show the numbers' }));
+    const t = screen.getByRole('table').textContent ?? '';
+    expect(t).toMatch(/fitted slope/);
+    expect(t).toMatch(/ratio of totals/);
+    expect(t).toMatch(/54 ppm/);
+  });
+
+  it('stays out of the way until asked for', () => {
+    render(panel());
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 });

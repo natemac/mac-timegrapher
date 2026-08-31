@@ -35,6 +35,49 @@
    million.
 */
 
+/*
+   What the fit was built from, for when it produces something impossible.
+
+   Every rejected step used to vanish silently, which left no way to tell an
+   interrupted run from a systematically wrong one — the two look identical
+   from the outside, and both just produce a number that cannot be true.
+*/
+export interface ClockDebug {
+  points: number;
+  wallSeconds: number;
+  audioSeconds: number;
+  /** Slope of the fit, and the plain ratio of the totals. They should agree;
+      when they do not, the points are not evenly spread. */
+  fittedRatio: number | null;
+  totalsRatio: number | null;
+  fittedDriftSecondsPerDay: number | null;
+  totalsDriftSecondsPerDay: number | null;
+  /** Steps thrown away, by reason. */
+  rejectedGap: number;
+  rejectedRatio: number;
+  rejectedBackwards: number;
+  /** The widest and narrowest single-step ratio that was accepted. */
+  minStepRatio: number | null;
+  maxStepRatio: number | null;
+  /*
+     A third clock, and the one that decides the argument.
+
+     Audio frames actually delivered, divided by the nominal rate, is how much
+     audio the device thinks it produced. Compare it against the other two:
+
+       tracks wall time but not currentTime -> currentTime is the broken one
+       tracks currentTime but not wall time -> the device's crystal really is
+                                               off by this much
+
+     Every rate the app reports is derived from the frame count, so the second
+     case would put the same error into every measurement — which is testable
+     against another machine, and was not seen.
+  */
+  frames: number;
+  framesSeconds: number | null;
+  framesDriftSecondsPerDay: number | null;
+}
+
 export interface ClockResult {
   /** Audio seconds per wall second. 1 means the device is exactly nominal. */
   ratio: number;
@@ -115,6 +158,12 @@ export class ClockCalibrator {
   private lastAudio: number | null = null;
   private lastWall: number | null = null;
   private points: { x: number; y: number }[] = [];
+  private rejectedGap = 0;
+  private rejectedRatio = 0;
+  private rejectedBackwards = 0;
+  private minStepRatio: number | null = null;
+  private maxStepRatio: number | null = null;
+  private frameTotal = 0;
 
   /**
    * A new capture. Everything measured under the previous audio context goes,
@@ -130,23 +179,37 @@ export class ClockCalibrator {
     this.points = [];
     this.lastAudio = null;
     this.lastWall = null;
+    this.rejectedGap = 0;
+    this.rejectedRatio = 0;
+    this.rejectedBackwards = 0;
+    this.minStepRatio = null;
+    this.maxStepRatio = null;
+    this.frameTotal = 0;
   }
 
-  /** `audioTime` is AudioContext.currentTime; `wallMs` is performance.now(). */
-  sample(audioTime: number, wallMs: number): void {
+  /**
+   * `audioTime` is AudioContext.currentTime; `wallMs` is performance.now();
+   * `frames` is how many samples this block carried, counted only when the
+   * step is accepted so all three clocks span the same intervals.
+   */
+  sample(audioTime: number, wallMs: number, frames = 0): void {
     if (this.lastAudio !== null && this.lastWall !== null) {
       const stepAudio = audioTime - this.lastAudio;
       const stepWall = (wallMs - this.lastWall) / 1000;
 
-      const usable =
-        stepAudio > 0 &&
-        stepWall > 0 &&
-        stepWall <= MAX_STEP_SECONDS &&
-        Math.abs(stepAudio / stepWall - 1) <= MAX_STEP_ERROR;
-
-      if (usable) {
+      if (stepAudio <= 0 || stepWall <= 0) {
+        this.rejectedBackwards++;
+      } else if (stepWall > MAX_STEP_SECONDS) {
+        this.rejectedGap++;
+      } else if (Math.abs(stepAudio / stepWall - 1) > MAX_STEP_ERROR) {
+        this.rejectedRatio++;
+      } else {
+        const r = stepAudio / stepWall;
+        if (this.minStepRatio === null || r < this.minStepRatio) this.minStepRatio = r;
+        if (this.maxStepRatio === null || r > this.maxStepRatio) this.maxStepRatio = r;
         this.audioTotal += stepAudio;
         this.wallTotal += stepWall;
+        this.frameTotal += frames;
         this.points.push({ x: this.wallTotal, y: this.audioTotal });
         if (this.points.length > MAX_POINTS) this.points.shift();
       }
@@ -158,6 +221,36 @@ export class ClockCalibrator {
 
   get seconds(): number {
     return this.wallTotal;
+  }
+
+  /*
+     The raw state of the fit, reported whether or not it produced something
+     usable. This is the only view of a run that failed.
+  */
+  debug(sampleRate: number | null = null): ClockDebug {
+    const fit = this.fit();
+    const totalsRatio = this.wallTotal > 0 ? this.audioTotal / this.wallTotal : null;
+    return {
+      points: this.points.length,
+      wallSeconds: this.wallTotal,
+      audioSeconds: this.audioTotal,
+      fittedRatio: fit ? fit.ratio : null,
+      totalsRatio,
+      fittedDriftSecondsPerDay: fit ? fit.driftSecondsPerDay : null,
+      totalsDriftSecondsPerDay:
+        totalsRatio === null ? null : (totalsRatio - 1) * SECONDS_PER_DAY,
+      rejectedGap: this.rejectedGap,
+      rejectedRatio: this.rejectedRatio,
+      rejectedBackwards: this.rejectedBackwards,
+      minStepRatio: this.minStepRatio,
+      maxStepRatio: this.maxStepRatio,
+      frames: this.frameTotal,
+      framesSeconds: sampleRate ? this.frameTotal / sampleRate : null,
+      framesDriftSecondsPerDay:
+        sampleRate && this.wallTotal > 0
+          ? (this.frameTotal / sampleRate / this.wallTotal - 1) * SECONDS_PER_DAY
+          : null,
+    };
   }
 
   /** Null until there is enough of a run to say anything honest. */

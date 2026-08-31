@@ -639,7 +639,7 @@ export default function App() {
     */
     const ctx = session.current?.context;
     if (ctx && ctx.state === 'running') {
-      calibrator.current.sample(ctx.currentTime, performance.now());
+      calibrator.current.sample(ctx.currentTime, performance.now(), block.length);
     }
 
     engine.current?.push(block);
@@ -897,6 +897,7 @@ export default function App() {
         clock={clock}
         clockSeconds={calibrator.current.seconds}
         clockDisturbed={calibrator.current.disturbed}
+        clockDebug={calibrator.current.debug(sampleRate)}
         clockCheck={clockCheck}
         onStartClockCheck={startClockCheck}
         onStopClockCheck={stopClockCheck}
