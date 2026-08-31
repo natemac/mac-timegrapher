@@ -14,6 +14,7 @@ import { ZOOM_STEPS, ZOOM_AUTO } from '../timegrapher/trace-zoom';
 import { SourceFooter } from './SourceFooter';
 import { MOVEMENTS } from '../timegrapher/movements';
 import { SETTLED_BOUNDS, type BestSpread } from '../timegrapher/stability';
+import { MIN_SECONDS, type ClockResult } from '../audio/clock-calibration';
 
 export interface Settings {
   /** Milliseconds of drift spanning the trace width. Smaller magnifies more. */
@@ -30,6 +31,12 @@ export interface Settings {
      footer is a licence obligation and is not affected by this.
   */
   showLogo: boolean;
+  /*
+     What the audio device's clock gains per day, measured against the system
+     clock. Zero until measured. Every rate reading is wrong by this much while
+     it is left at zero — a constant offset, invisible to the spread.
+  */
+  clockDriftSecondsPerDay: number;
 }
 
 /* Auto by default: the operator should not have to work out that +17 s/day
@@ -38,6 +45,7 @@ export const DEFAULT_SETTINGS: Settings = {
   zoomMs: ZOOM_AUTO,
   traceSeconds: 30,
   showLogo: false,
+  clockDriftSecondsPerDay: 0,
 };
 
 /* Magnification in the units a watchmaker already thinks in, plus Auto. */
@@ -91,6 +99,10 @@ interface Props {
   onExportDiagnostics: () => void;
   /** How much the log has to say. Zero means nothing has been measured yet. */
   diagnosticSamples: number;
+  /** The clock measurement, once there is enough of a run for one. */
+  clock: ClockResult | null;
+  /** How far into that run it is, so the wait is visible. */
+  clockSeconds: number;
 }
 
 type Tab = 'guide' | 'settings';
@@ -157,6 +169,7 @@ function Choice<T extends number>({
 export function SettingsSheet({
   open, topic, onClose, onShowFullGuide, settings, onChange,
   movementId, onSelectMovement, best, onExportDiagnostics, diagnosticSamples,
+  clock, clockSeconds,
 }: Props) {
   /* Settings first. The guide is read once; the settings are the reason the
      cog gets pressed again. */
@@ -284,6 +297,65 @@ export function SettingsSheet({
                     ? 'Nothing measured yet'
                     : `Export log — ${diagnosticSamples} readings`}
                 </button>
+              </Setting>
+
+              {/*
+                The one correction that changes what a reading *is* rather than
+                how it is judged. A sound card reporting 44,100 Hz is ten to a
+                hundred parts per million out, and every part per million is
+                0.0864 s/day — invisible everywhere else, because a constant
+                scale error is perfectly repeatable.
+              */}
+              <Setting onInfo={setInfo} label="Audio clock" topic="setting-clock">
+                {settings.clockDriftSecondsPerDay !== 0 && (
+                  <p className="dim settings__clock-applied">
+                    Correcting by{' '}
+                    <strong className="mono">
+                      {settings.clockDriftSecondsPerDay > 0 ? '+' : ''}
+                      {settings.clockDriftSecondsPerDay.toFixed(2)} s/day
+                    </strong>
+                  </p>
+                )}
+
+                {clock ? (
+                  <>
+                    <p className="dim settings__clock-measured">
+                      This device measures{' '}
+                      <strong className="mono">
+                        {clock.driftSecondsPerDay > 0 ? '+' : ''}
+                        {clock.driftSecondsPerDay.toFixed(2)} ± {clock.errorSecondsPerDay.toFixed(2)} s/day
+                      </strong>{' '}
+                      over {clock.seconds.toFixed(0)}s.
+                    </p>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        className="secondary"
+                        style={{ flex: '1 1 auto', fontSize: 13 }}
+                        onClick={() => onChange({
+                          ...settings,
+                          clockDriftSecondsPerDay: clock.driftSecondsPerDay,
+                        })}
+                      >
+                        Apply
+                      </button>
+                      {settings.clockDriftSecondsPerDay !== 0 && (
+                        <button
+                          className="secondary"
+                          style={{ flex: '0 0 auto', fontSize: 13 }}
+                          onClick={() => onChange({ ...settings, clockDriftSecondsPerDay: 0 })}
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <p className="dim settings__clock-measured">
+                    {clockSeconds > 0
+                      ? `Measuring — ${clockSeconds.toFixed(0)}s of ${MIN_SECONDS}s so far. It needs one uninterrupted run.`
+                      : `Measure it by leaving a capture running for ${MIN_SECONDS} seconds or more, in one go.`}
+                  </p>
+                )}
               </Setting>
 
               {/* A readout rather than a setting, but it is what the Settled

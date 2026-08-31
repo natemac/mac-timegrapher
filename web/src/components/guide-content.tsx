@@ -23,7 +23,8 @@ export type Topic =
   // Settings. Explained here rather than beside the controls, so the settings
   // page is a list of controls and not a wall of prose.
   | 'setting-movement' | 'setting-steadiness' | 'setting-branding'
-  | 'setting-magnification' | 'setting-history' | 'setting-diagnostics';
+  | 'setting-magnification' | 'setting-history' | 'setting-diagnostics'
+  | 'setting-clock';
 
 export interface GuideEntry {
   title: string;
@@ -54,6 +55,53 @@ export const GUIDE: Record<Topic, GuideEntry> = {
           analysis does not apply: a stepper motor has no balance wheel, so
           amplitude and beat error are withheld rather than shown as numbers you
           could act on.
+        </p>
+      </>
+    ),
+  },
+
+  'setting-clock': {
+    title: 'Audio clock',
+    lede: 'Your sound card does not run at exactly the rate it claims, and every reading inherits the difference.',
+    body: (
+      <>
+        <p>
+          A device that reports 44,100 Hz is running at something near it.
+          Crystals are typically ten to a hundred parts per million out, and
+          every part per million is <strong>0.0864 seconds a day</strong> of
+          error in rate. A hundred parts per million is 8.6 s/day — the
+          difference between a watch that needs regulating and one that does
+          not.
+        </p>
+        <p>
+          It hides from everything else here. The error is a constant scale
+          factor, so it is perfectly repeatable: the reading settles, the spread
+          stays tight, and the whole scale is shifted. Steadiness cannot see it.
+        </p>
+
+        <h4>Measuring it</h4>
+        <p>
+          Start a capture and leave it running for a minute or more without
+          stopping. Nothing needs to be on the sensor. The app compares its own
+          audio clock against the system clock, which is disciplined and far
+          steadier than any sound card, and fits a line through the two.
+        </p>
+        <p>
+          It has to be one uninterrupted run. Stitching several short ones
+          together is biased by more than the error being measured, so a new
+          capture starts the measurement over.
+        </p>
+        <p>
+          Then press <strong>Apply</strong>. The correction is remembered on
+          this device and used for every reading afterwards. It belongs to the
+          audio device, so measure it again if you change sensor or machine.
+        </p>
+
+        <h4>What it does not fix</h4>
+        <p>
+          Amplitude comes from the shape of the escapement impulse and the lift
+          angle, not from the clock, so this does not touch it. Beat error is a
+          ratio within one beat and barely moves either. This corrects rate.
         </p>
       </>
     ),

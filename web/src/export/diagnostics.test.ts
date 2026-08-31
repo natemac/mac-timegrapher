@@ -23,6 +23,7 @@ const CONTEXT: DiagnosticContext = {
   quartz: false,
   mode: 'inspection',
   settledBounds: { rate: 1, amplitude: 15, beatError: 1.5 },
+  clockDriftSecondsPerDay: 0,
 };
 
 function sample(over: Partial<DiagnosticSample> = {}): DiagnosticSample {
@@ -209,5 +210,21 @@ describe('what the file admits to holding', () => {
     for (const secret of ['MB-0142', 'N. McGraw', 'customer', 'serial']) {
       expect(text).not.toContain(secret);
     }
+  });
+});
+
+describe('the clock correction', () => {
+  /* Every rate in the file is scaled by it, so two logs are only comparable
+     once both are known. */
+  it('says plainly when a run was uncorrected', () => {
+    const log = new DiagnosticsLog();
+    log.setContext(CONTEXT);
+    expect(log.toText()).toContain('rate is uncorrected');
+  });
+
+  it('names the correction when there was one', () => {
+    const log = new DiagnosticsLog();
+    log.setContext({ ...CONTEXT, clockDriftSecondsPerDay: -4.32 });
+    expect(log.toText()).toContain('-4.32 s/day');
   });
 });

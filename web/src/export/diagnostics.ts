@@ -70,6 +70,8 @@ export interface DiagnosticContext {
   quartz: boolean;
   mode: string;
   settledBounds: { rate: number; amplitude: number; beatError: number };
+  /** The clock correction in force, which scales every rate in the file. */
+  clockDriftSecondsPerDay: number;
 }
 
 function fmt(n: number | null, places: number): string {
@@ -157,6 +159,13 @@ export class DiagnosticsLog {
     lines.push(`lift angle        ${c?.quartz ? 'n/a — quartz' : `${c?.liftAngle ?? '?'}°`}`);
     lines.push(`beat rate         ${c?.bph ? `${c.bph} bph` : 'detected'}`);
     lines.push(`mode              ${c?.mode ?? '?'}`);
+    /* Rate figures below are scaled by this, so a log is only comparable with
+       another once both are known. */
+    lines.push(`clock correction  ${
+      c?.clockDriftSecondsPerDay
+        ? `${c.clockDriftSecondsPerDay > 0 ? '+' : ''}${c.clockDriftSecondsPerDay.toFixed(2)} s/day`
+        : 'none — rate is uncorrected for sound-card clock error'
+    }`);
     lines.push(`settled bounds    rate ±${c?.settledBounds.rate}  amplitude ±${c?.settledBounds.amplitude}  beat ±${c?.settledBounds.beatError}`);
     lines.push(`user agent        ${typeof navigator === 'undefined' ? '?' : navigator.userAgent}`);
     lines.push('');

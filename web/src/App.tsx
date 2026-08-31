@@ -13,6 +13,9 @@ import {
 } from './audio/device-manager';
 import { startCapture, type CaptureSession } from './audio/audio-engine';
 import { SignalMeter, type SignalState } from './audio/signal-strength';
+import {
+  ClockCalibrator, correctedSampleRate, type ClockResult,
+} from './audio/clock-calibration';
 import { PermissionGate } from './components/PermissionGate';
 import { DeviceSelector } from './components/DeviceSelector';
 import { LevelMeter } from './components/LevelMeter';
@@ -88,6 +91,7 @@ export default function App() {
   // a slow-moving figure and re-rendering the app for it would be waste.
   const [bestSpread, setBestSpread] = useState<BestSpread>({ rate: null, amplitude: null, beatError: null });
   const [diagnosticSamples, setDiagnosticSamples] = useState(0);
+  const [clock, setClock] = useState<ClockResult | null>(null);
   /* Waveform by default: it shows something the moment audio arrives, so a
      first-time user can tell the sensor is hearing the watch before any
      reading exists. The trace needs beats before it draws anything at all. */
@@ -179,6 +183,7 @@ export default function App() {
     setHelpTopic(null);
     setBestSpread(stability.current.best());
     setDiagnosticSamples(diagnostics.current.size);
+    setClock(calibrator.current.result());
     setSheetOpen(true);
   }, []);
   // Remembered per device: magnification is a matter of taste and of what the
@@ -231,6 +236,9 @@ export default function App() {
   // A written record of the run, for working out afterwards why a reading
   // behaved the way it did. Nothing leaves the device unless it is exported.
   const diagnostics = useRef(new DiagnosticsLog());
+  // Measures the sound card's clock against the system clock while capture
+  // runs. It costs nothing and needs no reference watch.
+  const calibrator = useRef(new ClockCalibrator());
   // Read inside the measurement callback, which is built once per capture and
   // would otherwise pin whatever the signal was at that moment.
   const signalRef = useRef<SignalState | null>(null);
@@ -457,8 +465,13 @@ export default function App() {
     if (!capturing || sampleRate === null) return;
 
     const { bph, liftAngle } = engineConfigFor(findMovement(movementId));
+    /*
+       The one place a clock correction has to be applied. The core's arithmetic
+       is in samples, so correcting the rate it is told corrects everything
+       downstream from it.
+    */
     const built = TimegrapherEngine.create({
-      sampleRate,
+      sampleRate: correctedSampleRate(sampleRate, settings.clockDriftSecondsPerDay),
       bph,
       liftAngle,
       onMeasurement: (m, seconds, newBeats) => {
@@ -522,7 +535,7 @@ export default function App() {
       setSpreads({ rate: null, amplitude: null, beatError: null });
       setSettling('waiting');
     };
-  }, [capturing, sampleRate, movementId]);
+  }, [capturing, sampleRate, movementId, settings.clockDriftSecondsPerDay]);
 
   // Auto magnification follows the reading, so it is resolved here rather than
   // inside the canvas — the header has to show the figure actually in use.
@@ -645,6 +658,16 @@ export default function App() {
   }, []);
 
   const handleBlock = useCallback((block: Float32Array) => {
+    /*
+       Sampled here rather than on a timer, because this runs off the audio
+       thread's own delivery — so a stalled or throttled main thread shows up as
+       a gap the calibrator discards rather than as false drift.
+    */
+    const ctx = session.current?.context;
+    if (ctx && ctx.state === 'running') {
+      calibrator.current.sample(ctx.currentTime, performance.now());
+    }
+
     engine.current?.push(block);
     const next = meter.current.push(block, block.length / (session.current?.sampleRate ?? 48000));
     signalRef.current = next;
@@ -706,6 +729,8 @@ export default function App() {
       setSampleRate(s.sampleRate);
       setRequestedSampleRate(s.requestedSampleRate ?? null);
       setCapturing(true);
+      calibrator.current.beginSession();
+      setClock(null);
       saveSelection(selectedId);
 
       diagnostics.current.reset();
@@ -720,6 +745,7 @@ export default function App() {
         quartz: isQuartz(findMovement(movementId)),
         mode,
         settledBounds: SETTLED_BOUNDS,
+        clockDriftSecondsPerDay: settings.clockDriftSecondsPerDay,
       });
       diagnostics.current.event('start', `${s.sampleRate} Hz`);
 
@@ -827,6 +853,8 @@ export default function App() {
         best={bestSpread}
         onExportDiagnostics={exportDiagnostics}
         diagnosticSamples={diagnosticSamples}
+        clock={clock}
+        clockSeconds={calibrator.current.seconds}
       />
 
       {!secure && (

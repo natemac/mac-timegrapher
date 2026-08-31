@@ -58,55 +58,45 @@ Three ways forward, and this is a call rather than a task:
   than an escapement, but it is a separate measurement path in the C core, not
   a setting.
 
-## 2c. Sound-card clock calibration — the one thing upstream has that we do not
+## 2c. Sound-card clock calibration — built, needs measuring on your bench
 
-Found 2026-08-30 by reading `core/tg_algo.c` against what the web app exposes.
+Built 2026-08-30. **Settings → Audio clock.**
 
-`process_cal` and `compute_cal` are **already compiled into our WebAssembly**
-and nothing calls them. Upstream points the analysis at an accurate 1 Hz
-reference, regresses measured phase against elapsed time, and gets the audio
-clock's drift in seconds per day. It then corrects every reading:
+A device that reports 44,100 Hz is not running at 44,100 Hz. Crystals are ten to
+a hundred parts per million out, and every part per million is 0.0864 s/day of
+error in rate — so a hundred is 8.6 s/day. It is invisible to everything else
+here, because a constant scale error is perfectly repeatable: the reading
+settles, the spread stays tight, and the whole scale is shifted.
 
-    sample_rate = nominal_rate * (1 + cal / (10 * 3600 * 24))
+Rather than upstream's route — a quartz watch ticking seconds held to the sensor
+— it compares `AudioContext.currentTime` against `performance.now()`. The audio
+clock advances with the sound card; the system clock is disciplined and orders
+of magnitude steadier. It needs no reference watch and runs quietly during any
+capture. Measured 54 ppm on the development machine, which is the expected
+order.
 
-**Why this matters more than it sounds.** A sound card that reports 44,100 Hz is
-not running at exactly 44,100 Hz. Crystals are typically 10 to 100 parts per
-million out. Every part per million is 0.0864 s/day of error in rate:
+It has to be **one uninterrupted run** of at least a minute. Stitching short
+runs together is biased by more than the error being measured — `currentTime` is
+floored to a render quantum, so each run under-reports its own elapsed audio by
+about 1.5 ms, and across runs those compound. Within one run it is a constant
+offset on the fitted line and does not touch the slope. A new capture starts the
+measurement over.
 
-| clock error | rate error |
-|---|---|
-| 10 ppm | 0.86 s/day |
-| 50 ppm | 4.3 s/day |
-| 100 ppm | 8.6 s/day |
+**What you need to do:**
 
-**It is invisible to everything we currently measure.** It is a constant offset,
-so it is perfectly repeatable — "Steadiness of this bench" would read ±0.42 with
-the whole scale shifted by five seconds a day and never hint at it.
+1. Measure mode, press Start, leave it a couple of minutes. Nothing needs to be
+   on the sensor.
+2. Cog → Settings → Audio clock → **Apply**.
+3. Do it again if you change sensor or machine — the figure belongs to the audio
+   device, not to the app.
 
-**And it means rate has never been verified in absolute terms either.** The
-synthetic-signal tests generate samples at an assumed rate and measure them at
-the same assumed rate, which is circular; they prove the algorithm is
-self-consistent, not that the clock is right. The NH35 readings were never
-compared against a reference. So rate joins amplitude as unverified — for a
-different reason, and a more easily fixed one.
+It corrects rate only. Amplitude comes from impulse shape and lift angle, and
+beat error is a ratio within one beat; neither moves.
 
-Two ways to measure it:
-
-- **Upstream's way.** A known-accurate 1 Hz source — a quartz watch ticking
-  seconds — held to the sensor for a couple of minutes. Needs the calibration
-  path exposed through `wasm/bindings.c` and the worker.
-- **A browser-native way, probably better here.** Compare
-  `AudioContext.currentTime` against `performance.now()` over a few minutes.
-  The audio clock advances with the sound card; `performance.now()` advances
-  with the system clock, which is NTP-synced and orders of magnitude better than
-  any sound-card crystal. That needs no reference watch and no C at all, and it
-  can run quietly during an ordinary session.
-
-Applying the result is one line either way — `tg_config.sample_rate` is already
-the only place the rate enters the arithmetic.
-
-**Not started.** It wants a decision first: whether to expose upstream's path or
-measure against the system clock.
+**This does not close item 1.** The clock correction makes rate right in
+absolute terms for the first time — the synthetic tests could never catch this,
+because they generate and measure at the same assumed rate. Amplitude is still
+unverified against anything.
 
 ## 3. Run a full six-position inspection on a real watch
 

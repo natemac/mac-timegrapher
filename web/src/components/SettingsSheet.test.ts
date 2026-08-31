@@ -48,7 +48,7 @@ describe('loadSettings', () => {
   });
 
   it('round-trips every setting', () => {
-    const chosen = { zoomMs: 10, traceSeconds: 60, showLogo: true };
+    const chosen = { zoomMs: 10, traceSeconds: 60, showLogo: true, clockDriftSecondsPerDay: 4.32 };
     saveSettings(chosen);
     expect(loadSettings()).toEqual(chosen);
   });
