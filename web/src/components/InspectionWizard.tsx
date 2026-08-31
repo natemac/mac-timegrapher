@@ -54,6 +54,16 @@ interface Props {
   onOpenSummary: () => void;
   onJump: (step: number) => void;
   onHelp: (t: Topic) => void;
+  /*
+     Start and Stop live here rather than in the setup panel. A run is worked
+     entirely from this panel — position, progress, and the one button that
+     advances it — so the operator is not reaching between two of them for
+     every position.
+  */
+  onStart: () => void;
+  onStop: () => void;
+  /** No input chosen, or a start/stop already in flight. */
+  startDisabled: boolean;
 }
 
 /*
@@ -87,7 +97,7 @@ function Dots({ state, onJump }: { state: WizardState; onJump: (step: number) =>
 export function InspectionWizard({
   state, capturing, phase, settling, valid, seconds, countdown, auto, onAutoChange,
   onCapture, onSkip, onNext, onRetry, onFinish, onRestart, onOpenSummary, onJump,
-  onHelp,
+  onHelp, onStart, onStop, startDisabled,
 }: Props) {
   const position = positionAt(state.step);
   const settled = settling === 'settled';
@@ -138,8 +148,8 @@ export function InspectionWizard({
       </div>
 
       {state.stage === 'prompt' && (
-        <p className="wizard__line wizard__line--call">
-          Press <strong>START</strong> to begin
+        <p className="wizard__line">
+          {capturing ? 'Ready.' : 'Place the watch, then Start.'}
         </p>
       )}
 
@@ -166,6 +176,16 @@ export function InspectionWizard({
       )}
 
       <div className="wizard__foot">
+        {/* One button for the whole run: it opens the device and begins the
+            position, and stops it again. */}
+        <button
+          className="wizard__start"
+          onClick={capturing ? onStop : onStart}
+          disabled={startDisabled}
+        >
+          {capturing ? 'Stop' : 'Start'}
+        </button>
+
         <Dots state={state} onJump={onJump} />
 
         {/* Only while a reading is actually running: an inspection that has not

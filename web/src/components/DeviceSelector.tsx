@@ -24,12 +24,20 @@ interface Props {
   movementId: string | null;
   onSelectMovement: (id: string | null) => void;
   onHelp: (t: Topic) => void;
+  /*
+     In an inspection this panel is reduced to the microphone. Start and Stop
+     move into the wizard, which is where the whole run is worked, so the
+     operator is not reaching between two panels for every position — and the
+     calibre and lift angle fold into the header rather than being dropped,
+     because a wrong preset is a wrong amplitude and that has to stay visible.
+  */
+  compact?: boolean;
 }
 
 export function DeviceSelector({
   devices, selectedId, sampleRate, requestedSampleRate,
   capturing, busy, onSelect, onStart, onStop, onHelp,
-  movementId, onSelectMovement,
+  movementId, onSelectMovement, compact = false,
 }: Props) {
   // A rate the browser refused means it resampled, which makes the recording a
   // derivative rather than a reference. Worth surfacing; the applied-processing
@@ -46,21 +54,33 @@ export function DeviceSelector({
         label="Setup"
         topic="input"
         onHelp={onHelp}
-        right={capturing && sampleRate !== null ? (
-          <span className="mono dim" style={{ fontSize: 11 }}>
-            {sampleRate.toLocaleString()} Hz
-          </span>
-        ) : undefined}
+        right={
+          compact ? (
+            <span className="mono dim" style={{ fontSize: 11 }}>
+              {movement && `${movement.name} · `}
+              {movement && !isQuartz(movement) && `${movement.liftAngle}° · `}
+              {capturing && sampleRate !== null
+                ? `${sampleRate.toLocaleString()} Hz`
+                : 'ready'}
+            </span>
+          ) : capturing && sampleRate !== null ? (
+            <span className="mono dim" style={{ fontSize: 11 }}>
+              {sampleRate.toLocaleString()} Hz
+            </span>
+          ) : undefined
+        }
       />
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <button
-          onClick={capturing ? onStop : onStart}
-          disabled={devices.length === 0 || busy}
-          style={{ flex: '0 0 auto', minWidth: 84 }}
-        >
-          {capturing ? 'Stop' : 'Start'}
-        </button>
+        {!compact && (
+          <button
+            onClick={capturing ? onStop : onStart}
+            disabled={devices.length === 0 || busy}
+            style={{ flex: '0 0 auto', minWidth: 84 }}
+          >
+            {capturing ? 'Stop' : 'Start'}
+          </button>
+        )}
         <select
           aria-label="Audio input"
           value={selectedId ?? ''}
@@ -89,7 +109,7 @@ export function DeviceSelector({
         row that never gets touched — and the trace has better uses for it. It
         is still changeable from the settings sheet.
       */}
-      {movement ? (
+      {compact ? null : movement ? (
         <div className="setup__movement mono dim">
           {movement.maker} {movement.name} ·{' '}
           {isQuartz(movement)

@@ -38,6 +38,9 @@ function panel(state: WizardState, over: Record<string, unknown> = {}) {
       onOpenSummary={() => {}}
       onJump={() => {}}
       onHelp={() => {}}
+      onStart={() => {}}
+      onStop={() => {}}
+      startDisabled={false}
       {...over}
     />
   );
@@ -50,15 +53,45 @@ const CAPTURED = captured(MEASURING);
 
 describe('what the panel tells the operator to do', () => {
   /*
-     The regression this replaced: the panel had its own Go button beside the
-     Start button in the setup panel. Two controls looked like the way to
-     begin, one was, and pressing Start appeared to do nothing.
+     There is one button that begins a position and it is this one.
+
+     It was a Go button here beside a Start button in the setup panel — two
+     controls that both looked like the way to begin, one of which was. Then it
+     was Start in the setup panel alone, with this panel pointing at it across
+     the screen. Now the run is worked entirely from here.
   */
-  it('names the position and points at Start, and offers no rival button', () => {
+  it('names the position and carries the button that starts it', () => {
     render(panel(PROMPT));
+
     expect(screen.getByText('Dial up position')).toBeInTheDocument();
-    expect(screen.getByText(/press/i)).toHaveTextContent('Press START to begin');
+    expect(screen.getByRole('button', { name: 'Start' })).toBeEnabled();
     expect(screen.queryByRole('button', { name: 'Go' })).not.toBeInTheDocument();
+  });
+
+  it('offers Stop while a position is running', () => {
+    render(panel(MEASURING));
+    expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Start' })).not.toBeInTheDocument();
+  });
+
+  it('refuses to start with no input to start', () => {
+    render(panel(PROMPT, { startDisabled: true }));
+    expect(screen.getByRole('button', { name: 'Start' })).toBeDisabled();
+  });
+
+  it('starts and stops through the caller', async () => {
+    const onStart = vi.fn();
+    const onStop = vi.fn();
+    const user = userEvent.setup();
+
+    const { unmount } = render(panel(PROMPT, { onStart }));
+    await user.click(screen.getByRole('button', { name: 'Start' }));
+    expect(onStart).toHaveBeenCalledOnce();
+    unmount();
+
+    render(panel(MEASURING, { onStop }));
+    await user.click(screen.getByRole('button', { name: 'Stop' }));
+    expect(onStop).toHaveBeenCalledOnce();
   });
 
   it('counts down before anything is kept', () => {

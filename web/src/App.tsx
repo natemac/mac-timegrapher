@@ -907,6 +907,9 @@ export default function App() {
             onSelect={setSelectedId}
             onStart={start}
             onStop={stop}
+            /* An inspection is worked entirely from the wizard, so this panel
+               keeps only the microphone. */
+            compact={mode === 'inspection'}
             onHelp={showHelp}
             movementId={movementId}
             onSelectMovement={selectMovement}
@@ -958,6 +961,9 @@ export default function App() {
               onOpenSummary={() => setSessionOpen(true)}
               onJump={jumpWizard}
               onHelp={showHelp}
+              onStart={start}
+              onStop={stop}
+              startDisabled={devices.length === 0 || busy}
             />
           )}
 

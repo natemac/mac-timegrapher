@@ -1312,3 +1312,11 @@ html.is-measuring body { overscroll-behavior-y: none; }
   font-size: 13px;
   color: var(--text-dim);
 }
+
+/* The run's own Start, in the panel the run is worked from. */
+.wizard__start {
+  flex: 0 0 auto;
+  font-size: 13px;
+  padding: 8px 16px;
+  margin-right: 2px;
+}
