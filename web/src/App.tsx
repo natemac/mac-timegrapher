@@ -755,26 +755,69 @@ export default function App() {
     }
   };
 
+  /*
+     The way back to the opening screen.
+
+     Installed to the home screen the app has no browser chrome — no address
+     bar, no reload, no pull-to-refresh — so once you are past the opening
+     screen there is otherwise no route back to it. The mark and the product
+     name are the way, because that is where a person looks for it.
+
+     The capture is stopped first. Leaving the microphone open behind a screen
+     that shows no meter and no readings is how a device ends up held with its
+     input live and nothing on screen saying so.
+
+     Nothing is lost by going back: the run in progress is written to storage
+     on every change, so its readings and the run they belong to are exactly
+     where they were when you come back in.
+  */
+  const goHome = async () => {
+    if (capturing) await stop();
+    setGranted(false);
+    setError(null);
+  };
+
+  /* Both marks are always rendered; CSS shows whichever suits the theme.
+     Extracted only so the masthead can wrap them in a button without the
+     markup appearing twice. */
+  const logoMark = (
+    <>
+      <img
+        className="app__logo app__logo--neg"
+        src={`${import.meta.env.BASE_URL}mac-logo-neg.png`}
+        alt="MAC Bespoke Watch Co."
+      />
+      <img
+        className="app__logo app__logo--pos"
+        src={`${import.meta.env.BASE_URL}mac-logo-pos.png`}
+        alt=""
+        aria-hidden="true"
+      />
+    </>
+  );
+
   return (
     <>
     <div className={granted ? 'app app--measuring' : 'app'}>
       <header className="app__masthead">
+        {/* Buttons only once there is somewhere to go: on the opening screen
+            the mark and the name are just the identity. See goHome(). */}
         {settings.showLogo && (
-          <>
-            <img
-              className="app__logo app__logo--neg"
-              src={`${import.meta.env.BASE_URL}mac-logo-neg.png`}
-              alt="MAC Bespoke Watch Co."
-            />
-            <img
-              className="app__logo app__logo--pos"
-              src={`${import.meta.env.BASE_URL}mac-logo-pos.png`}
-              alt=""
-              aria-hidden="true"
-            />
-          </>
+          granted ? (
+            <button className="app__home app__home--mark" onClick={goHome} aria-label="Start screen">
+              {logoMark}
+            </button>
+          ) : (
+            logoMark
+          )
         )}
-        <span className="app__wordmark">Timegrapher</span>
+        {granted ? (
+          <button className="app__home app__wordmark" onClick={goHome} aria-label="Start screen">
+            Timegrapher
+          </button>
+        ) : (
+          <span className="app__wordmark">Timegrapher</span>
+        )}
 
         <div className="app__controls">
         <button

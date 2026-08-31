@@ -184,6 +184,40 @@ select {
   flex: 0 0 auto;
 }
 
+/*
+   The mark and the name are the way back to the opening screen — once the app
+   is installed there is no browser chrome to do it with. Neither should look
+   like a button, so the chrome is stripped; declared before .app__wordmark so
+   that rule still wins on type and colour.
+*/
+.app__home {
+  appearance: none;
+  -webkit-appearance: none;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.app__home--mark {
+  grid-column: 1;
+  justify-self: start;
+  /* The button box would otherwise add descender space under the image. */
+  line-height: 0;
+}
+
+/* Stripping the chrome takes the focus ring with it. Put one back — this is
+   the only control in the masthead that has no icon to outline. */
+.app__home:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
 .app__wordmark {
   /* Pinned to the middle column rather than left to auto-placement. With the
      logo turned off the wordmark became the first grid item and slid into the
