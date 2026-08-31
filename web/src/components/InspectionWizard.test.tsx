@@ -112,14 +112,28 @@ describe('what the panel tells the operator to do', () => {
 });
 
 describe('recording', () => {
-  it('offers no Record button while it will record by itself', () => {
-    render(panel(MEASURING, { auto: true }));
-    expect(screen.queryByRole('button', { name: 'Record' })).not.toBeInTheDocument();
+  /*
+     The button stays whether automatic is on or off. Automatic does not
+     replace it, it presses it — and the run that will not settle is both the
+     one needing a hand and the one automatic never fires on. It used to be
+     hidden under automatic, which made recording by hand a three-step detour:
+     turn automatic off, record, turn it back on.
+  */
+  it('offers a Record button whether or not it will record by itself', () => {
+    for (const auto of [true, false]) {
+      const { unmount } = render(panel(MEASURING, { auto }));
+      expect(screen.getByRole('button', { name: 'Record' })).toBeEnabled();
+      unmount();
+    }
   });
 
-  it('offers one as soon as automatic is turned off', () => {
-    render(panel(MEASURING, { auto: false }));
-    expect(screen.getByRole('button', { name: 'Record' })).toBeEnabled();
+  it('records by hand without touching the automatic setting', () => {
+    const onCapture = vi.fn();
+    const onAutoChange = vi.fn();
+    render(panel(MEASURING, { auto: true, onCapture, onAutoChange }));
+    screen.getByRole('button', { name: 'Record' }).click();
+    expect(onCapture).toHaveBeenCalledTimes(1);
+    expect(onAutoChange).not.toHaveBeenCalled();
   });
 
   it('withholds it until the reading has settled', () => {

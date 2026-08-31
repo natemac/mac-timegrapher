@@ -892,6 +892,12 @@ select {
 .wizard__actions {
   display: flex;
   justify-content: center;
+  /* Wraps because the row now carries Stop, six dots, Auto and Record at once.
+     On a narrow phone that is wider than the panel, and a row that overflows
+     rather than wrapping widens the whole app — which is how the layout ended
+     up clipped off the right edge once already. */
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
   margin-top: 8px;
 }

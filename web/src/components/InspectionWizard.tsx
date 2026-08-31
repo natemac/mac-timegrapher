@@ -201,9 +201,15 @@ export function InspectionWizard({
           </label>
         )}
 
-        {/* The manual alternative, and only when automatic is off — two ways to
-            do the same thing side by side is one too many. */}
-        {state.stage === 'measuring' && !auto && (
+        {/*
+           Always there, automatic or not. Automatic does not replace the
+           button, it presses it for you — and a reading that will not settle
+           is exactly when a hand is needed, which is also exactly when
+           automatic never fires. Hiding it meant turning automatic off,
+           recording, and turning it back on, three steps to do the one thing
+           the button already does.
+        */}
+        {state.stage === 'measuring' && (
           <button
             className="wizard__record"
             onClick={onCapture}
