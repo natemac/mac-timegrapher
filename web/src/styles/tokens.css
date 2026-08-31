@@ -483,9 +483,21 @@ select {
     color: #000;
   }
 
+  /*
+     No paper size declared, on purpose.
+
+     It said A4. A4 is 297mm tall and US Letter is 279mm, so a document laid out
+     for A4 and printed on Letter loses 18mm off the bottom — which is how a
+     footer that measures as fitting still lands on a second page. Declaring
+     Letter instead would only move the problem: Letter is the wider of the two,
+     and an A4 sheet would then be too narrow for it.
+
+     Leaving the size out means the paper chosen in the print dialog is the
+     paper the layout is built for, whichever it is. The margins come down to
+     12mm to buy back the room Safari's own header and footer take beyond them.
+  */
   @page {
-    size: A4 portrait;
-    margin: 18mm 16mm;
+    margin: 12mm;
   }
 
   .certificate {
