@@ -121,6 +121,14 @@ export const GUIDE: Record<Topic, GuideEntry> = {
           than any wristwatch.
         </p>
 
+        <p className="dim">
+          A figure beyond about thirty seconds a day is not reported at all. No
+          crystal is that far out, so a result like it means the audio stream
+          was interrupted — a lock screen, an incoming call, or switching apps
+          — rather than that the device is unusual. Leave the app in front and
+          the screen awake for the run.
+        </p>
+
         <h4>Quartz reference — about fifteen minutes</h4>
         <p>
           This is the method native tg uses. Put an analogue quartz watch with a <em>ticking seconds hand</em>

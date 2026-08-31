@@ -9,6 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   ClockCalibrator, correctedSampleRate, SECONDS_PER_DAY, MIN_SECONDS,
+  MAX_PLAUSIBLE_DRIFT,
 } from './clock-calibration';
 
 /**
@@ -180,5 +181,47 @@ describe('correctedSampleRate', () => {
     // Both sides expressed as seconds a day, so the tolerance means something.
     const residual = ((corrected - trueRate) / 44100) * SECONDS_PER_DAY;
     expect(Math.abs(residual)).toBeLessThanOrEqual(Math.max(r.errorSecondsPerDay, 0.1));
+  });
+});
+
+describe('a run that was disturbed rather than measured', () => {
+  /*
+     An iPhone reported -98.58 +/- 0.35 s/day over 63 seconds while a quartz
+     check was running. That is 1,141 ppm — 72 ms of divergence across the run
+     — where a crystal is tens of ppm out and the worst that ships is a couple
+     of hundred. The tight error bar is the scatter of the fit, not its
+     accuracy: a steadily wrong measurement fits a straight line beautifully.
+  */
+  it('withholds a figure no crystal could produce', () => {
+    const c = new ClockCalibrator();
+    run(c, { ppm: -1141, seconds: 63 });
+    expect(c.result()).toBeNull();
+    expect(c.disturbed).toBe(true);
+  });
+
+  /* And says which of the two it is, so the operator is told the run was
+     disturbed rather than asked to wait for something already finished. */
+  it('is not confused with a run that is merely too short', () => {
+    const c = new ClockCalibrator();
+    run(c, { ppm: -1141, seconds: MIN_SECONDS / 2 });
+    expect(c.result()).toBeNull();
+    expect(c.disturbed).toBe(false);
+  });
+
+  it('still reports a plausible one', () => {
+    const c = new ClockCalibrator();
+    run(c, { ppm: 54, seconds: 90 });
+    const r = c.result();
+    expect(r).not.toBeNull();
+    expect(c.disturbed).toBe(false);
+    // 54 ppm is the figure this bench's own dev machine measured.
+    expect(r!.driftSecondsPerDay).toBeCloseTo(54e-6 * SECONDS_PER_DAY, 1);
+  });
+
+  /* The bound has to sit well clear of anything real. A hundred ppm is a poor
+     crystal and still only 8.6 s/day. */
+  it('leaves room for the worst crystal that ships', () => {
+    expect(MAX_PLAUSIBLE_DRIFT).toBeGreaterThan(200e-6 * SECONDS_PER_DAY);
+    expect(MAX_PLAUSIBLE_DRIFT).toBeLessThan(98);
   });
 });

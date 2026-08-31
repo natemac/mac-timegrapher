@@ -896,6 +896,7 @@ export default function App() {
         diagnosticSamples={diagnosticSamples}
         clock={clock}
         clockSeconds={calibrator.current.seconds}
+        clockDisturbed={calibrator.current.disturbed}
         clockCheck={clockCheck}
         onStartClockCheck={startClockCheck}
         onStopClockCheck={stopClockCheck}

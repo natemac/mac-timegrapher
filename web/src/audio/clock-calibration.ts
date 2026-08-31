@@ -79,6 +79,22 @@ const MAX_STEP_ERROR = 0.05;
 const MAX_STEP_SECONDS = 5;
 
 /*
+   Beyond this the run was disturbed, not the crystal.
+
+   A sound card's crystal is tens of parts per million out; a hundred is a poor
+   one, and a couple of hundred is the worst thing that ships. Thirty seconds a
+   day is 347 ppm, comfortably past anything real and comfortably short of what
+   a broken run produces — an iPhone once reported -98.58 s/day, or 1,141 ppm,
+   which is 72 ms of divergence over a 63-second run and is what an interrupted
+   context looks like rather than a measurement.
+
+   The per-step check cannot catch this. It rejects a single gap of more than
+   five percent, which is one hard stall; many small slips each under that
+   threshold accumulate into a steady, wrong, beautifully straight line.
+*/
+export const MAX_PLAUSIBLE_DRIFT = 30;
+
+/*
    One continuous run, deliberately.
 
    Accumulating several short runs looks tempting — an inspection is a series of
@@ -146,6 +162,22 @@ export class ClockCalibrator {
 
   /** Null until there is enough of a run to say anything honest. */
   result(): ClockResult | null {
+    const r = this.fit();
+    if (!r) return null;
+    return Math.abs(r.driftSecondsPerDay) > MAX_PLAUSIBLE_DRIFT ? null : r;
+  }
+
+  /*
+     There was enough of a run, and the answer it produced cannot be true.
+     Distinguished from "not yet" so the operator is told the run was disturbed
+     rather than being asked to wait for something that has already happened.
+  */
+  get disturbed(): boolean {
+    const r = this.fit();
+    return r !== null && Math.abs(r.driftSecondsPerDay) > MAX_PLAUSIBLE_DRIFT;
+  }
+
+  private fit(): ClockResult | null {
     const n = this.points.length;
     if (n < MIN_POINTS || this.wallTotal < MIN_SECONDS) return null;
 

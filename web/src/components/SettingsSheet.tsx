@@ -104,6 +104,8 @@ interface Props {
   clock: ClockResult | null;
   /** How far into that run it is, so the wait is visible. */
   clockSeconds: number;
+  /** A long enough run that produced an impossible answer. */
+  clockDisturbed: boolean;
   /** A quartz clock check in progress, or its result. Null when none is running. */
   clockCheck: Calibration | null;
   onStartClockCheck: () => void;
@@ -301,7 +303,7 @@ export function parseDrift(text: string): number | null {
 export function SettingsSheet({
   open, topic, onClose, onShowFullGuide, settings, onChange,
   movementId, onSelectMovement, best, onExportDiagnostics, diagnosticSamples,
-  clock, clockSeconds, clockCheck, onStartClockCheck, onStopClockCheck,
+  clock, clockSeconds, clockDisturbed, clockCheck, onStartClockCheck, onStopClockCheck,
 }: Props) {
   /* Settings first. The guide is read once; the settings are the reason the
      cog gets pressed again. */
@@ -525,9 +527,11 @@ export function SettingsSheet({
                 ) : (
                   <p className="dim settings__clock-measured">
                     <strong>System clock</strong> —{' '}
-                    {clockSeconds > 0
-                      ? `measuring, ${clockSeconds.toFixed(0)}s of ${MIN_SECONDS}s. It needs one uninterrupted run.`
-                      : `leave a capture running for ${MIN_SECONDS} seconds or more, in one go.`}
+                    {clockDisturbed
+                      ? `this run gave a figure no crystal could produce, so it is being ignored. Something interrupted the audio — a lock screen, a call, or switching apps. Stop, then start a fresh run and leave the app in front.`
+                      : clockSeconds > 0
+                        ? `measuring, ${clockSeconds.toFixed(0)}s of ${MIN_SECONDS}s. It needs one uninterrupted run.`
+                        : `leave a capture running for ${MIN_SECONDS} seconds or more, in one go.`}
                   </p>
                 )}
 
