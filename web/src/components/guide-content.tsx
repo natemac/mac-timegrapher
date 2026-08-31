@@ -79,7 +79,15 @@ export const GUIDE: Record<Topic, GuideEntry> = {
           stays tight, and the whole scale is shifted. Steadiness cannot see it.
         </p>
 
-        <h4>Measuring it</h4>
+        <h4>Two ways to measure it</h4>
+        <p>
+          Both produce the same kind of number — seconds a day — and both feed
+          the same <strong>Correction</strong> box. They are named where they
+          report, because they run at different lengths and it is otherwise
+          easy to read one's progress as the other's.
+        </p>
+
+        <h4>System clock — about a minute</h4>
         <p>
           Start a capture and leave it running for a minute or more without
           stopping. Nothing needs to be on the sensor. The app compares its own
@@ -113,16 +121,20 @@ export const GUIDE: Record<Topic, GuideEntry> = {
           than any wristwatch.
         </p>
 
-        <h4>Checking it against a quartz watch</h4>
+        <h4>Quartz reference — about fifteen minutes</h4>
         <p>
-          <strong>Check against a quartz watch</strong> is the method native tg
-          uses. Put an analogue quartz watch with a <em>ticking seconds hand</em>
+          This is the method native tg uses. Put an analogue quartz watch with a <em>ticking seconds hand</em>
           on the sensor, leave it still, and the app tracks the once-a-second
           tick against its own audio clock for about fifteen minutes. It reports
           a figure; it applies nothing until you press <strong>Use it</strong>.
         </p>
         <p className="dim">
-          It cannot tell the sound card apart from the watch. What it measures
+          Both run off the same capture, so a fifteen-minute quartz run also
+          gives you a system-clock figure over the same fifteen minutes — two
+          independent numbers for the price of one, and worth comparing.
+        </p>
+        <p className="dim">
+          The quartz one cannot tell the sound card apart from the watch. What it measures
           is the difference between the two, and it attributes all of it to the
           card — so the result carries the reference watch's own error. A
           movement specified to ±20 seconds a month brings ±0.66 s/day with it.

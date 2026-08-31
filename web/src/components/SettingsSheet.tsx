@@ -156,7 +156,7 @@ export function ClockCheck({
     return (
       <div className="settings__clock-check">
         <p className="dim settings__clock-measured">
-          Against the reference, this device measures{' '}
+          <strong>Quartz reference</strong> — this device measures{' '}
           <strong className="mono">{formatDrift(check.driftSecondsPerDay)} s/day</strong>.
         </p>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -179,8 +179,9 @@ export function ClockCheck({
     return (
       <div className="settings__clock-check">
         <p className="dim settings__clock-measured">
-          Finished, but the fit was too scattered to trust. Hold the watch firmly
-          against the sensor, somewhere quiet, and run it again.
+          <strong>Quartz reference</strong> — finished, but the fit was too
+          scattered to trust. Hold the watch firmly against the sensor, somewhere
+          quiet, and run it again.
         </p>
         <button className="secondary" style={{ width: '100%', fontSize: 13 }} onClick={onStop}>
           Close
@@ -197,9 +198,10 @@ export function ClockCheck({
   return (
     <div className="settings__clock-check">
       <p className="dim settings__clock-measured">
+        <strong>Quartz reference</strong> —{' '}
         {heard
-          ? `Heard it — ${check.collected} of ${check.needed} ticks, about ${Math.ceil(remaining / 60)} min left.`
-          : 'Listening for a once-a-second tick. Put the quartz watch on the sensor and leave it still.'}
+          ? `heard it, ${check.collected} of ${check.needed} ticks, about ${Math.ceil(remaining / 60)} min left.`
+          : 'listening for a once-a-second tick. Put the quartz watch on the sensor and leave it still.'}
       </p>
       <button className="secondary" style={{ width: '100%', fontSize: 13 }} onClick={onStop}>
         Stop
@@ -494,7 +496,7 @@ export function SettingsSheet({
                 {clock ? (
                   <>
                     <p className="dim settings__clock-measured">
-                      This device measures{' '}
+                      <strong>System clock</strong> — this device measures{' '}
                       <strong className="mono">
                         {clock.driftSecondsPerDay > 0 ? '+' : ''}
                         {clock.driftSecondsPerDay.toFixed(2)} ± {clock.errorSecondsPerDay.toFixed(2)} s/day
@@ -522,9 +524,10 @@ export function SettingsSheet({
                   </>
                 ) : (
                   <p className="dim settings__clock-measured">
+                    <strong>System clock</strong> —{' '}
                     {clockSeconds > 0
-                      ? `Measuring — ${clockSeconds.toFixed(0)}s of ${MIN_SECONDS}s so far. It needs one uninterrupted run.`
-                      : `Measure it by leaving a capture running for ${MIN_SECONDS} seconds or more, in one go.`}
+                      ? `measuring, ${clockSeconds.toFixed(0)}s of ${MIN_SECONDS}s. It needs one uninterrupted run.`
+                      : `leave a capture running for ${MIN_SECONDS} seconds or more, in one go.`}
                   </p>
                 )}
 

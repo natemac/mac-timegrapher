@@ -29,14 +29,32 @@ describe('the quartz clock check', () => {
      operator would sit through fifteen minutes of nothing before finding out.
   */
   it('says when it cannot hear the tick yet', () => {
-    render(<ClockCheck check={running({ signal: 0 })} onStart={noop} onStop={noop} onUse={noop} />);
-    expect(screen.getByText(/Listening for a once-a-second tick/)).toBeInTheDocument();
+    const { container } = render(
+      <ClockCheck check={running({ signal: 0 })} onStart={noop} onStop={noop} onUse={noop} />,
+    );
+    expect(container.textContent).toMatch(/listening for a once-a-second tick/i);
+  });
+
+  /*
+     Named, because the same panel carries a second measurement of the same
+     quantity — the system clock one, which counts to 60 seconds off any
+     capture. Unlabelled, its progress line read as though it belonged to this
+     button, and 60 seconds against 900 ticks looked like one thing
+     contradicting itself.
+  */
+  it('names which of the two calibrations it is', () => {
+    const { container } = render(
+      <ClockCheck check={running({ signal: 4, collected: 10 })} onStart={noop} onStop={noop} onUse={noop} />,
+    );
+    expect(container.textContent).toMatch(/Quartz reference/);
   });
 
   it('shows progress and the time left once it is locked on', () => {
-    render(<ClockCheck check={running({ collected: 300 })} onStart={noop} onStop={noop} onUse={noop} />);
+    const { container } = render(
+      <ClockCheck check={running({ collected: 300 })} onStart={noop} onStop={noop} onUse={noop} />,
+    );
     // 600 ticks left at one a second is ten minutes.
-    expect(screen.getByText(/Heard it — 300 of 900 ticks, about 10 min left/)).toBeInTheDocument();
+    expect(container.textContent).toMatch(/300 of 900 ticks, about 10 min left/);
   });
 
   /*
