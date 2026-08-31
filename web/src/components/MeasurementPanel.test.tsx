@@ -102,3 +102,81 @@ describe('guidance', () => {
     expect(screen.getByText(/readings have stopped moving/i)).toBeInTheDocument();
   });
 });
+
+/*
+   An inspection stops capture between positions, so the readings used to go
+   blank at exactly the moment there was something worth looking at.
+*/
+describe('the set so far', () => {
+  const SUMMARY = {
+    count: 3,
+    bph: 21600,
+    rate: { mean: 10.0, min: 3.7, max: 15.2 },
+    amplitude: { mean: 214, min: 194, max: 236 },
+    beatError: { mean: 1.5, min: 0.67, max: 1.88 },
+    positionalSpread: 11.5,
+  };
+
+  it('fills the panel while capture is stopped between positions', () => {
+    render(panel({ capturing: false, measurement: null, summary: SUMMARY }));
+
+    expect(screen.getByText('+10.0')).toBeInTheDocument();
+    expect(screen.getByText('214')).toBeInTheDocument();
+    expect(screen.getByText('1.5')).toBeInTheDocument();
+    expect(screen.getByText('21,600')).toBeInTheDocument();
+  });
+
+  it('shows the range each reading has covered', () => {
+    render(panel({ capturing: false, measurement: null, summary: SUMMARY }));
+    expect(screen.getByText('+3.7 to +15.2')).toBeInTheDocument();
+    expect(screen.getByText('194 to 236')).toBeInTheDocument();
+  });
+
+  it('counts the positions and names the spread', () => {
+    render(panel({ capturing: false, measurement: null, summary: SUMMARY }));
+    expect(screen.getByText(/3 positions so far/)).toBeInTheDocument();
+    expect(screen.getByText(/11.5/)).toBeInTheDocument();
+  });
+
+  /* One position cannot disagree with itself. */
+  it('does not offer a spread from a single position', () => {
+    render(panel({
+      capturing: false,
+      measurement: null,
+      summary: { ...SUMMARY, count: 1, positionalSpread: 0 },
+    }));
+    expect(screen.getByText(/1 position so far/)).toBeInTheDocument();
+    expect(screen.queryByText(/spread/)).not.toBeInTheDocument();
+  });
+
+  /*
+     The panel must never show yesterday's average over a watch that is on the
+     sensor now.
+  */
+  it('gives way the moment something is being measured', () => {
+    render(panel({ capturing: true, summary: SUMMARY }));
+    expect(screen.getByText('+12.4')).toBeInTheDocument();
+    expect(screen.queryByText('+10.0')).not.toBeInTheDocument();
+    expect(screen.queryByText(/positions so far/)).not.toBeInTheDocument();
+  });
+
+  it('falls back to dashes when there is no set and nothing running', () => {
+    render(panel({ capturing: false, measurement: null, summary: null }));
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(4);
+  });
+
+  /*
+     A stepper motor has no balance wheel, summary or no summary. hasAmplitude
+     already carried the quartz check; the summary branch did not, and an
+     earlier version of this test only looked at beat error and missed it.
+  */
+  it('still withholds amplitude and beat error for quartz', () => {
+    render(panel({ capturing: false, measurement: null, summary: SUMMARY, quartz: true }));
+
+    expect(screen.getByText('+10.0')).toBeInTheDocument();   // rate still shows
+    expect(screen.queryByText('214')).not.toBeInTheDocument();       // amplitude
+    expect(screen.queryByText('194 to 236')).not.toBeInTheDocument();
+    expect(screen.queryByText('1.5')).not.toBeInTheDocument();       // beat error
+    expect(screen.queryByText('0.67 to 1.88')).not.toBeInTheDocument();
+  });
+});

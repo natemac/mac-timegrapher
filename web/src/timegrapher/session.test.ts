@@ -7,7 +7,7 @@
     published by the Free Software Foundation.
 */
 import { describe, it, expect } from 'vitest';
-import { summarise, sessionTitle, type Reading, type PositionId } from './session';
+import { summarise, sessionTitle, runningSummary, type Reading, type PositionId } from './session';
 
 const reading = (position: PositionId, rate: number, amplitude = 270, beatError = 0.2): Reading => ({
   position,
@@ -79,5 +79,58 @@ describe('sessionTitle', () => {
   it('stands alone when no movement is chosen', () => {
     expect(sessionTitle('MB-0142', null)).toBe('MB-0142');
     expect(sessionTitle('', null)).toBe('Session');
+  });
+});
+
+describe('runningSummary', () => {
+  it('is null before anything is recorded', () => {
+    expect(runningSummary([])).toBeNull();
+  });
+
+  it('averages what has been measured so far', () => {
+    const s = runningSummary([reading('dial-up', 10), reading('dial-down', 20)])!;
+    expect(s.count).toBe(2);
+    expect(s.rate.mean).toBe(15);
+    expect(s.rate.min).toBe(10);
+    expect(s.rate.max).toBe(20);
+  });
+
+  /* One position cannot disagree with itself, and the display should not
+     suggest otherwise. */
+  it('reports no spread from a single position', () => {
+    const s = runningSummary([reading('dial-up', 10)])!;
+    expect(s.positionalSpread).toBe(0);
+    expect(s.rate.mean).toBe(10);
+  });
+
+  it('reports the spread once there are two to compare', () => {
+    const s = runningSummary([reading('dial-up', 10), reading('dial-down', 22)])!;
+    expect(s.positionalSpread).toBe(12);
+  });
+
+  /* Amplitude of 0 is the core saying it could not determine it, not a
+     movement that barely swings — averaging it in would halve a healthy
+     reading. */
+  it('leaves undetermined amplitude out of the average', () => {
+    const s = runningSummary([
+      reading('dial-up', 10, 260),
+      reading('dial-down', 10, 0),
+    ])!;
+    expect(s.amplitude!.mean).toBe(260);
+    expect(s.amplitude!.min).toBe(260);
+  });
+
+  it('reports no amplitude at all when none was determined', () => {
+    expect(runningSummary([reading('dial-up', 10, 0)])!.amplitude).toBeNull();
+  });
+
+  it('carries the beat rate and the beat error range', () => {
+    const s = runningSummary([
+      reading('dial-up', 10, 260, 0.4),
+      reading('dial-down', 10, 260, 1.6),
+    ])!;
+    expect(s.bph).toBe(21600);
+    expect(s.beatError.mean).toBeCloseTo(1.0, 5);
+    expect(s.beatError.max).toBe(1.6);
   });
 });

@@ -86,3 +86,52 @@ export function summarise(readings: Reading[]): SessionSummary | null {
     maxBeatError: Math.max(...readings.map((r) => r.beatError)),
   };
 }
+
+export interface RunningRange {
+  mean: number;
+  min: number;
+  max: number;
+}
+
+export interface RunningSummary {
+  count: number;
+  bph: number;
+  rate: RunningRange;
+  /** Null when no position has produced an amplitude the core could determine. */
+  amplitude: RunningRange | null;
+  beatError: RunningRange;
+  /** Worst-to-best rate difference — the number that separates the two faults. */
+  positionalSpread: number;
+}
+
+/**
+ * What the run has found so far.
+ *
+ * An inspection stops capture between positions, so the readings go blank
+ * exactly when there is something worth looking at. This fills that gap with
+ * the set as it stands, which is also the first point at which the positional
+ * spread means anything — one position cannot disagree with itself.
+ */
+export function runningSummary(readings: Reading[]): RunningSummary | null {
+  if (readings.length === 0) return null;
+
+  const range = (values: number[]): RunningRange => ({
+    mean: values.reduce((s, v) => s + v, 0) / values.length,
+    min: Math.min(...values),
+    max: Math.max(...values),
+  });
+
+  const rates = readings.map((r) => r.rate);
+  // Amplitude of 0 is the core saying it could not determine it, which is not
+  // a movement that barely swings and must not drag an average down.
+  const amplitudes = readings.map((r) => r.amplitude).filter((a) => a > 0);
+
+  return {
+    count: readings.length,
+    bph: readings[0].bph,
+    rate: range(rates),
+    amplitude: amplitudes.length > 0 ? range(amplitudes) : null,
+    beatError: range(readings.map((r) => r.beatError)),
+    positionalSpread: Math.max(...rates) - Math.min(...rates),
+  };
+}

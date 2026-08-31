@@ -11,6 +11,7 @@ import type { Settling, Spread } from '../timegrapher/stability';
 import { SettlingIndicator } from './SettlingIndicator';
 import { PanelHead } from './PanelHead';
 import type { Topic } from './guide-content';
+import type { RunningSummary } from '../timegrapher/session';
 
 interface Props {
   measurement: Measurement | null;
@@ -42,6 +43,12 @@ interface Props {
      view that must not scroll.
   */
   guidance?: boolean;
+  /*
+     What the run has found so far, shown while capture is stopped between
+     positions. Without it the panel is four dashes at exactly the moment there
+     is something worth looking at.
+  */
+  summary?: RunningSummary | null;
 }
 
 /** The shortest analysis window is two seconds. */
@@ -51,13 +58,15 @@ const MIN_SECONDS = 2;
 const DASH = '—';
 
 function Reading({
-  label, value, unit, spread, format,
+  label, value, unit, spread, format, sub,
 }: {
   label: string;
   value: string;
   unit?: string;
   spread: Spread | null;
   format?: (n: number) => string;
+  /** Replaces the ± line — a range, when the figure is a summary not a reading. */
+  sub?: string;
 }) {
   return (
     <div>
@@ -77,7 +86,7 @@ function Reading({
       </div>
       {/* Spread is the point: a reading cannot be judged without it. */}
       <div className="mono dim" style={{ fontSize: 11, minHeight: 15 }}>
-        {spread && format ? `±${format(spread.plusMinus)}` : ''}
+        {sub ?? (spread && format ? `±${format(spread.plusMinus)}` : '')}
       </div>
     </div>
   );
@@ -85,10 +94,21 @@ function Reading({
 
 export function MeasurementPanel({
   measurement, capturing, secondsCaptured, settling, spreads, onHelp, onResetAverage,
-  onSnapshot, guidance = true, quartz = false,
+  onSnapshot, guidance = true, quartz = false, summary = null,
 }: Props) {
   const m = measurement;
-  const show = m?.valid ?? false;
+  const live = m?.valid ?? false;
+  /*
+     The summary stands in only while nothing is being measured. A live reading
+     always wins — the panel must never show yesterday's average over a watch
+     that is on the sensor now.
+  */
+  const showSummary = !capturing && summary !== null;
+  const show = live;
+
+  const fmtRate = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}`;
+  const range = (lo: number, hi: number, f: (n: number) => string) =>
+    (lo === hi ? '' : `${f(lo)} to ${f(hi)}`);
   const warmingUp = capturing && secondsCaptured < MIN_SECONDS;
   const hasAmplitude = show && !quartz && m!.amplitude > 0;
 
@@ -123,29 +143,49 @@ export function MeasurementPanel({
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 18px' }}>
         <Reading
           label="Rate"
-          value={show ? `${m!.rate >= 0 ? '+' : ''}${m!.rate.toFixed(1)}` : DASH}
-          unit={show ? 's/d' : undefined}
+          value={show ? fmtRate(m!.rate) : showSummary ? fmtRate(summary!.rate.mean) : DASH}
+          unit={show || showSummary ? 's/d' : undefined}
           spread={show ? spreads.rate : null}
           format={(n) => n.toFixed(1)}
+          sub={showSummary ? range(summary!.rate.min, summary!.rate.max, fmtRate) : undefined}
         />
         <Reading
           label="Amplitude"
-          value={hasAmplitude ? m!.amplitude.toFixed(0) : DASH}
-          unit={hasAmplitude ? '°' : undefined}
+          value={
+            hasAmplitude ? m!.amplitude.toFixed(0)
+              : showSummary && !quartz && summary!.amplitude
+                ? summary!.amplitude.mean.toFixed(0)
+                : DASH
+          }
+          unit={hasAmplitude || (showSummary && !quartz && summary!.amplitude) ? '°' : undefined}
           spread={hasAmplitude ? spreads.amplitude : null}
           format={(n) => n.toFixed(0)}
+          sub={showSummary && !quartz && summary!.amplitude
+            ? range(summary!.amplitude.min, summary!.amplitude.max, (n) => n.toFixed(0))
+            : undefined}
         />
         <Reading
           label="Beat error"
-          value={show && !quartz ? m!.beatError.toFixed(1) : DASH}
-          unit={show && !quartz ? 'ms' : undefined}
+          value={
+            show && !quartz ? m!.beatError.toFixed(1)
+              : showSummary && !quartz ? summary!.beatError.mean.toFixed(1)
+                : DASH
+          }
+          unit={(show || showSummary) && !quartz ? 'ms' : undefined}
           spread={show && !quartz ? spreads.beatError : null}
           format={(n) => n.toFixed(2)}
+          sub={showSummary && !quartz
+            ? range(summary!.beatError.min, summary!.beatError.max, (n) => n.toFixed(2))
+            : undefined}
         />
         <Reading
           label="Beat rate"
-          value={show ? m!.detectedBph.toLocaleString() : DASH}
-          unit={show ? 'bph' : undefined}
+          value={
+            show ? m!.detectedBph.toLocaleString()
+              : showSummary ? summary!.bph.toLocaleString()
+                : DASH
+          }
+          unit={show || showSummary ? 'bph' : undefined}
           spread={null}
         />
       </div>
@@ -178,7 +218,18 @@ export function MeasurementPanel({
         </div>
       )}
 
-      {(guidance || quartz) && (
+      {showSummary && (
+        <div className="panel__foot">
+          <p className="dim panel__foot-note">
+            {summary!.count} position{summary!.count === 1 ? '' : 's'} so far
+            {summary!.count > 1 && (
+              <> · spread <span className="mono">{summary!.positionalSpread.toFixed(1)}</span> s/day</>
+            )}
+          </p>
+        </div>
+      )}
+
+      {!showSummary && (guidance || quartz) && (
       <div className="panel__foot">
         {quartz ? (
           <p className="dim panel__foot-note">
