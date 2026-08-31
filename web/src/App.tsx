@@ -14,7 +14,7 @@ import {
 import { startCapture, type CaptureSession } from './audio/audio-engine';
 import { SignalMeter, type SignalState } from './audio/signal-strength';
 import {
-  ClockCalibrator, correctedSampleRate, type ClockResult,
+  ClockCalibrator, correctedSampleRate, type ClockResult, type ClockDebug,
 } from './audio/clock-calibration';
 import { PermissionGate } from './components/PermissionGate';
 import { DeviceSelector } from './components/DeviceSelector';
@@ -102,6 +102,8 @@ export default function App() {
   const [bestSpread, setBestSpread] = useState<BestSpread>({ rate: null, amplitude: null, beatError: null });
   const [diagnosticSamples, setDiagnosticSamples] = useState(0);
   const [clock, setClock] = useState<ClockResult | null>(null);
+  const [clockDebug, setClockDebug] = useState<ClockDebug>(() => new ClockCalibrator().debug());
+  const [clockDisturbed, setClockDisturbed] = useState(false);
   /* Waveform by default: it shows something the moment audio arrives, so a
      first-time user can tell the sensor is hearing the watch before any
      reading exists. The trace needs beats before it draws anything at all. */
@@ -178,11 +180,35 @@ export default function App() {
     setSheetOpen(true);
   }, []);
 
+  /*
+     The clock figure used to be read once, when the settings sheet opened.
+     That suited a passive measurement you came back to later: by the time you
+     looked, the run was long finished.
+
+     Calibration is now a tab you sit and watch, so a result that only appears
+     on the next open never appears at all — the counter passes 60s and nothing
+     happens, which is exactly what it looked like.
+
+     Polled at a second rather than derived during render. The fit is a least
+     squares over thousands of points and this component re-renders on every
+     audio block; running it there would be a regression per block.
+  */
+  useEffect(() => {
+    if (!sheetOpen) return;
+    const read = () => {
+      setClock(calibrator.current.result());
+      setClockDebug(calibrator.current.debug(sampleRate));
+      setClockDisturbed(calibrator.current.disturbed);
+    };
+    read();
+    const id = setInterval(read, 1000);
+    return () => clearInterval(id);
+  }, [sheetOpen, sampleRate]);
+
   const openSettings = useCallback(() => {
     setHelpTopic(null);
     setBestSpread(stability.current.best());
     setDiagnosticSamples(diagnostics.current.size);
-    setClock(calibrator.current.result());
     setSheetOpen(true);
   }, []);
   // Remembered per device: magnification is a matter of taste and of what the
@@ -896,8 +922,8 @@ export default function App() {
         diagnosticSamples={diagnosticSamples}
         clock={clock}
         clockSeconds={calibrator.current.elapsedSeconds}
-        clockDisturbed={calibrator.current.disturbed}
-        clockDebug={calibrator.current.debug(sampleRate)}
+        clockDisturbed={clockDisturbed}
+        clockDebug={clockDebug}
         clockCheck={clockCheck}
         onStartClockCheck={startClockCheck}
         onStopClockCheck={stopClockCheck}
