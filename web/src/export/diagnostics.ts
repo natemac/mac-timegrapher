@@ -132,6 +132,15 @@ export class DiagnosticsLog {
     lines.push('MAC Bespoke Web Timegrapher — session diagnostics');
     lines.push(new Date().toISOString());
     lines.push('');
+    /*
+       Said in the file rather than only in the app, because the person
+       deciding whether to pass one on is often not the person who exported it.
+       It is worth being able to see at a glance what is in it.
+    */
+    lines.push('Contains: the audio device name, the browser version, and every');
+    lines.push('reading the analysis produced. It does not contain the build');
+    lines.push('number, the technician, any notes, or any audio.');
+    lines.push('');
 
     lines.push('## Setup');
     lines.push(`device            ${c?.device ?? 'unknown'}`);

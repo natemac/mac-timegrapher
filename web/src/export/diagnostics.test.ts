@@ -182,3 +182,32 @@ describe('diagnosticsFilename', () => {
       .toBe('timegrapher-diagnostics-20260830-175304.txt');
   });
 });
+
+describe('what the file admits to holding', () => {
+  /*
+     Someone asked to share a log should be able to see what is in it without
+     reading two thousand rows, and the person deciding is often not the person
+     who exported it.
+  */
+  it('says what it contains, at the top', () => {
+    const log = new DiagnosticsLog();
+    log.setContext(CONTEXT);
+    const head = log.toText().split('## Setup')[0];
+    expect(head).toContain('audio device name');
+    expect(head).toContain('browser version');
+    expect(head).toContain('does not contain the build');
+  });
+
+  /* And the claim has to be true. */
+  it('carries no build number, technician or notes', () => {
+    const log = new DiagnosticsLog();
+    log.setContext(CONTEXT);
+    log.event('recorded', 'dial-up (pre)  rate 12.4  amp 248  beat 1.30');
+    log.sample(sample());
+
+    const text = log.toText();
+    for (const secret of ['MB-0142', 'N. McGraw', 'customer', 'serial']) {
+      expect(text).not.toContain(secret);
+    }
+  });
+});
