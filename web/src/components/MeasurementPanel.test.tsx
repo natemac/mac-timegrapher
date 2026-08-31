@@ -10,7 +10,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MeasurementPanel } from './MeasurementPanel';
-import type { Measurement } from '../timegrapher/tg-engine';
+import type { Measurement, Calibration } from '../timegrapher/tg-engine';
 
 /*
    This panel takes plain props and touches no audio, so there is nothing to
@@ -178,5 +178,44 @@ describe('the set so far', () => {
     expect(screen.queryByText('194 to 236')).not.toBeInTheDocument();
     expect(screen.queryByText('1.5')).not.toBeInTheDocument();       // beat error
     expect(screen.queryByText('0.67 to 1.88')).not.toBeInTheDocument();
+  });
+});
+
+describe('while the audio clock is being checked', () => {
+  const checking = (over: Partial<Calibration> = {}): Calibration => ({
+    collected: 0, needed: 900, signal: 0, state: 0, driftSecondsPerDay: 0, ...over,
+  });
+
+  /*
+     The check stops the measurement — what is on the sensor is a quartz
+     reference, not the movement — so the panel has nothing to show and used
+     to sit at four dashes under "No stable reading. Check the watch is in
+     firm contact." That reads as broken at exactly the moment it is working,
+     and it is the advice for the opposite problem.
+  */
+  it('says what it is doing instead of reporting a failed reading', () => {
+    /* The exact state a check produces: capturing, past the warm-up, and no
+       measurement — which is what put "No stable reading" on screen. */
+    const stuck = { measurement: null, settling: 'waiting' as const };
+    const before = render(panel(stuck));
+    expect(before.container.textContent).toMatch(/No stable reading/);
+    before.unmount();
+
+    render(panel({ ...stuck, clockCheck: checking() }));
+    expect(screen.getByText(/Checking the audio clock/)).toBeInTheDocument();
+    expect(screen.queryByText(/No stable reading/)).not.toBeInTheDocument();
+  });
+
+  it('distinguishes not hearing the tick from counting it', () => {
+    const { rerender } = render(panel({ clockCheck: checking({ signal: 0 }) }));
+    expect(screen.getByText(/Listening for a once-a-second tick/)).toBeInTheDocument();
+
+    rerender(panel({ clockCheck: checking({ signal: 4, collected: 120 }) }));
+    expect(screen.getByText(/120 of 900 ticks/)).toBeInTheDocument();
+  });
+
+  it('points at the result once the fit is accepted', () => {
+    render(panel({ clockCheck: checking({ state: 1, signal: 4, collected: 900 }) }));
+    expect(screen.getByText(/result is in Settings/)).toBeInTheDocument();
   });
 });

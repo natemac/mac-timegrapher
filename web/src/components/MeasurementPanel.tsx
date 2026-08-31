@@ -6,7 +6,7 @@
     it under the terms of the GNU General Public License version 2 as
     published by the Free Software Foundation.
 */
-import type { Measurement } from '../timegrapher/tg-engine';
+import type { Measurement, Calibration } from '../timegrapher/tg-engine';
 import type { Settling, Spread } from '../timegrapher/stability';
 import { SettlingIndicator } from './SettlingIndicator';
 import { PanelHead } from './PanelHead';
@@ -23,6 +23,13 @@ interface Props {
     amplitude: Spread | null;
     beatError: Spread | null;
   };
+  /*
+     A clock check in progress. It stops the measurement, because what is on
+     the sensor is a quartz reference rather than the movement — so without
+     this the panel sits at four dashes saying "no stable reading" and looks
+     broken at exactly the moment it is working.
+  */
+  clockCheck?: Calibration | null;
   onHelp: (t: Topic) => void;
   onResetAverage: () => void;
   /** Save the reading on screen as an image. Absent while there is none. */
@@ -94,7 +101,7 @@ function Reading({
 
 export function MeasurementPanel({
   measurement, capturing, secondsCaptured, settling, spreads, onHelp, onResetAverage,
-  onSnapshot, guidance = true, quartz = false, summary = null,
+  onSnapshot, guidance = true, quartz = false, summary = null, clockCheck = null,
 }: Props) {
   const m = measurement;
   const live = m?.valid ?? false;
@@ -234,6 +241,14 @@ export function MeasurementPanel({
         {quartz ? (
           <p className="dim panel__foot-note">
             Quartz: no balance wheel, so amplitude and beat error do not apply.
+          </p>
+        ) : clockCheck ? (
+          <p className="dim panel__foot-note">
+            {clockCheck.state === 1
+              ? 'Audio clock checked. The result is in Settings.'
+              : clockCheck.signal >= 4
+                ? `Checking the audio clock — ${clockCheck.collected} of ${clockCheck.needed} ticks.`
+                : 'Checking the audio clock. Listening for a once-a-second tick.'}
           </p>
         ) : (
           <p className="dim panel__foot-note">

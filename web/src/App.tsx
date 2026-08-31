@@ -92,6 +92,9 @@ export default function App() {
      finished; it is deliberately not persisted, because the result is a
      measurement of this session's audio path and nothing else. */
   const [clockCheck, setClockCheck] = useState<Calibration | null>(null);
+  /* Held in a ref, not state: the engine effect has to read it without being
+     re-run by it, or asking for a check would tear down the engine. */
+  const wantClockCheck = useRef(false);
   const [settling, setSettling] = useState<Settling>('waiting');
   const [spreads, setSpreads] = useState<{ rate: Spread | null; amplitude: Spread | null; beatError: Spread | null }>({ rate: null, amplitude: null, beatError: null });
   // Read when the settings sheet opens rather than tracked continuously: it is
@@ -487,6 +490,11 @@ export default function App() {
       },
     });
     engine.current = built;
+    /* A check asked for while stopped: start() only sets `capturing`, and the
+       engine does not exist until this effect runs a render later. Applying
+       the wish here rather than at the button is what makes that work — and
+       re-applies it if the engine is rebuilt mid-check. */
+    if (wantClockCheck.current) built.startClockCheck();
 
     return () => {
       built.destroy();
@@ -779,11 +787,17 @@ export default function App() {
   */
   const startClockCheck = async () => {
     setClockCheck(null);
-    if (!capturing) await start();
+    wantClockCheck.current = true;
+    if (!capturing) {
+      // The engine effect picks the wish up when it builds one.
+      await start();
+      return;
+    }
     engine.current?.startClockCheck();
   };
 
   const stopClockCheck = () => {
+    wantClockCheck.current = false;
     engine.current?.stopClockCheck();
     setClockCheck(null);
   };
@@ -957,6 +971,7 @@ export default function App() {
             secondsCaptured={secondsCaptured}
             settling={settling}
             spreads={spreads}
+            clockCheck={clockCheck}
             onHelp={showHelp}
             onResetAverage={resetAverage}
             onSnapshot={saveSnapshot}
