@@ -97,6 +97,22 @@ export const GUIDE: Record<Topic, GuideEntry> = {
           audio device, so measure it again if you change sensor or machine.
         </p>
 
+        <h4>Entering one measured elsewhere</h4>
+        <p>
+          The <strong>Correction</strong> box takes a figure typed by hand. It
+          is the same quantity native <strong>tg</strong> calls <em>cal</em>,
+          in the same units, with the same sign, applied by the same arithmetic
+          — so a number off tg's toolbar can be typed straight in.
+        </p>
+        <p className="dim">
+          A correction measured against a quartz watch is only as good as the
+          watch. A quartz movement running 10 s/day fast puts that whole error
+          into every mechanical reading you take afterwards, because the app
+          has no way to tell the two apart. Measuring against the system clock
+          avoids that: it is disciplined against network time and is far better
+          than any wristwatch.
+        </p>
+
         <h4>What it does not fix</h4>
         <p>
           Amplitude comes from the shape of the escapement impulse and the lift

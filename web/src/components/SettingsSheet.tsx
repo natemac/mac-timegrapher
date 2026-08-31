@@ -166,6 +166,39 @@ function Choice<T extends number>({
   );
 }
 
+/*
+   A sound card's crystal is tens to a few hundred parts per million out. Two
+   hundred seconds a day is 2,300 ppm — far beyond anything real, and past it a
+   typed figure is a slipped decimal point rather than a measurement. Clamped
+   because this one number silently rescales every reading taken afterwards.
+*/
+const MAX_DRIFT = 200;
+
+function clampDrift(value: number): number {
+  return Math.max(-MAX_DRIFT, Math.min(MAX_DRIFT, value));
+}
+
+/*
+   Always signed, including zero — tg writes "+0.0" in the same field, and in a
+   box you can type a negative number into, a bare "0.00" reads like a value
+   that has not been set rather than one deliberately at zero.
+*/
+export function formatDrift(value: number): string {
+  return `${value >= 0 ? '+' : ''}${value.toFixed(2)}`;
+}
+
+/*
+   Reads what someone might actually type: "1.7", "+1.7", "-0.25", and tg's own
+   display format straight off its toolbar. Returns null for anything it cannot
+   make a number of, which the caller treats as "leave it alone" rather than as
+   zero — zero is a real correction, and losing one without saying so would
+   shift every later reading.
+*/
+export function parseDrift(text: string): number | null {
+  const parsed = Number.parseFloat(text.replace(/[\s,]/g, '').replace(/s\/?d(ay)?$/i, ''));
+  return Number.isFinite(parsed) ? clampDrift(parsed) : null;
+}
+
 export function SettingsSheet({
   open, topic, onClose, onShowFullGuide, settings, onChange,
   movementId, onSelectMovement, best, onExportDiagnostics, diagnosticSamples,
@@ -177,6 +210,29 @@ export function SettingsSheet({
   const closeRef = useRef<HTMLButtonElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const [info, setInfo] = useState<Topic | null>(null);
+
+  /*
+     The correction as typed, held apart from the setting itself: parsing on
+     every keystroke would reject a half-written "-" or "1." and write the
+     wrong number back. Committed on blur or Enter.
+  */
+  const [clockDraft, setClockDraft] = useState(() => formatDrift(settings.clockDriftSecondsPerDay));
+
+  /* The one place the correction changes, so the field and the setting cannot
+     disagree — the Apply and Clear buttons come through here too. */
+  const applyDrift = (value: number) => {
+    setClockDraft(formatDrift(value));
+    onChange({ ...settings, clockDriftSecondsPerDay: value });
+  };
+
+  const commitClockDraft = () => {
+    const parsed = parseDrift(clockDraft);
+    if (parsed === null) {
+      setClockDraft(formatDrift(settings.clockDriftSecondsPerDay));
+      return;
+    }
+    applyDrift(parsed);
+  };
 
   /*
      Focus moves into the sheet, and the body returns to the top, when the sheet
@@ -191,6 +247,18 @@ export function SettingsSheet({
     bodyRef.current?.scrollTo({ top: 0 });
     setInfo(null);
   }, [open, topic]);
+
+  /*
+     The correction can change while the sheet is shut — Apply on a fresh
+     measurement, or a value restored from storage — so the field is resynced
+     on open rather than only at first mount. Keyed on the number itself, not
+     on `settings`, so an unrelated preference cannot reach in and overwrite
+     what is being typed.
+  */
+  useEffect(() => {
+    if (!open) return;
+    setClockDraft(formatDrift(settings.clockDriftSecondsPerDay));
+  }, [open, settings.clockDriftSecondsPerDay]);
 
   if (!open) return null;
 
@@ -307,15 +375,24 @@ export function SettingsSheet({
                 scale error is perfectly repeatable.
               */}
               <Setting onInfo={setInfo} label="Audio clock" topic="setting-clock">
-                {settings.clockDriftSecondsPerDay !== 0 && (
-                  <p className="dim settings__clock-applied">
-                    Correcting by{' '}
-                    <strong className="mono">
-                      {settings.clockDriftSecondsPerDay > 0 ? '+' : ''}
-                      {settings.clockDriftSecondsPerDay.toFixed(2)} s/day
-                    </strong>
-                  </p>
-                )}
+                {/* Typeable rather than a read-out, so a figure measured
+                    elsewhere can be entered without measuring it again here.
+                    tg's `cal` is the same quantity in the same units with the
+                    same sign — its number can be typed straight in. */}
+                <label className="settings__clock-manual">
+                  <span className="dim">Correction</span>
+                  <input
+                    className="field settings__clock-field mono"
+                    inputMode="text"
+                    value={clockDraft}
+                    onChange={(e) => setClockDraft(e.target.value)}
+                    onFocus={(e) => e.target.select()}
+                    onBlur={commitClockDraft}
+                    onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                    aria-label="Audio clock correction, seconds per day"
+                  />
+                  <span className="dim">s/day</span>
+                </label>
 
                 {clock ? (
                   <>
@@ -331,10 +408,7 @@ export function SettingsSheet({
                       <button
                         className="secondary"
                         style={{ flex: '1 1 auto', fontSize: 13 }}
-                        onClick={() => onChange({
-                          ...settings,
-                          clockDriftSecondsPerDay: clock.driftSecondsPerDay,
-                        })}
+                        onClick={() => applyDrift(clock.driftSecondsPerDay)}
                       >
                         Apply
                       </button>
@@ -342,7 +416,7 @@ export function SettingsSheet({
                         <button
                           className="secondary"
                           style={{ flex: '0 0 auto', fontSize: 13 }}
-                          onClick={() => onChange({ ...settings, clockDriftSecondsPerDay: 0 })}
+                          onClick={() => applyDrift(0)}
                         >
                           Clear
                         </button>

@@ -741,6 +741,24 @@ select {
 }
 .field::placeholder { color: var(--text-faint); }
 
+/* The audio-clock correction: a label, a small field and its unit on one line.
+   The field is the only thing on the settings page you type a number into. */
+.settings__clock-manual {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 12px;
+}
+
+.settings__clock-field {
+  /* Wide enough for "-100.00" and no wider — it is a correction, not a form. */
+  width: 7.5em;
+  flex: 0 0 auto;
+  padding: 6px 8px;
+  text-align: right;
+}
+
 /* ---------- Graph switch ---------- */
 .switch {
   position: relative;
