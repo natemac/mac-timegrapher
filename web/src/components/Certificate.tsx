@@ -174,7 +174,12 @@ export function Certificate({
         <RunTable
           key={run.id}
           run={run}
-          label={regulated ? phaseName(run.phase) : 'Measurements'}
+          /*
+             Always named, not only when there are two. A reading marked after
+             regulation and printed as plain "Measurements" throws the mark
+             away — the one fact the operator went out of their way to record.
+          */
+          label={phaseName(run.phase)}
           quartz={quartz}
         />
       ))}

@@ -532,6 +532,16 @@ select {
   }
   .certificate__regulation dd { margin: 0; }
 
+  /* Three short paragraphs that belong together. Left to break, the last of
+     them took a second page to itself — one line of attribution under an inch
+     of white, which reads as a fault rather than a footer. */
+  .certificate__method {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .certificate__method p { margin: 0 0 3pt; }
+  .certificate__method p:last-child { margin-bottom: 0; }
+
   .certificate__head {
     display: flex;
     align-items: flex-end;

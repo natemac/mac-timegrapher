@@ -104,10 +104,14 @@ export const SETTLED_BOUNDS = {
      repeatable to a second a day — far inside the ±10 that decides whether a
      watch needs regulating at all. */
   rate: 1.0,        // s/day  (bench: ±0.2 to ±0.5)
-  /* Derived from impulse shape rather than timing, so inherently noisier.
-     15° on a 240° reading is six percent — it still answers the question
-     amplitude is asked, which is whether the swing is healthy. */
-  amplitude: 15,    // degrees (bench: ±9 to ±12)
+  /* Derived from impulse shape rather than timing, so noisier than rate — but
+     nothing like as noisy as ±15 assumed. Two runs measured at full analysis
+     confidence held ±0.6 and ±3.0; the ±9 to ±12 that set this figure was the
+     artefact of averaging low-confidence samples in, which push() no longer
+     does. Eight is still three times the worse of the two, and it now refuses a
+     reading swinging sixteen degrees peak to peak — which ±15 would have
+     recorded as settled and printed on a document. */
+  amplitude: 8,     // degrees (bench: ±0.6 to ±3.0 at full confidence)
   /* A sanity bound, not a criterion. See above: near zero this figure is at
      its resolution floor and will not sit still, however good the watch. */
   beatError: 1.5,   // ms      (bench: ±0.82 to ±0.89)

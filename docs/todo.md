@@ -166,28 +166,34 @@ nothing ever settled and automatic inspection never recorded. Rate is now the
 criterion; the other two are sanity bounds. The three real readings are
 replayed as tests.
 
-Re-measured 2026-08-30 from an iPhone inspection log, after low-confidence
-samples stopped being averaged in (see below). At full analysis confidence the
-same bench holds:
+Re-measured 2026-08-30 across two iPhone inspection logs, at full analysis
+confidence:
 
-| | at full confidence |
-|---|---|
-| Rate | ±0.42 s/day |
-| Amplitude | ±3.0° |
-| Beat error | ±0.045 ms |
+| | run one | run two | bound |
+|---|---|---|---|
+| Rate | ±0.42 | ±0.05 | ±1.0 |
+| Amplitude | ±3.0 | ±0.6 | ±8 |
+| Beat error | ±0.045 | ±0.02 | ±1.5 |
 
-**The bounds are now much looser than this bench needs**, and could come down a
-long way — but not on one run, and not on this watch. Beat error especially:
-this movement is 1.6 ms out of beat, which is where the figure is stable. A
-watch that is *well* in beat sits at the resolution floor and jumps about, which
-is why the bound is 1.5 rather than 0.1. Collect a few more logs, including a
-watch that is close to in beat, before tightening anything.
+Amplitude came down from ±15 on the strength of those two — ±15 would have
+recorded a reading swinging thirty degrees peak to peak as settled and printed
+it on a customer's document.
 
-**The binding constraint is now the twenty-second floor**, not the spreads.
-`settling()` will not say Settled before `secondsCaptured >= 20` however steady
-the reading is. That is what a run costs per position now. Worth deciding
-whether twenty seconds is right — it is defensible for a recorded figure, but
-it is the number to change if an inspection feels slow.
+**Rate and beat error are still much looser than this bench needs**, and both
+are deliberate:
+
+- **Rate** at ±1.0 has to cover a watch that is still recovering from being
+  handled. Run one drifted 13.0 to 11.7 while settling; run two was flat. A
+  tighter bound would refuse the first.
+- **Beat error** at ±1.5 has to cover a watch that is *well in beat*. Both runs
+  measured a movement 1.6 to 1.9 ms out, which is where the figure is stable.
+  Near zero it sits at the resolution floor and jumps. **Still no log of a watch
+  under about 0.3 ms** — that is the one measurement that would let this come
+  down.
+
+**The binding constraint is the twenty-second floor**, not the spreads. In run
+two the spreads were inside bounds from about seventeen seconds and settling
+waited for the floor. That is what a position costs now.
 
 `STALL_SECONDS` in `wizard.ts` is 75. It should now be reached far less often;
 if it never is, it can come down.

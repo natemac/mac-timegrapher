@@ -171,14 +171,35 @@ describe('a real bench reading', () => {
     }
   }
 
+  /*
+     The amplitude figures here were ±9 to ±12 when this was written, taken
+     from the app before push() stopped averaging low-confidence samples in.
+     They were never a measure of what the bench holds — they were that
+     artefact, and asserting a reading swinging twenty-four degrees peak to
+     peak ought to settle was asserting something untrue.
+
+     Re-derived from the same two runs at full analysis confidence: ±0.6 and
+     ±3.0. Rate and beat error were real and are unchanged.
+  */
   it.each([
-    ['live view',  { rate: 0.5, amp: 9, beat: 0.88 }],
-    ['capture one', { rate: 0.2, amp: 10, beat: 0.82 }],
-    ['capture two', { rate: 0.2, amp: 12, beat: 0.89 }],
+    ['live view',   { rate: 0.5, amp: 3.0, beat: 0.88 }],
+    ['capture one', { rate: 0.2, amp: 1.4, beat: 0.82 }],
+    ['capture two', { rate: 0.2, amp: 0.6, beat: 0.89 }],
   ])('settles: %s', (_label, spread) => {
     const t = new StabilityTracker();
     bench(t, spread);
     expect(t.settling(30)).toBe('settled');
+  });
+
+  /*
+     And the reason the bound came down to 8. Sixteen degrees peak to peak is
+     not a bench holding steady; ±15 would have recorded it as settled and
+     printed it on a customer's document.
+  */
+  it('refuses an amplitude that would once have passed', () => {
+    const t = new StabilityTracker();
+    bench(t, { rate: 0.2, amp: 12, beat: 0.85 });
+    expect(t.settling(30)).not.toBe('settled');
   });
 
   /*
@@ -188,7 +209,7 @@ describe('a real bench reading', () => {
   */
   it('still refuses a reading whose rate is wandering', () => {
     const t = new StabilityTracker();
-    bench(t, { rate: 6, amp: 10, beat: 0.85 });
+    bench(t, { rate: 6, amp: 3, beat: 0.85 });
     expect(t.settling(30)).toBe('moving');
   });
 
@@ -202,7 +223,7 @@ describe('a real bench reading', () => {
      resolving near zero, and is worth withholding a Settled on. */
   it('still refuses a beat error far beyond the bench floor', () => {
     const t = new StabilityTracker();
-    bench(t, { rate: 0.3, amp: 10, beat: 4 });
+    bench(t, { rate: 0.3, amp: 3, beat: 4 });
     expect(t.settling(30)).not.toBe('settled');
   });
 });
