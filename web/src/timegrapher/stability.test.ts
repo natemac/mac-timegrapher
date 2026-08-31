@@ -206,3 +206,100 @@ describe('a real bench reading', () => {
     expect(t.settling(30)).not.toBe('settled');
   });
 });
+
+/*
+   Replayed from a real inspection log: a USB pickup on an NH35, iPhone Safari,
+   29 dB above the room. The rows are the ones where something changed.
+
+   The fault it caught: the core reports its confidence in tiers as longer
+   analysis windows converge, and the first tier produced 218.7° and then
+   196.1° while the settled reading sat near 212°. Those two pinned the
+   amplitude spread at ±11.3 for the whole run — four times what the bench
+   holds once the analysis has its full window.
+*/
+describe('a reading as the core gains confidence', () => {
+  const RUN: [number, number, number, number, number][] = [
+    // t, rate, amplitude, beatError, quality
+    [4.1, 13.04, 218.7, 1.49, 0.50],
+    [4.6, 13.43, 218.5, 1.50, 0.50],
+    [5.1, 13.04, 217.6, 1.49, 0.50],
+    [5.6, 13.04, 197.1, 1.49, 0.50],
+    [6.1, 13.04, 197.3, 1.50, 0.50],
+    [6.6, 12.76, 196.8, 1.49, 0.50],
+    [7.1, 12.76, 196.1, 1.45, 0.50],
+    [7.6, 12.76, 196.3, 1.45, 0.50],
+    [8.1, 12.95, 215.5, 1.58, 0.75],
+    [8.6, 12.75, 215.3, 1.68, 0.75],
+    [9.1, 12.83, 214.6, 1.68, 0.75],
+    [9.6, 12.59, 214.0, 1.66, 0.75],
+    [16.2, 12.51, 213.5, 1.61, 1.00],
+    [16.6, 12.43, 212.9, 1.63, 1.00],
+    [17.1, 12.40, 212.4, 1.65, 1.00],
+    [17.6, 12.31, 212.2, 1.68, 1.00],
+    [18.2, 12.25, 212.0, 1.70, 1.00],
+    [18.7, 12.20, 211.7, 1.70, 1.00],
+    [19.1, 12.16, 211.0, 1.70, 1.00],
+    [19.6, 12.11, 210.8, 1.68, 1.00],
+    [20.2, 11.99, 210.3, 1.70, 1.00],
+    [20.7, 11.91, 209.7, 1.68, 1.00],
+    [21.2, 11.81, 209.9, 1.68, 1.00],
+    [21.7, 11.75, 215.7, 1.61, 1.00],
+    [22.2, 11.67, 215.3, 1.66, 1.00],
+  ];
+
+  function replay(t: StabilityTracker) {
+    for (const [at, rate, amp, beat, q] of RUN) t.push(at, rate, amp, beat, q);
+  }
+
+  it('reports what the bench holds at full confidence, not during the climb', () => {
+    const t = new StabilityTracker();
+    replay(t);
+
+    // ±11.3 before the fix, from two samples the core itself flagged as its
+    // least confident.
+    expect(t.spread('amplitude')!.plusMinus).toBeCloseTo(3.0, 1);
+    expect(t.spread('rate')!.plusMinus).toBeCloseTo(0.42, 2);
+    expect(t.spread('beatError')!.plusMinus).toBeCloseTo(0.045, 2);
+  });
+
+  it('keeps only the samples measured at the confidence it ended on', () => {
+    const t = new StabilityTracker();
+    replay(t);
+    expect(t.spread('rate')!.count).toBe(RUN.filter(([, , , , q]) => q === 1).length);
+  });
+
+  it('settles, which is the point', () => {
+    const t = new StabilityTracker();
+    replay(t);
+    expect(t.settling(22.2)).toBe('settled');
+  });
+
+  /* A dip in confidence is the reading degrading, which is what the spread is
+     for. Clearing on every dip would leave a wandering signal unable to fill a
+     window at all. */
+  it('does not throw the window away when confidence falls', () => {
+    const t = new StabilityTracker();
+    for (let i = 0; i < 10; i++) t.push(i * 0.5, 12, 210, 1.6, 1);
+    const before = t.spread('rate')!.count;
+    t.push(5.5, 12, 210, 1.6, 0.5);
+    expect(t.spread('rate')!.count).toBe(before + 1);
+  });
+
+  it('starts a fresh window at each step up', () => {
+    const t = new StabilityTracker();
+    t.push(0.5, 99, 99, 9, 0.5);
+    t.push(1.0, 12, 210, 1.6, 0.75);
+    expect(t.spread('rate')!.count).toBe(1);
+    t.push(1.5, 12, 210, 1.6, 1);
+    expect(t.spread('rate')!.count).toBe(1);
+    expect(t.spread('rate')!.mean).toBe(12);
+  });
+
+  it('forgets the confidence it reached when the average is restarted', () => {
+    const t = new StabilityTracker();
+    replay(t);
+    t.reset();
+    t.push(0.5, 13, 218, 1.5, 0.5);
+    expect(t.spread('rate')!.count).toBe(1);
+  });
+});

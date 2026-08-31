@@ -126,9 +126,28 @@ nothing ever settled and automatic inspection never recorded. Rate is now the
 criterion; the other two are sanity bounds. The three real readings are
 replayed as tests.
 
-**Still worth watching in use:** whether Settled now arrives too easily. If it
-fires within a second or two of every Go, rate wants tightening towards ±0.6.
-"Steadiness of this bench" in settings prints what each has held.
+Re-measured 2026-08-30 from an iPhone inspection log, after low-confidence
+samples stopped being averaged in (see below). At full analysis confidence the
+same bench holds:
+
+| | at full confidence |
+|---|---|
+| Rate | ±0.42 s/day |
+| Amplitude | ±3.0° |
+| Beat error | ±0.045 ms |
+
+**The bounds are now much looser than this bench needs**, and could come down a
+long way — but not on one run, and not on this watch. Beat error especially:
+this movement is 1.6 ms out of beat, which is where the figure is stable. A
+watch that is *well* in beat sits at the resolution floor and jumps about, which
+is why the bound is 1.5 rather than 0.1. Collect a few more logs, including a
+watch that is close to in beat, before tightening anything.
+
+**The binding constraint is now the twenty-second floor**, not the spreads.
+`settling()` will not say Settled before `secondsCaptured >= 20` however steady
+the reading is. That is what a run costs per position now. Worth deciding
+whether twenty seconds is right — it is defensible for a recorded figure, but
+it is the number to change if an inspection feels slow.
 
 `STALL_SECONDS` in `wizard.ts` is 75. It should now be reached far less often;
 if it never is, it can come down.
@@ -139,6 +158,18 @@ if it never is, it can come down.
 
 ## Known gaps
 
+- **The watch is still settling when a position records.** In the 2026-08-30
+  log, rate fell from 13.0 to 11.7 and amplitude from 218 to 210 over the
+  eighteen seconds before it recorded, and neither had flattened. That is the
+  movement recovering from being handled, not a fault — but the recorded figure
+  is taken during the recovery. The three-second grace gets a hand off the
+  watch; it does not wait for the watch. Worth deciding whether a position
+  should wait for the trend to flatten rather than only for the spread to
+  close.
+- **AGC cannot be confirmed off on iOS.** Safari reports
+  `autoGainControl: unreported`, so the constraint is requested and never
+  acknowledged. Amplitude is the reading gain control would corrupt, and it is
+  the one that cannot be checked. Another reason item 1 matters.
 - **The record → stop → next-position handoff has no test.** The state machine
   and the panel are both covered; the orchestration between them lives in
   `App.tsx` effects and is verified only by reading it. Extracting it into a

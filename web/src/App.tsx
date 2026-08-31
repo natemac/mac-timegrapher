@@ -474,7 +474,7 @@ export default function App() {
         setBeats([...beatStore.current.values()].sort((a, b) => a.time - b.time));
 
         if (m.valid) {
-          stability.current.push(seconds, m.rate, m.amplitude, m.beatError);
+          stability.current.push(seconds, m.rate, m.amplitude, m.beatError, m.signalQuality);
           setSpreads({
             rate: stability.current.spread('rate'),
             amplitude: stability.current.spread('amplitude'),

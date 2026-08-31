@@ -55,11 +55,14 @@ export interface BestSpread {
 /**
  * Samples a window must hold before its spread counts towards the best.
  *
- * Two reports a second, so this is ten seconds. A window holding three samples
- * is trivially tight — it has not had time to disagree with itself yet — and
- * letting those set the record would suggest a threshold nothing could meet.
+ * Two reports a second, so this is five seconds. A window holding three
+ * samples is trivially tight — it has not had time to disagree with itself yet
+ * — and letting those set the record would suggest a threshold nothing could
+ * meet. Five rather than ten, because a window now starts over when the core's
+ * confidence rises, and a full-confidence window has to be able to qualify
+ * inside a reading of ordinary length.
  */
-export const MIN_SAMPLES_FOR_BEST = 20;
+export const MIN_SAMPLES_FOR_BEST = 10;
 
 /** Seconds of history the spread is taken over. */
 const WINDOW_SECONDS = 30;
@@ -113,6 +116,14 @@ export const SETTLED_BOUNDS = {
 export class StabilityTracker {
   private samples: { t: number; rate: number; amplitude: number; beatError: number }[] = [];
   /*
+     The core's confidence in its last report, which is really a statement of
+     how much of its analysis window converged: a short window first, longer
+     ones as the audio accumulates. It arrives quantised — 0.5, then 0.75, then
+     1.0 — and each step is a different measurement, not a better guess at the
+     same one.
+  */
+  private quality = 0;
+  /*
      Kept across reset() on purpose. The average is thrown away between
      positions, but what the bench can hold is a property of the bench, and it
      takes a whole session to see it.
@@ -121,6 +132,7 @@ export class StabilityTracker {
 
   reset(): void {
     this.samples = [];
+    this.quality = 0;
   }
 
   /** Forget what this bench has managed — a new watch on a new mount. */
@@ -140,8 +152,31 @@ export class StabilityTracker {
     }
   }
 
-  /** `now` is seconds since capture started. */
-  push(now: number, rate: number, amplitude: number, beatError: number): void {
+  /**
+   * `now` is seconds since capture started. `quality` is the core's own
+   * confidence in this report.
+   *
+   * A rise in quality throws the window away. The core has switched to a
+   * longer analysis window, and the readings it produced from a shorter one
+   * are not worse estimates of the same quantity — they are a different, less
+   * informed measurement, and averaging the two misreports both.
+   *
+   * This is not theoretical. On a real NH35 the first seconds of a reading
+   * gave 218.7° and then 196.1°, both at the lowest confidence, while the
+   * settled reading sat around 212°. Those two pinned the amplitude spread at
+   * ±11.3 for the rest of the run — four times what the bench actually holds
+   * once the analysis has its full window, which is ±3.
+   *
+   * A fall in quality does not clear anything. That is the reading degrading,
+   * which is exactly what the spread exists to show, and clearing on every dip
+   * would leave a wandering signal permanently unable to fill a window.
+   */
+  push(now: number, rate: number, amplitude: number, beatError: number, quality = 1): void {
+    if (quality > this.quality) {
+      this.samples = [];
+      this.quality = quality;
+    }
+
     this.samples.push({ t: now, rate, amplitude, beatError });
     const cutoff = now - WINDOW_SECONDS;
     while (this.samples.length > 0 && this.samples[0].t < cutoff) this.samples.shift();
