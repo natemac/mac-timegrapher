@@ -58,6 +58,56 @@ Three ways forward, and this is a call rather than a task:
   than an escapement, but it is a separate measurement path in the C core, not
   a setting.
 
+## 2c. Sound-card clock calibration — the one thing upstream has that we do not
+
+Found 2026-08-30 by reading `core/tg_algo.c` against what the web app exposes.
+
+`process_cal` and `compute_cal` are **already compiled into our WebAssembly**
+and nothing calls them. Upstream points the analysis at an accurate 1 Hz
+reference, regresses measured phase against elapsed time, and gets the audio
+clock's drift in seconds per day. It then corrects every reading:
+
+    sample_rate = nominal_rate * (1 + cal / (10 * 3600 * 24))
+
+**Why this matters more than it sounds.** A sound card that reports 44,100 Hz is
+not running at exactly 44,100 Hz. Crystals are typically 10 to 100 parts per
+million out. Every part per million is 0.0864 s/day of error in rate:
+
+| clock error | rate error |
+|---|---|
+| 10 ppm | 0.86 s/day |
+| 50 ppm | 4.3 s/day |
+| 100 ppm | 8.6 s/day |
+
+**It is invisible to everything we currently measure.** It is a constant offset,
+so it is perfectly repeatable — "Steadiness of this bench" would read ±0.42 with
+the whole scale shifted by five seconds a day and never hint at it.
+
+**And it means rate has never been verified in absolute terms either.** The
+synthetic-signal tests generate samples at an assumed rate and measure them at
+the same assumed rate, which is circular; they prove the algorithm is
+self-consistent, not that the clock is right. The NH35 readings were never
+compared against a reference. So rate joins amplitude as unverified — for a
+different reason, and a more easily fixed one.
+
+Two ways to measure it:
+
+- **Upstream's way.** A known-accurate 1 Hz source — a quartz watch ticking
+  seconds — held to the sensor for a couple of minutes. Needs the calibration
+  path exposed through `wasm/bindings.c` and the worker.
+- **A browser-native way, probably better here.** Compare
+  `AudioContext.currentTime` against `performance.now()` over a few minutes.
+  The audio clock advances with the sound card; `performance.now()` advances
+  with the system clock, which is NTP-synced and orders of magnitude better than
+  any sound-card crystal. That needs no reference watch and no C at all, and it
+  can run quietly during an ordinary session.
+
+Applying the result is one line either way — `tg_config.sample_rate` is already
+the only place the rate enters the arithmetic.
+
+**Not started.** It wants a decision first: whether to expose upstream's path or
+measure against the system clock.
+
 ## 3. Run a full six-position inspection on a real watch
 
 The whole Start-driven flow — three-second grace, automatic record, stop between
@@ -188,6 +238,13 @@ if it never is, it can come down.
 - **Native GTK build unverified since `algo.c` moved.** `Makefile.am` was
   updated but never compiled — GTK+3, PortAudio, pkg-config and automake are not
   installed here. Only matters when a direct A/B against native tg is wanted.
+- **Upstream's snapshot save/load** (`src/serializer.c`) has no equivalent. It
+  writes a display to a file and reopens it. The inspection record and the
+  saved-reading image cover the practical need differently; worth knowing it
+  exists rather than porting it.
+- **Upstream's "light algorithm" mode is not worth porting.** `process()` takes
+  a `light` flag that skips work for slow machines; we pass 0, which is the
+  fuller and more accurate path. Nothing to gain.
 - **WAV file input for the native build.** Native tg cannot read files, which is
   why upstream's C was kept. A file-input mode in `tools/` would allow an exact
   comparison on identical samples rather than two live measurements.
