@@ -91,6 +91,16 @@ let wfInfoPtr = 0;
 let wfPoints = 0;
 let calPtr = 0;
 let calTimer: ReturnType<typeof setInterval> | null = null;
+/*
+   A calibration asked for before the core was ready.
+
+   onmessage is async and init awaits createModule(), and the runtime does not
+   hold later messages behind an awaiting handler — it dispatches them. So a
+   calibrate-start arriving right after init runs while `mod` is still null.
+   Dropping it there is silent, and the capture starts anyway, so the app looks
+   like it began the wrong measurement.
+*/
+let calWanted = false;
 
 /** Matches EVENTS_MAX in core/tg_core.h. */
 const MAX_EVENTS = 100;
@@ -107,6 +117,7 @@ function release() {
     clearInterval(calTimer);
     calTimer = null;
   }
+  calWanted = false;
   if (mod && handle) mod._tgw_cal_end(handle);
   if (mod && handle) {
     mod._tgw_destroy(handle);
@@ -199,6 +210,19 @@ function emitMeasurement() {
    fifteen minutes of it not working — the operator needs to see the tick being
    heard and the count going up.
 */
+/* Everything calibrate-start does, callable again once the core exists. */
+function beginCalibration(): void {
+  if (!mod || !handle) return;
+  if (timer !== null) { clearInterval(timer); timer = null; }
+  if (!mod._tgw_cal_begin(handle)) {
+    calWanted = false;
+    self.postMessage({ type: 'error', message: 'Could not start the clock check.' });
+    return;
+  }
+  samplesSeen = 0;
+  if (calTimer === null) calTimer = setInterval(emitCalibration, CAL_INTERVAL_MS);
+}
+
 function emitCalibration() {
   if (!mod || !handle || !calPtr) return;
   mod._tgw_cal_update(handle, calPtr);
@@ -247,6 +271,9 @@ self.onmessage = async (event: MessageEvent) => {
         calPtr = mod._malloc(mod._tgw_cal_fields() * 8);
         timer = setInterval(emitMeasurement, MEASURE_INTERVAL_MS);
         self.postMessage({ type: 'ready' });
+        // A check asked for while this was still loading. It stops the
+        // measurement timer just started, which is what it is meant to do.
+        if (calWanted) beginCalibration();
         break;
       }
 
@@ -285,18 +312,15 @@ self.onmessage = async (event: MessageEvent) => {
          updating from a signal that is not the watch.
       */
       case 'calibrate-start': {
-        if (!mod || !handle) return;
-        if (timer !== null) { clearInterval(timer); timer = null; }
-        if (!mod._tgw_cal_begin(handle)) {
-          self.postMessage({ type: 'error', message: 'Could not start the clock check.' });
-          return;
-        }
-        samplesSeen = 0;
-        if (calTimer === null) calTimer = setInterval(emitCalibration, CAL_INTERVAL_MS);
+        // Remembered first: if the core is still loading this is all that
+        // happens, and init applies it on the way out.
+        calWanted = true;
+        beginCalibration();
         break;
       }
 
       case 'calibrate-stop': {
+        calWanted = false;
         if (calTimer !== null) { clearInterval(calTimer); calTimer = null; }
         if (mod && handle) {
           mod._tgw_cal_end(handle);
