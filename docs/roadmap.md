@@ -3,6 +3,11 @@
 A browser-based mechanical watch timegrapher derived from the open-source
 [`agrigera/tg`](https://github.com/agrigera/tg) project.
 
+> **Status.** The goals below are met and the app is in use at the bench. What
+> is still open is accuracy verification rather than features — see
+> [todo.md](todo.md), which is the live list. This file is kept for the
+> architecture and the reasoning behind it.
+
 The objective is not to reproduce the entire native tg desktop application. The
 objective is to preserve its proven timing-analysis logic while replacing its
 native audio and interface layers with browser-native equivalents.

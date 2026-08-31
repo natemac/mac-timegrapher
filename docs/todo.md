@@ -234,6 +234,22 @@ if it never is, it can come down.
 - **Native GTK build unverified since `algo.c` moved.** `Makefile.am` was
   updated but never compiled — GTK+3, PortAudio, pkg-config and automake are not
   installed here. Only matters when a direct A/B against native tg is wanted.
+- **Upstream's tic and toc waveform displays have no equivalent** — the last
+  substantial thing it has that we do not. `expose_waveform` in
+  `src/output_panel.c` draws the averaged beat waveform windowed around the tic
+  and again around the toc, a millisecond either side, with a marker at the
+  impulse the amplitude figure is derived from. That is the classic escapement
+  view: a watchmaker reads the impulse and locking shapes off it, and sees a
+  damaged pallet, poor lock or rebanking that no single number reports. Our
+  Waveform panel is raw rolling audio, which is a different thing entirely —
+  useful for confirming the sensor hears something, useless for diagnosing an
+  escapement.
+
+  The data is already computed and simply not exposed: `processing_buffers`
+  holds `waveform`, `tic`, `toc`, `tic_pulse`, `toc_pulse` and `waveform_max`,
+  and `tg_result` carries none of them. It wants an array out through
+  `wasm/bindings.c` and the worker, then two small canvases.
+
 - **Upstream's snapshot save/load** (`src/serializer.c`) has no equivalent. It
   writes a display to a file and reopens it. The inspection record and the
   saved-reading image cover the practical need differently; worth knowing it
