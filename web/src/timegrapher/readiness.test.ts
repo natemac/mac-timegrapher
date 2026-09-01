@@ -60,9 +60,12 @@ describe('measurement readiness', () => {
     expect(find(r.device, 'timing').state).toBe('pending');
   });
 
-  it('warns on a wobbly stream and fails on a broken one', () => {
-    expect(find(assessReadiness(ready({ rejectionRate: 0.10 })).device, 'timing').state).toBe('warning');
-    expect(find(assessReadiness(ready({ rejectionRate: 0.30 })).device, 'timing').state).toBe('fail');
+  it('passes a healthy delivery rate, warns only when it is high', () => {
+    // A MacBook in Firefox with many tabs sat at ~10%; that must not warn.
+    expect(find(assessReadiness(ready({ rejectionRate: 0.10 })).device, 'timing').state).toBe('pass');
+    expect(find(assessReadiness(ready({ rejectionRate: 0.40 })).device, 'timing').state).toBe('warning');
+    // Only a stream that is barely arriving fails on delivery alone.
+    expect(find(assessReadiness(ready({ rejectionRate: 0.70 })).device, 'timing').state).toBe('fail');
   });
 
   /*

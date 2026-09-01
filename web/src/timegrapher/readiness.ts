@@ -77,10 +77,20 @@ export interface ReadinessFacts {
 
 /** Below this a mismatch is just noise; a real window is needed to judge timing. */
 export const MIN_TIMING_SECONDS = 8;
-/** Blocks arriving irregularly. Above the first is a wobble; above the second
-    the stream is not usable. */
-export const REJECTION_WARN = 0.05;
-export const REJECTION_FAIL = 0.20;
+/*
+   How unevenly audio blocks may arrive before it is worth mentioning.
+
+   This measures delivery to the main thread against wall time — not the samples
+   themselves, which the worklet keeps contiguous and the DSP works on
+   regardless of when the main thread wakes to process them. So a high rate here
+   mostly means a busy device or browser, not a compromised measurement, and the
+   real starvation case is caught by `timingDisturbed` (an absurd drift), not by
+   this. Anchored to two healthy readings — an iPhone at ~2% and a MacBook in
+   Firefox with many tabs at ~10% — so the warning sits well above both; the
+   fail is a stream barely arriving at all.
+*/
+export const REJECTION_WARN = 0.30;
+export const REJECTION_FAIL = 0.60;
 /** Below this the input is too coarse for a watch; well under 44.1 kHz. */
 export const MIN_SAMPLE_RATE = 32_000;
 export const GOOD_SAMPLE_RATE = 44_100;
@@ -176,9 +186,9 @@ export function assessReadiness(facts: ReadinessFacts): ReadinessReport {
   } else if (facts.timingDisturbed) {
     device.push({ id: 'timing', label: 'Audio timing', state: 'fail', detail: 'Frames not keeping pace — stream starved or interrupted' });
   } else if (facts.rejectionRate !== null && facts.rejectionRate > REJECTION_FAIL) {
-    device.push({ id: 'timing', label: 'Audio timing', state: 'fail', detail: `${(facts.rejectionRate * 100).toFixed(0)}% of blocks arriving irregularly` });
+    device.push({ id: 'timing', label: 'Audio timing', state: 'fail', detail: 'Audio barely arriving — the stream is choked' });
   } else if (facts.rejectionRate !== null && facts.rejectionRate > REJECTION_WARN) {
-    device.push({ id: 'timing', label: 'Audio timing', state: 'warning', detail: `${(facts.rejectionRate * 100).toFixed(0)}% of blocks arriving irregularly` });
+    device.push({ id: 'timing', label: 'Audio timing', state: 'warning', detail: `Arriving unevenly (${(facts.rejectionRate * 100).toFixed(0)}%) — usually a busy device; the reading tolerates it` });
   } else {
     device.push({ id: 'timing', label: 'Audio timing', state: 'pass', detail: 'Stable' });
   }
