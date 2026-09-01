@@ -99,12 +99,6 @@ It hides from everything else, because a constant scale error is perfectly
 repeatable: the reading settles, the spread stays tight, and the whole scale is
 shifted.
 
-Start a capture and leave it running for a minute or more without stopping —
-nothing needs to be on the sensor — then press **Apply**. The app compares its
-own audio clock against the system clock, which is disciplined and far steadier
-than any sound card. It has to be one uninterrupted run; a new capture starts
-the measurement over.
-
 Before a measurement, **Check** — a tab beside Guide and Settings — reduces the
 live audio path to one verdict: whether the input is configured, arriving
 continuously, and carrying a clear escapement. It is a pre-flight, not a
@@ -112,17 +106,14 @@ calibration; it catches a resample, a muffled pickup or a browser applying gain
 before any of them corrupts a reading. Device and signal are checked separately,
 so it never demands a watch to tell you the microphone is fine.
 
-Calibration itself lives under **Calibration**, its own tab, each
-stating what it needs before what it does — the system-clock one wants nothing
-on the sensor at all, which is the opposite of the other.
-
-The second method is a **quartz watch**, which is how native tg does it: an analogue quartz movement with a ticking seconds hand goes on the sensor
-and the app tracks its once-a-second tick for about fifteen minutes. That result
-is only as good as the reference watch — it cannot tell the card apart from the
-watch — so it is offered as a second opinion and applied only when you press
-**Use it**. The **Correction** box also takes a figure typed by hand; tg's `cal`
-is the same quantity in the same units, so its number can be copied straight
-across.
+Correcting the clock itself lives under **Calibration**, its own tab. It is done
+against a **quartz watch** on the sensor — an analogue movement with a ticking
+seconds hand, which native tg does the same way. The app tracks its once-a-second
+tick for about fifteen minutes and offers the figure; you apply it with **Use
+it**. That result is only as good as the reference — characterise the watch
+against network time over a week and it becomes a good one. The **Correction**
+box also takes a figure typed by hand; tg's `cal` is the same quantity in the
+same units, so its number copies straight across.
 
 ### Steadiness of this bench
 
@@ -203,7 +194,8 @@ retained under `src/` and remains buildable; it is not part of the web build,
 but it is the reference implementation the port is validated against.
 
 Upstream measures sound-card clock drift against a 1 Hz reference; this port
-measures it against the system clock instead, which needs no reference watch.
+does the same, driven by a quartz watch on the pickup, and adds a
+pre-measurement audio check that verifies the stream before a reading.
 Upstream's snapshot save/load has no equivalent here yet.
 
 See [NOTICE](NOTICE) for attribution and [docs/licensing.md](docs/licensing.md)

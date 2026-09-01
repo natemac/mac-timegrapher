@@ -19,7 +19,6 @@ import type { AudioInput } from '../audio/device-manager';
 import { CalibrationPanel } from './CalibrationPanel';
 import { ReadinessCheck } from './ReadinessCheck';
 import type { ReadinessReport } from '../timegrapher/readiness';
-import type { ClockResult, ClockDebug } from '../audio/clock-calibration';
 
 export interface Settings {
   /** Milliseconds of drift spanning the trace width. Smaller magnifies more. */
@@ -105,12 +104,8 @@ interface Props {
   /** How much the log has to say. Zero means nothing has been measured yet. */
   diagnosticSamples: number;
   /** The clock measurement, once there is enough of a run for one. */
-  clock: ClockResult | null;
   /** How far into that run it is, so the wait is visible. */
-  clockSeconds: number;
   /** A long enough run that produced an impossible answer. */
-  clockDisturbed: boolean;
-  clockDebug: ClockDebug;
   /* Calibration needs the microphone and an input chosen, so the tab carries
      both — it can be reached before the measuring screen has ever asked. */
   granted: boolean;
@@ -227,7 +222,7 @@ export function parseDrift(text: string): number | null {
 export function SettingsSheet({
   open, topic, onClose, onShowFullGuide, settings, onChange,
   movementId, onSelectMovement, best, onExportDiagnostics, diagnosticSamples,
-  clock, clockSeconds, clockDisturbed, clockDebug, clockCheck, onStartClockCheck, onStopClockCheck,
+  clockCheck, onStartClockCheck, onStopClockCheck,
   granted, onRequestMic, busy, devices, selectedId, onSelectDevice, sampleRate,
   capturing, onStartCapture, onStopCapture, readiness,
 }: Props) {
@@ -360,16 +355,9 @@ export function SettingsSheet({
               onSelectDevice={onSelectDevice}
               sampleRate={sampleRate}
               capturing={capturing}
-              onStartCapture={onStartCapture}
-              onStopCapture={onStopCapture}
               draft={clockDraft}
               onDraftChange={setClockDraft}
               onDraftCommit={commitClockDraft}
-              clock={clock}
-              clockSeconds={clockSeconds}
-              clockDisturbed={clockDisturbed}
-              clockDebug={clockDebug}
-              onApplyClock={applyDrift}
               onClearClock={() => applyDrift(0)}
               hasCorrection={settings.clockDriftSecondsPerDay !== 0}
               check={clockCheck}

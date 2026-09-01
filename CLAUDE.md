@@ -101,13 +101,15 @@ web/src/components/      one panel each; guide-content.tsx holds every explanati
   clock to 99 ppm and the figure is believable. Asking a 48 kHz device for
   44,100 forces a resample that the render thread does not keep up with.
   Suspect the rate before suspecting the crystal.
-- **Two ways to correct the sound-card clock, and they are not equivalent.**
-  Against the system clock (`audio/clock-calibration.ts`, NTP-disciplined) or
-  against a quartz watch on the sensor (upstream's algorithm, already in
-  `tg_algo.c`, driven by `tg_cal_*`). The quartz route measures the difference
-  between card and watch and blames all of it on the card, so it inherits the
-  reference's own error — a ±20 s/month movement carries ±0.66 s/day. It is a
-  second opinion, not a better one, and nothing is applied without a press.
+- **Clock correction is by quartz watch or by hand — the system-clock method
+  was removed.** It compared frame delivery against wall time and was the option
+  most sensitive to an unstable audio path; on real iOS+USB hardware it never
+  produced a usable figure (44.1 kHz resampling, ~2% block rejection). Its
+  diagnostic value — is the frame-vs-wall drift absurd — now lives in the
+  pre-check's Audio-timing row, which is all that comparison is trustworthy for.
+  `ClockCalibrator` stays: the pre-check reads its `disturbed`/`debug()`.
+  Correction is the quartz method (`tg_cal_*`, upstream's algorithm) or a figure
+  typed into the field; nothing is applied without a press.
 - **Lift angle comes from the movement preset**, not a constant. Amplitude is
   calculated directly from it, so a wrong preset is a wrong amplitude.
 - **`guide-content.tsx` is the single source for every explanation**, read by
@@ -185,7 +187,7 @@ focus effects keyed on what actually opened the thing, never on a callback.
 ## Commands
 
 ```sh
-cd web && npm test          # 407 tests across 27 files
+cd web && npm test          # 401 tests across 27 files
 cd web && npm run build     # tsc -b && vite build
 cd web && npm run dev       # http://localhost:5173/tools/timegrapher/
 

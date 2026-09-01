@@ -14,7 +14,7 @@ import {
 import { startCapture, type CaptureSession } from './audio/audio-engine';
 import { SignalMeter, type SignalState } from './audio/signal-strength';
 import {
-  ClockCalibrator, correctedSampleRate, type ClockResult, type ClockDebug,
+  ClockCalibrator, correctedSampleRate, type ClockDebug,
 } from './audio/clock-calibration';
 import { PermissionGate } from './components/PermissionGate';
 import { DeviceSelector } from './components/DeviceSelector';
@@ -103,7 +103,6 @@ export default function App() {
   // a slow-moving figure and re-rendering the app for it would be waste.
   const [bestSpread, setBestSpread] = useState<BestSpread>({ rate: null, amplitude: null, beatError: null });
   const [diagnosticSamples, setDiagnosticSamples] = useState(0);
-  const [clock, setClock] = useState<ClockResult | null>(null);
   const [clockDebug, setClockDebug] = useState<ClockDebug>(() => new ClockCalibrator().debug());
   const [clockDisturbed, setClockDisturbed] = useState(false);
   /* The processing states the browser reported at capture start, kept so the
@@ -205,7 +204,6 @@ export default function App() {
   useEffect(() => {
     if (!sheetOpen) return;
     const read = () => {
-      setClock(calibrator.current.result());
       setClockDebug(calibrator.current.debug(sampleRate));
       setClockDisturbed(calibrator.current.disturbed);
     };
@@ -775,7 +773,6 @@ export default function App() {
       setProcessing(s.warnings);
       setCapturing(true);
       calibrator.current.beginSession();
-      setClock(null);
       saveSelection(selectedId);
 
       diagnostics.current.reset();
@@ -964,10 +961,6 @@ export default function App() {
         best={bestSpread}
         onExportDiagnostics={exportDiagnostics}
         diagnosticSamples={diagnosticSamples}
-        clock={clock}
-        clockSeconds={calibrator.current.elapsedSeconds}
-        clockDisturbed={clockDisturbed}
-        clockDebug={clockDebug}
         clockCheck={clockCheck}
         onStartClockCheck={startClockCheck}
         onStopClockCheck={stopClockCheck}

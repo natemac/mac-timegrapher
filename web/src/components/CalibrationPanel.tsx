@@ -8,9 +8,7 @@
 */
 import type { AudioInput } from '../audio/device-manager';
 import type { Calibration } from '../timegrapher/tg-engine';
-import type { ClockResult } from '../audio/clock-calibration';
-import { MIN_SECONDS, type ClockDebug } from '../audio/clock-calibration';
-import { useState } from 'react';
+
 
 /*
    Calibrating the sound card's clock.
@@ -47,20 +45,12 @@ interface Props {
   onSelectDevice: (deviceId: string) => void;
   sampleRate: number | null;
   capturing: boolean;
-  onStartCapture: () => void;
-  onStopCapture: () => void;
 
   /** The correction in force, and the field that edits it. */
   draft: string;
   onDraftChange: (v: string) => void;
   onDraftCommit: () => void;
 
-  clock: ClockResult | null;
-  /** The raw state of the fit, for when it produced nothing usable. */
-  clockDebug: ClockDebug;
-  clockSeconds: number;
-  clockDisturbed: boolean;
-  onApplyClock: (value: number) => void;
   onClearClock: () => void;
   hasCorrection: boolean;
 
@@ -83,64 +73,6 @@ function Method({ title, needs, children }: {
       </ul>
       {children}
     </section>
-  );
-}
-
-/*
-   The numbers behind a run, shown on request.
-
-   A failed calibration is otherwise a dead end: the figure is withheld, and
-   what is left says only that something went wrong. These are the values the
-   fit was built from, including the steps it threw away — which is the part
-   that distinguishes an interrupted run from a systematically wrong one, since
-   both produce an impossible answer and look identical from outside.
-*/
-function Details({ d, sampleRate }: { d: ClockDebug; sampleRate: number | null }) {
-  const [open, setOpen] = useState(false);
-  const ppm = (r: number | null) => (r === null ? '—' : `${((r - 1) * 1e6).toFixed(0)} ppm`);
-  const sd = (v: number | null) => (v === null ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(2)} s/day`);
-
-  if (!open) {
-    return (
-      <button className="calibration__what" onClick={() => setOpen(true)}>
-        Show the numbers
-      </button>
-    );
-  }
-
-  const dropped = d.steps - d.points;
-  const rows: [string, string][] = [
-    ['blocks seen', String(d.steps)],
-    ['points used', String(d.points)],
-    /* A high rate here means audio is arriving in fits and starts. It also
-       explains any gap between the two times below: a rejected step's wall
-       time is discarded along with it. */
-    ['rejected', d.steps > 0 ? `${dropped} (${((dropped / d.steps) * 100).toFixed(1)}%)` : '0'],
-    ['real elapsed', `${d.elapsedSeconds.toFixed(2)} s`],
-    ['wall time in fit', `${d.wallSeconds.toFixed(2)} s`],
-    ['audio time', `${d.audioSeconds.toFixed(2)} s`],
-    ['fitted slope', `${ppm(d.fittedRatio)}  ${sd(d.fittedDriftSecondsPerDay)}`],
-    ['ratio of totals', `${ppm(d.totalsRatio)}  ${sd(d.totalsDriftSecondsPerDay)}`],
-    ['step ratio range', `${ppm(d.minStepRatio)} … ${ppm(d.maxStepRatio)}`],
-    ['frames delivered', `${d.frames.toLocaleString()}`],
-    ['frames as time', d.framesSeconds === null ? '—' : `${d.framesSeconds.toFixed(2)} s  ${sd(d.framesDriftSecondsPerDay)}`],
-    ['rejected — gap', String(d.rejectedGap)],
-    ['rejected — ratio', String(d.rejectedRatio)],
-    ['rejected — backwards', String(d.rejectedBackwards)],
-    ['context rate', sampleRate ? `${sampleRate.toLocaleString()} Hz` : '—'],
-  ];
-
-  return (
-    <div className="calibration__details">
-      <table className="calibration__table">
-        <tbody>
-          {rows.map(([k, v]) => (
-            <tr key={k}><th>{k}</th><td className="mono">{v}</td></tr>
-          ))}
-        </tbody>
-      </table>
-      <button className="calibration__what" onClick={() => setOpen(false)}>Hide</button>
-    </div>
   );
 }
 
@@ -214,63 +146,6 @@ export function CalibrationPanel(p: Props) {
       </label>
 
       <Method
-        title="Against the system clock"
-        needs={[
-          'Nothing on the sensor — it does not listen to a watch.',
-          `About ${MIN_SECONDS} seconds, in one go.`,
-          'The app in front and the screen awake, or the audio is interrupted.',
-        ]}
-      >
-        {p.clock ? (
-          <>
-            <p className="dim">
-              This device measures{' '}
-              <strong className="mono">
-                {p.clock.driftSecondsPerDay > 0 ? '+' : ''}
-                {p.clock.driftSecondsPerDay.toFixed(2)} ± {p.clock.errorSecondsPerDay.toFixed(2)} s/day
-              </strong>{' '}
-              over {p.clock.seconds.toFixed(0)}s.
-            </p>
-            <button
-              className="secondary"
-              style={{ width: '100%' }}
-              onClick={() => p.onApplyClock(p.clock!.driftSecondsPerDay)}
-            >
-              Use it
-            </button>
-          </>
-        ) : p.clockDisturbed ? (
-          <p className="dim">
-            That run measured a shift too large for a crystal, so it is not
-            being offered. It may be real — a cheap USB device can be this far
-            out — or it may be frames going missing rather than the clock being
-            slow, which this method cannot tell apart. Run the quartz check: it
-            uses a physical reference and will say which. The figures are under
-            <em> Show the numbers</em>.
-          </p>
-        ) : p.capturing ? (
-          <p className="dim">
-            Listening — {p.clockSeconds.toFixed(0)}s of {MIN_SECONDS}s.
-          </p>
-        ) : (
-          <p className="dim">Not started.</p>
-        )}
-
-        {!p.clock && (
-          <button
-            className="secondary"
-            style={{ width: '100%' }}
-            onClick={p.capturing ? p.onStopCapture : p.onStartCapture}
-            disabled={p.devices.length === 0 || p.busy}
-          >
-            {p.capturing ? 'Stop listening' : 'Start listening'}
-          </button>
-        )}
-
-        <Details d={p.clockDebug} sampleRate={p.sampleRate} />
-      </Method>
-
-      <Method
         title="Against a quartz watch"
         needs={[
           'An analogue quartz watch with a ticking seconds hand, on the sensor.',
@@ -332,11 +207,12 @@ export function CalibrationPanel(p: Props) {
       </Method>
 
       <p className="dim calibration__note">
-        Both measure the same thing and feed the same correction, and both run
-        off one capture — so a quartz run also produces a system-clock figure
-        over the same time. The system clock is disciplined against network time
-        and is the better reference; the quartz result is only as good as the
-        watch, because it cannot tell the card apart from it.
+        The quartz check measures the sound card's clock against the watch and
+        blames all the difference on the card, so it is only as good as the
+        reference — characterise the watch against network time over a week and
+        it becomes a genuinely good one. Or type a correction measured elsewhere
+        straight into the field above; native tg's <em>cal</em> is the same
+        number in the same units.
       </p>
     </div>
   );

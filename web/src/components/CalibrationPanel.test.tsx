@@ -10,28 +10,10 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { CalibrationPanel } from './CalibrationPanel';
 import type { Calibration } from '../timegrapher/tg-engine';
-import type { ClockResult, ClockDebug } from '../audio/clock-calibration';
-
-const DEBUG: ClockDebug = {
-  points: 0, steps: 0, elapsedSeconds: 0, wallSeconds: 0, audioSeconds: 0,
-  fittedRatio: null, totalsRatio: null,
-  fittedDriftSecondsPerDay: null, totalsDriftSecondsPerDay: null,
-  rejectedGap: 0, rejectedRatio: 0, rejectedBackwards: 0,
-  minStepRatio: null, maxStepRatio: null,
-  frames: 0, framesSeconds: null, framesDriftSecondsPerDay: null,
-};
 
 const CHECK = (over: Partial<Calibration> = {}): Calibration => ({
   collected: 0, needed: 900, signal: 4, state: 0, driftSecondsPerDay: 0, ...over,
 });
-
-const CLOCK: ClockResult = {
-  ratio: 1.0000625,
-  driftSecondsPerDay: 5.4,
-  errorSecondsPerDay: 0.08,
-  seconds: 92,
-  points: 180,
-};
 
 function panel(over: Partial<Parameters<typeof CalibrationPanel>[0]> = {}) {
   return (
@@ -44,16 +26,9 @@ function panel(over: Partial<Parameters<typeof CalibrationPanel>[0]> = {}) {
       onSelectDevice={() => {}}
       sampleRate={44100}
       capturing={false}
-      onStartCapture={() => {}}
-      onStopCapture={() => {}}
       draft="+0.00"
       onDraftChange={() => {}}
       onDraftCommit={() => {}}
-      clock={null}
-      clockSeconds={0}
-      clockDisturbed={false}
-      clockDebug={DEBUG}
-      onApplyClock={() => {}}
       onClearClock={() => {}}
       hasCorrection={false}
       check={null}
@@ -75,18 +50,16 @@ describe('the calibration tab', () => {
   */
   it('presents the two methods as separate instruments', () => {
     render(panel());
-    expect(screen.getByRole('heading', { name: /Against the system clock/ })).toBeInTheDocument();
+    // The system-clock method was removed: it never delivered a usable figure
+    // on real hardware and its diagnostic value moved to the pre-check.
+    expect(screen.queryByRole('heading', { name: /Against the system clock/ })).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: /Against a quartz watch/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Start listening' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Start quartz check' })).toBeInTheDocument();
   });
 
-  /* Each says what it needs before what it does — the system-clock one wants
-     nothing on the sensor at all, which is the opposite of the other and not
-     guessable. */
-  it('says what each one needs, including that one needs no watch', () => {
+  /* The quartz method states what it needs before what it does. */
+  it('says what the quartz check needs', () => {
     const { container } = render(panel());
-    expect(container.textContent).toMatch(/Nothing on the sensor/);
     expect(container.textContent).toMatch(/analogue quartz watch with a ticking seconds hand/);
   });
 
@@ -106,32 +79,6 @@ describe('the calibration tab', () => {
     render(panel());
     expect(screen.getByLabelText('Audio input')).toHaveValue('a');
     expect(screen.getByText('44,100 Hz')).toBeInTheDocument();
-  });
-});
-
-describe('the system clock method', () => {
-  it('shows progress while it listens', () => {
-    const { container } = render(panel({ capturing: true, clockSeconds: 24 }));
-    expect(container.textContent).toMatch(/Listening — 24s of 60s/);
-  });
-
-  it('offers the figure once there is one', () => {
-    const onApplyClock = vi.fn();
-    render(panel({ clock: CLOCK, onApplyClock }));
-    expect(screen.getByText(/\+5\.40 ± 0\.08 s\/day/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Use it' }));
-    expect(onApplyClock).toHaveBeenCalledWith(5.4);
-  });
-
-  /*
-     An iPhone reported -98.58 s/day, which is 1,141 ppm and impossible. The
-     figure is withheld, and this says the run was disturbed rather than
-     asking for more time that has already elapsed.
-  */
-  it('reports a disturbed run rather than asking for more time', () => {
-    const { container } = render(panel({ clockDisturbed: true, capturing: true, clockSeconds: 63 }));
-    expect(container.textContent).toMatch(/too large for a crystal/);
-    expect(container.textContent).not.toMatch(/63s of 60s/);
   });
 });
 
@@ -188,53 +135,3 @@ describe('the quartz method', () => {
   });
 });
 
-describe('the numbers behind a run', () => {
-  /*
-     A rejected fit is otherwise a dead end — the figure is withheld and all
-     that is left is that something went wrong. Two clean runs on an iPhone
-     both produced an impossible answer, and there was no way to tell an
-     interrupted run from a systematically wrong one, because both look the
-     same from outside.
-  */
-  it('is available even when the fit produced nothing usable', () => {
-    render(panel({
-      clockDisturbed: true,
-      clockDebug: {
-        ...DEBUG,
-        points: 126, wallSeconds: 63.4, audioSeconds: 63.33,
-        fittedRatio: 0.998859, totalsRatio: 0.998861,
-        fittedDriftSecondsPerDay: -98.58, totalsDriftSecondsPerDay: -98.4,
-        rejectedGap: 2, rejectedRatio: 11,
-        minStepRatio: 0.96, maxStepRatio: 1.02,
-      },
-    }));
-    fireEvent.click(screen.getByRole('button', { name: 'Show the numbers' }));
-    const t = screen.getByRole('table').textContent ?? '';
-    expect(t).toMatch(/points used/);
-    expect(t).toMatch(/126/);
-    expect(t).toMatch(/-98\.58 s\/day/);
-    // The counts that say which kind of failure it was.
-    expect(t).toMatch(/rejected — gap/);
-    expect(t).toMatch(/rejected — ratio/);
-  });
-
-  /* Two ways of reducing the same points. They should agree; a disagreement
-     means the points are not evenly spread across the run. */
-  it('shows the fitted slope and the plain ratio of totals side by side', () => {
-    render(panel({
-      clockDebug: { ...DEBUG, points: 100, wallSeconds: 60, audioSeconds: 60,
-        fittedRatio: 1.000054, totalsRatio: 1.000054,
-        fittedDriftSecondsPerDay: 4.67, totalsDriftSecondsPerDay: 4.67 },
-    }));
-    fireEvent.click(screen.getByRole('button', { name: 'Show the numbers' }));
-    const t = screen.getByRole('table').textContent ?? '';
-    expect(t).toMatch(/fitted slope/);
-    expect(t).toMatch(/ratio of totals/);
-    expect(t).toMatch(/54 ppm/);
-  });
-
-  it('stays out of the way until asked for', () => {
-    render(panel());
-    expect(screen.queryByRole('table')).not.toBeInTheDocument();
-  });
-});
