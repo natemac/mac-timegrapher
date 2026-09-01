@@ -105,7 +105,14 @@ own audio clock against the system clock, which is disciplined and far steadier
 than any sound card. It has to be one uninterrupted run; a new capture starts
 the measurement over.
 
-Both live under **Calibration**, their own tab beside Guide and Settings, each
+Before a measurement, **Check** — a tab beside Guide and Settings — reduces the
+live audio path to one verdict: whether the input is configured, arriving
+continuously, and carrying a clear escapement. It is a pre-flight, not a
+calibration; it catches a resample, a muffled pickup or a browser applying gain
+before any of them corrupts a reading. Device and signal are checked separately,
+so it never demands a watch to tell you the microphone is fine.
+
+Calibration itself lives under **Calibration**, its own tab, each
 stating what it needs before what it does — the system-clock one wants nothing
 on the sensor at all, which is the opposite of the other.
 

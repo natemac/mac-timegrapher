@@ -75,6 +75,15 @@ web/src/components/      one panel each; guide-content.tsx holds every explanati
   in `timegrapher/amplitude-scale.ts`, not in `BeatCanvas.tsx`, because the
   ruler and the reading have to agree. Solid rules are time, dashed are degrees;
   they share one axis and must not look alike.
+- **The pre-measurement check is its own sheet tab** (`ReadinessCheck.tsx`),
+  reducing the live audio path to READY / WARNING / NOT READY before a
+  measurement. It adds no audio: `readiness.ts` is a pure reducer over facts the
+  app already produces. The resample/interruption catch is the clock
+  calibrator's own `disturbed` flag — a drift too large for any crystal is a
+  starved stream whatever the cause, which is what went uncaught the week 44.1
+  kHz resampled. Device and signal phases are separate so "no escapement" never
+  blocks someone still setting up the mic. It is explicitly not calibration and
+  says so.
 - **Calibration is its own sheet tab** (`CalibrationPanel.tsx`), not a setting.
   It needs the microphone and an input chosen, so it carries both — it is
   reachable before the measuring screen has ever asked for permission.
@@ -176,7 +185,7 @@ focus effects keyed on what actually opened the thing, never on a callback.
 ## Commands
 
 ```sh
-cd web && npm test          # 393 tests across 26 files
+cd web && npm test          # 407 tests across 27 files
 cd web && npm run build     # tsc -b && vite build
 cd web && npm run dev       # http://localhost:5173/tools/timegrapher/
 

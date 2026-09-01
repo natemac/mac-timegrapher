@@ -763,6 +763,49 @@ select {
   margin-top: 8px;
 }
 
+/* ---------- Readiness check tab ---------- */
+.readiness { display: flex; flex-direction: column; gap: 12px; }
+
+.readiness__banner {
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font-weight: 600;
+  font-size: 14px;
+  text-align: center;
+  border: 1px solid var(--line);
+}
+.readiness__banner--ready { color: var(--ok); border-color: var(--ok); }
+.readiness__banner--warning { color: var(--warn); border-color: var(--warn); }
+.readiness__banner--not-ready { color: var(--bad); border-color: var(--bad); }
+.readiness__banner--pending { color: var(--text-dim); }
+
+.readiness__phase { display: flex; flex-direction: column; gap: 4px; }
+.readiness__phase-title { margin: 0; font-size: 13px; font-weight: 600; }
+.readiness__phase-note { font-size: 11px; margin: 0; }
+
+.readiness__list { list-style: none; margin: 4px 0 0; padding: 0; }
+.readiness__row {
+  display: grid;
+  grid-template-columns: 1.4em minmax(0, auto) 1fr;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  padding: 3px 0;
+}
+.readiness__mark {
+  text-align: center;
+  font-weight: 700;
+  font-family: var(--mono);
+}
+.readiness__row--pass .readiness__mark { color: var(--ok); }
+.readiness__row--warning .readiness__mark { color: var(--warn); }
+.readiness__row--fail .readiness__mark { color: var(--bad); }
+.readiness__row--unknown .readiness__mark,
+.readiness__row--pending .readiness__mark { color: var(--text-faint); }
+.readiness__label { white-space: nowrap; }
+.readiness__detail { color: var(--text-dim); text-align: right; }
+.readiness__note { font-size: 11px; margin: 0; }
+
 /* ---------- Calibration tab ---------- */
 .calibration { display: flex; flex-direction: column; gap: 14px; }
 

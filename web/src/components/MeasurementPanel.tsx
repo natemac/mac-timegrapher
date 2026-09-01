@@ -245,7 +245,7 @@ export function MeasurementPanel({
         ) : clockCheck ? (
           <p className="dim panel__foot-note">
             {clockCheck.state === 1
-              ? 'Audio clock checked. The result is in Settings.'
+              ? 'Audio clock checked. The result is in Calibration.'
               : clockCheck.signal >= 4
                 ? `Checking the audio clock — ${clockCheck.collected} of ${clockCheck.needed} ticks.`
                 : 'Checking the audio clock. Listening for a once-a-second tick.'}

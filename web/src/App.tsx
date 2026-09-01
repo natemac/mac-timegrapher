@@ -6,7 +6,7 @@
     it under the terms of the GNU General Public License version 2 as
     published by the Free Software Foundation.
 */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   requestPermission, listAudioInputs, saveSelection, loadSelection, resolveSelection,
   type AudioInput,
@@ -58,6 +58,8 @@ import {
 } from './timegrapher/inspections';
 import { Certificate } from './components/Certificate';
 import { DEFAULT_LIFT_ANGLE } from './timegrapher/movements';
+import { assessReadiness } from './timegrapher/readiness';
+import type { ProcessingWarning } from './audio/audio-engine';
 
 function describeError(err: unknown): string {
   if (!(err instanceof Error)) return 'Could not open the audio input.';
@@ -104,6 +106,13 @@ export default function App() {
   const [clock, setClock] = useState<ClockResult | null>(null);
   const [clockDebug, setClockDebug] = useState<ClockDebug>(() => new ClockCalibrator().debug());
   const [clockDisturbed, setClockDisturbed] = useState(false);
+  /* The processing states the browser reported at capture start, kept so the
+     readiness check can grade them. Empty means none applied / none known. */
+  const [processing, setProcessing] = useState<ProcessingWarning[]>([]);
+  /* The last few detected beat rates, for judging whether the lock is holding.
+     A ref, not state: it feeds a memo read on render, and per-block setState
+     would re-render the app on every measurement for no visible gain. */
+  const bphHistory = useRef<number[]>([]);
   /* Waveform by default: it shows something the moment audio arrives, so a
      first-time user can tell the sensor is hearing the watch before any
      reading exists. The trace needs beats before it draws anything at all. */
@@ -470,6 +479,11 @@ export default function App() {
         setMeasurement(m);
         setBeatWaveform(shape);
         measurementRef.current = m;
+        if (m.valid) {
+          const h = bphHistory.current;
+          h.push(m.detectedBph);
+          if (h.length > 4) h.shift();
+        }
         setSecondsCaptured(seconds);
 
         for (const b of newBeats) beatStore.current.set(b.time, b);
@@ -547,6 +561,33 @@ export default function App() {
 
   const chosenMovement = findMovement(movementId);
   const movementLabel = chosenMovement ? `${chosenMovement.maker} ${chosenMovement.name}` : null;
+  const chosenDeviceLabel = devices.find((d) => d.deviceId === selectedId)?.label ?? null;
+
+  /*
+     The pre-measurement verdict, from the app's own live state — no new audio.
+     Recomputed on render, which is cheap: assessReadiness is a handful of
+     comparisons over a fixed set of facts.
+  */
+  const readinessReport = useMemo(
+    () => assessReadiness({
+      capturing,
+      deviceLabel: chosenDeviceLabel,
+      sampleRate,
+      timingSeconds: clockDebug.elapsedSeconds,
+      timingDisturbed: clockDisturbed,
+      rejectionRate: clockDebug.steps > 0 ? (clockDebug.steps - clockDebug.points) / clockDebug.steps : null,
+      processing,
+      strength: signal?.strength ?? 'none',
+      clipped: signal?.clipped ?? false,
+      hot: signal?.hot ?? false,
+      measurementValid: measurement?.valid ?? false,
+      recentBph: bphHistory.current,
+      expectedBph: chosenMovement && !isQuartz(chosenMovement) ? chosenMovement.bph : null,
+      quartz: isQuartz(chosenMovement),
+    }),
+    [capturing, chosenDeviceLabel, sampleRate, clockDebug, clockDisturbed,
+     processing, signal, measurement, chosenMovement],
+  );
   movementLabelRef.current = movementLabel;
   movementIdRef.current = movementId;
 
@@ -701,6 +742,8 @@ export default function App() {
     setLatest(null);
     setSampleRate(null);
     setRequestedSampleRate(null);
+    setProcessing([]);
+    bphHistory.current = [];
   }, []);
 
   const handleDisconnect = useCallback(() => {
@@ -729,6 +772,7 @@ export default function App() {
       // every reading; the engine effect builds from this value.
       setSampleRate(s.sampleRate);
       setRequestedSampleRate(s.requestedSampleRate ?? null);
+      setProcessing(s.warnings);
       setCapturing(true);
       calibrator.current.beginSession();
       setClock(null);
@@ -937,6 +981,7 @@ export default function App() {
         capturing={capturing}
         onStartCapture={start}
         onStopCapture={stop}
+        readiness={readinessReport}
       />
 
       {!secure && (

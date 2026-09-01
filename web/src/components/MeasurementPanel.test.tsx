@@ -216,6 +216,6 @@ describe('while the audio clock is being checked', () => {
 
   it('points at the result once the fit is accepted', () => {
     render(panel({ clockCheck: checking({ state: 1, signal: 4, collected: 900 }) }));
-    expect(screen.getByText(/result is in Settings/)).toBeInTheDocument();
+    expect(screen.getByText(/result is in Calibration/)).toBeInTheDocument();
   });
 });

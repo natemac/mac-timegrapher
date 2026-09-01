@@ -17,6 +17,8 @@ import { SETTLED_BOUNDS, type BestSpread } from '../timegrapher/stability';
 import type { Calibration } from '../timegrapher/tg-engine';
 import type { AudioInput } from '../audio/device-manager';
 import { CalibrationPanel } from './CalibrationPanel';
+import { ReadinessCheck } from './ReadinessCheck';
+import type { ReadinessReport } from '../timegrapher/readiness';
 import type { ClockResult, ClockDebug } from '../audio/clock-calibration';
 
 export interface Settings {
@@ -125,9 +127,10 @@ interface Props {
   clockCheck: Calibration | null;
   onStartClockCheck: () => void;
   onStopClockCheck: () => void;
+  readiness: ReadinessReport;
 }
 
-type Tab = 'guide' | 'settings' | 'calibration';
+type Tab = 'guide' | 'settings' | 'calibration' | 'check';
 
 /*
    One setting: its name, a ? that opens its explanation, and the control.
@@ -226,7 +229,7 @@ export function SettingsSheet({
   movementId, onSelectMovement, best, onExportDiagnostics, diagnosticSamples,
   clock, clockSeconds, clockDisturbed, clockDebug, clockCheck, onStartClockCheck, onStopClockCheck,
   granted, onRequestMic, busy, devices, selectedId, onSelectDevice, sampleRate,
-  capturing, onStartCapture, onStopCapture,
+  capturing, onStartCapture, onStopCapture, readiness,
 }: Props) {
   /* Settings first. The guide is read once; the settings are the reason the
      cog gets pressed again. */
@@ -296,7 +299,7 @@ export function SettingsSheet({
             <span style={{ fontWeight: 600, fontSize: 15 }}>{focused.title}</span>
           ) : (
             <div style={{ display: 'flex', gap: 6 }}>
-              {(['guide', 'settings', 'calibration'] as const).map((t) => (
+              {(['guide', 'settings', 'calibration', 'check'] as const).map((t) => (
                 <button
                   key={t}
                   className={tab === t ? undefined : 'secondary'}
@@ -333,6 +336,20 @@ export function SettingsSheet({
                 Full guide
               </button>
             </>
+          ) : tab === 'check' ? (
+            <ReadinessCheck
+              granted={granted}
+              onRequestMic={onRequestMic}
+              busy={busy}
+              devices={devices}
+              selectedId={selectedId}
+              onSelectDevice={onSelectDevice}
+              sampleRate={sampleRate}
+              capturing={capturing}
+              onStartCapture={onStartCapture}
+              onStopCapture={onStopCapture}
+              report={readiness}
+            />
           ) : tab === 'calibration' ? (
             <CalibrationPanel
               granted={granted}
