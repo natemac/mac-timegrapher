@@ -112,6 +112,27 @@ export interface RunningSummary {
  * the set as it stands, which is also the first point at which the positional
  * spread means anything — one position cannot disagree with itself.
  */
+/*
+   The average so far, over this run only.
+
+   An inspection record keeps every reading it has ever held, and a reading is
+   replaced in place when its position is measured again. So a second pass over
+   the same watch starts with all six of the previous pass's figures still
+   present, and the between-position average mixed the new dial-up with five
+   stale positions — an average of two different runs, shown as one.
+
+   `recorded` is what the wizard has taken this time round, and it empties when
+   a run restarts, so the preview clears with it. Nothing is deleted: the stored
+   readings still feed the summary sheet and the document.
+*/
+export function currentRunSummary(
+  readings: Reading[],
+  recorded: PositionId[],
+): RunningSummary | null {
+  const inThisRun = new Set(recorded);
+  return runningSummary(readings.filter((r) => inThisRun.has(r.position)));
+}
+
 export function runningSummary(readings: Reading[]): RunningSummary | null {
   if (readings.length === 0) return null;
 

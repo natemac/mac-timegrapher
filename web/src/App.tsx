@@ -50,7 +50,7 @@ import {
   type SnapshotInput,
 } from './export/snapshot';
 import { DiagnosticsLog, diagnosticsFilename } from './export/diagnostics';
-import { runningSummary, type PositionId } from './timegrapher/session';
+import { currentRunSummary, type PositionId } from './timegrapher/session';
 import {
   createInspection, upsertReading, putInspection,
   loadInspections, saveInspections, loadCurrentId, saveCurrentId,
@@ -1077,7 +1077,7 @@ export default function App() {
             quartz={isQuartz(chosenMovement)}
             /* Only in an inspection: Measure has no set to average, and its
                panel is never idle for long enough to look empty. */
-            summary={mode === 'inspection' ? runningSummary(current.readings) : null}
+            summary={mode === 'inspection' ? currentRunSummary(current.readings, wizard.recorded) : null}
           />
 
           {snapshotNote && (

@@ -7,7 +7,7 @@
     published by the Free Software Foundation.
 */
 import { describe, it, expect } from 'vitest';
-import { summarise, sessionTitle, runningSummary, type Reading, type PositionId } from './session';
+import { summarise, sessionTitle, runningSummary, currentRunSummary, type Reading, type PositionId } from './session';
 
 const reading = (position: PositionId, rate: number, amplitude = 270, beatError = 0.2): Reading => ({
   position,
@@ -132,5 +132,52 @@ describe('runningSummary', () => {
     expect(s.bph).toBe(21600);
     expect(s.beatError.mean).toBeCloseTo(1.0, 5);
     expect(s.beatError.max).toBe(1.6);
+  });
+});
+
+describe('the average shown between positions', () => {
+  /* Six positions already stored from an earlier pass over the same watch. */
+  const previousRun: Reading[] = [
+    reading('dial-up', 10), reading('dial-down', 12), reading('crown-down', 14),
+    reading('crown-up', 16), reading('crown-left', 18), reading('crown-right', 20),
+  ];
+
+  /*
+     The fault this exists to catch. A reading is replaced in place when its
+     position is measured again, so a second pass begins with all six of the
+     first pass's figures still in the record. Averaging the record showed a
+     fresh dial-up blended with five stale positions and called it one run.
+  */
+  it('ignores positions the current run has not measured', () => {
+    // Second pass: dial-up re-measured at 40, nothing else touched yet.
+    const readings = [reading('dial-up', 40), ...previousRun.slice(1)];
+
+    expect(runningSummary(readings)!.rate.mean).toBeCloseTo(20, 6); // the old bug
+    const s = currentRunSummary(readings, ['dial-up'])!;
+    expect(s.count).toBe(1);
+    expect(s.rate.mean).toBe(40);
+  });
+
+  /* Restarting a run empties `recorded`, so the preview clears with it rather
+     than showing the previous pass until the first new position lands. */
+  it('shows nothing at the start of a fresh run', () => {
+    expect(currentRunSummary(previousRun, [])).toBeNull();
+  });
+
+  it('grows as the run records each position', () => {
+    const readings = [reading('dial-up', 40), reading('dial-down', 20), ...previousRun.slice(2)];
+    expect(currentRunSummary(readings, ['dial-up'])!.count).toBe(1);
+    const two = currentRunSummary(readings, ['dial-up', 'dial-down'])!;
+    expect(two.count).toBe(2);
+    expect(two.rate.mean).toBe(30);
+  });
+
+  /* Skipping a position leaves it out of `recorded`, so a figure the record
+     still holds for it from an earlier pass cannot creep into the average. */
+  it('leaves a skipped position out of the average', () => {
+    const readings = [reading('dial-up', 40), reading('dial-down', 30), ...previousRun.slice(2)];
+    const s = currentRunSummary(readings, ['dial-up'])!;
+    expect(s.count).toBe(1);
+    expect(s.rate.mean).toBe(40);
   });
 });
