@@ -19,10 +19,14 @@ interface Props {
 /*
    The first screen.
 
-   Four things, centred, and nothing else: what this is, what you are here to
-   do, the one button, and what happens to the audio. An app opens; it does not
-   introduce itself at length. The guide behind the cog explains what a
-   timegrapher measures for anyone who wants that.
+   What this is, what you are here to do, the one button, and what happens to
+   the audio. An app opens; it does not introduce itself at length. The guide
+   behind the cog explains what a timegrapher measures for anyone who wants
+   that.
+
+   Only the choice sits in the panel. The tagline above it and the privacy line
+   below are about the app rather than the decision, so they are outside the
+   box — the panel is the thing you act on, and it holds only what you act on.
 
    Choosing the mode happens here, and only here. It is a decision made once —
    you know whether you are regulating or inspecting before you pick the watch
@@ -31,30 +35,44 @@ interface Props {
    is allowed takes a reload; the choice is remembered, so the reload lands
    where you left it.
 */
+
+/* One line each, because the switch labels alone do not say what the two jobs
+   are — and the difference decides the whole session, not a setting. */
+const MODE_NOTE: Record<Mode, string> = {
+  measure: 'One live reading, for watching the rate move as you turn the regulator.',
+  inspection: 'Six positions recorded one at a time, ending in a printable document.',
+};
+
 export function PermissionGate({ onGrant, error, busy, mode, onSelectMode }: Props) {
   return (
-    <div className="panel" style={{ marginBottom: 0, textAlign: 'center' }}>
-      <h2 style={{ marginTop: 0, marginBottom: 20, fontSize: 19 }}>
-        A timegrapher in your browser
-      </h2>
+    <>
+      <p className="gate__tagline">A timegrapher in your browser</p>
 
-      <div className="gate__mode">
-        <ModeSwitch value={mode} onChange={onSelectMode} />
+      <div className="panel gate__panel">
+        <div className="gate__mode">
+          <ModeSwitch value={mode} onChange={onSelectMode} />
+        </div>
+
+        <p className="gate__mode-note">{MODE_NOTE[mode]}</p>
+
+        {/* "Allow Mic & Begin" named the permission rather than the act. The
+            microphone prompt follows immediately and the line below says what
+            happens to the audio, so the button can just say what it does. */}
+        <button onClick={onGrant} disabled={busy} style={{ minWidth: 190 }}>
+          {busy ? 'Requesting…' : 'Begin'}
+        </button>
+
+        {error && <p className="bad" style={{ fontSize: 13, margin: '14px 0 0' }}>{error}</p>}
       </div>
 
-      {/* It grants access and opens the app in one press, so it says both.
-          "Allow microphone" described the permission prompt rather than what
-          the button was for. */}
-      <button onClick={onGrant} disabled={busy} style={{ minWidth: 190 }}>
-        {busy ? 'Requesting…' : 'Allow Mic & Begin'}
-      </button>
-
-      <p className="dim" style={{ fontSize: 13, marginTop: 20, marginBottom: 0 }}>
+      <p className="gate__privacy">
         Nothing is recorded or uploaded. The audio is analysed on this device
         and never leaves it.
       </p>
 
-      {error && <p className="bad" style={{ fontSize: 13, marginBottom: 0 }}>{error}</p>}
-    </div>
+      {/* The build being served, not the moment this page was opened — frozen
+          at build time so a bug report names a build. */}
+      <p className="gate__version mono">{__BUILD_VERSION__}</p>
+    </>
   );
 }
