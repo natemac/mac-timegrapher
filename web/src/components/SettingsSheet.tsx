@@ -476,6 +476,13 @@ export function SettingsSheet({
                       </tbody>
                     </table>
                   )}
+                  {gainProbe && !probeBusy && (
+                    <p className="dim settings__probe-note">
+                      It compares two three-second windows, so it is only as
+                      steady as the sound you made. Run it a few times: a real
+                      difference repeats, a stray one does not.
+                    </p>
+                  )}
                 </div>
               </Setting>
 

@@ -908,7 +908,10 @@ export default function App() {
      itself, so it refuses while a capture is running.
   */
   const probeGain = async () => {
-    if (!selectedId || capturing || probePhase !== null) return;
+    // session.current covers the window where a capture is opening but React
+    // has not rendered `capturing` yet — the probe would then take the input
+    // out from under it.
+    if (!selectedId || capturing || session.current || probePhase !== null) return;
     setError(null);
     setGainProbe(null);
     try {

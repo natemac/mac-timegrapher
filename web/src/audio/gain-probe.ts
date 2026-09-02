@@ -129,9 +129,21 @@ export async function probeInputGain(
   onPhase?: (phase: 'off' | 'on') => void,
   seconds = PROBE_SECONDS,
 ): Promise<GainProbeResult> {
-  onPhase?.('off');
-  const off = await measure(buildAudioConstraints(deviceId), seconds);
+  /*
+     Processed first, ours last, and the order is not cosmetic.
 
+     Android leaves the input session configured the way the most recent
+     stream asked for it, and the next getUserMedia inherits that rather than
+     the constraints it asked for. Measuring ours first and the processed
+     stream second left gain control switched on for whatever capture followed
+     — observed on a Samsung, where a session opened after a probe came back
+     with all three of echo cancellation, gain control and noise suppression
+     applied despite being asked for none of them. A diagnostic that quietly
+     invalidates the amplitude of everything measured after it is worse than
+     no diagnostic.
+
+     Ending on our own constraints leaves the device where the app wants it.
+  */
   onPhase?.('on');
   const on = await measure(
     {
@@ -146,6 +158,9 @@ export async function probeInputGain(
     },
     seconds,
   );
+
+  onPhase?.('off');
+  const off = await measure(buildAudioConstraints(deviceId), seconds);
 
   return { off, on, differenceDb: gainDifferenceDb(off.rmsDb, on.rmsDb), secondsEach: seconds };
 }

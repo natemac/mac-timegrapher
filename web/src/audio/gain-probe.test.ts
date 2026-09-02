@@ -7,7 +7,7 @@
     published by the Free Software Foundation.
 */
 import { describe, it, expect } from 'vitest';
-import { summariseBlocks, gainDifferenceDb } from './gain-probe';
+import { summariseBlocks, gainDifferenceDb, probeInputGain } from './gain-probe';
 
 const tone = (amplitude: number, n = 2048) =>
   Float32Array.from({ length: n }, (_, i) => amplitude * Math.sin((2 * Math.PI * i) / 64));
@@ -58,5 +58,60 @@ describe('the difference the probe reports', () => {
   it('refuses to turn silence into a figure', () => {
     expect(gainDifferenceDb(-Infinity, -26)).toBe(0);
     expect(gainDifferenceDb(-48, -Infinity)).toBe(0);
+  });
+});
+
+describe('the order the two streams are opened', () => {
+  /*
+     Android leaves the input session configured the way the most recent stream
+     asked, and the next getUserMedia inherits that. Observed on a Samsung: a
+     capture opened after a probe came back with echo cancellation, gain control
+     and noise suppression all applied, despite asking for none of them — which
+     silently invalidates amplitude for everything measured afterwards.
+
+     So the processed stream is measured first and ours last, leaving the device
+     in the state the app actually wants. This asserts the order rather than the
+     levels, because the order is the fix.
+  */
+  it('ends on our own constraints, not the processed ones', async () => {
+    const phases: string[] = [];
+    const opened: MediaStreamConstraints[] = [];
+
+    const stream = {
+      getAudioTracks: () => [{ getSettings: () => ({}) }],
+      getTracks: () => [{ stop() {} }],
+    };
+    const originalMedia = navigator.mediaDevices;
+    const originalCtx = globalThis.AudioContext;
+
+    Object.defineProperty(navigator, 'mediaDevices', {
+      configurable: true,
+      value: { getUserMedia: async (c: MediaStreamConstraints) => { opened.push(c); return stream; } },
+    });
+    // Enough of a context for measure() to run and return promptly.
+    globalThis.AudioContext = class {
+      async resume() {}
+      async close() {}
+      createMediaStreamSource() { return { connect() {}, disconnect() {} }; }
+      createAnalyser() {
+        return { fftSize: 2048, connect() {}, disconnect() {},
+          getFloatTimeDomainData(b: Float32Array) { b.fill(0.1); } };
+      }
+    } as unknown as typeof AudioContext;
+
+    try {
+      const result = await probeInputGain('default', (p) => phases.push(p), 0.01);
+      expect(phases).toEqual(['on', 'off']);
+      const last = opened.at(-1)!.audio as MediaTrackConstraints;
+      expect(last.autoGainControl).toBe(false);
+      expect(last.echoCancellation).toBe(false);
+      expect(last.noiseSuppression).toBe(false);
+      // Both halves still measured, and labelled the right way round.
+      expect(Number.isFinite(result.off.rmsDb)).toBe(true);
+      expect(Number.isFinite(result.on.rmsDb)).toBe(true);
+    } finally {
+      Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: originalMedia });
+      globalThis.AudioContext = originalCtx;
+    }
   });
 });
