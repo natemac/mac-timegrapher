@@ -265,7 +265,21 @@ export class DiagnosticsLog {
     lines.push('');
 
     const settledFor = this.samples.filter((s) => s.settling === 'settled').length;
+    const validFor = this.samples.filter((s) => s.valid).length;
     lines.push(`samples           ${this.samples.length}`);
+    /*
+       The first line to read on a report that something is wrong, and it was
+       missing: with none of these valid, every reading statistic above says
+       "no valid samples" and the reason has to be inferred from three places
+       at once. A live waveform is raw audio, so a room with any noise in it
+       looks healthy while the analysis has never once locked — which is
+       exactly how a session with nothing on the sensor gets read as working.
+    */
+    lines.push(`valid readings    ${validFor} of ${this.samples.length}${
+      validFor === 0 && this.samples.length > 0
+        ? '  <- the analysis never locked onto a beat'
+        : ''
+    }`);
     lines.push(`settled in        ${settledFor} of them${
       settledFor === 0 ? '  <- never settled' : ''
     }`);

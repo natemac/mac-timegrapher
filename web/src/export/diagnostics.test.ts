@@ -354,3 +354,27 @@ it('leaves the gain section out when no probe was run', () => {
   log.setContext(CONTEXT);
   expect(log.toText()).not.toMatch(/Input gain/);
 });
+
+/*
+   A log where nothing locked used to say so only by omission — every reading
+   statistic reading "no valid samples" and the reader joining them up. A live
+   waveform is raw audio, so ambient noise looks healthy while the analysis has
+   found nothing, and that is how a session with no watch on the sensor gets
+   read as a working one.
+*/
+it('says outright when nothing ever locked onto a beat', () => {
+  const log = new DiagnosticsLog();
+  log.setContext(CONTEXT);
+  for (let i = 0; i < 3; i++) log.sample(sample({ valid: false }));
+  expect(log.toText()).toMatch(/valid readings\s+0 of 3\s+<- the analysis never locked onto a beat/);
+});
+
+it('counts the valid ones without editorialising when some locked', () => {
+  const log = new DiagnosticsLog();
+  log.setContext(CONTEXT);
+  log.sample(sample({ valid: true }));
+  log.sample(sample({ valid: false }));
+  const text = log.toText();
+  expect(text).toMatch(/valid readings\s+1 of 2$/m);
+  expect(text).not.toMatch(/never locked/);
+});
