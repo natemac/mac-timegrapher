@@ -33,6 +33,15 @@ export interface CaptureSession {
    */
   requestedSampleRate: number | undefined;
   warnings: ProcessingWarning[];
+  /*
+     Everything the browser reported about the track it actually gave us, and
+     everything it says the device can do. Kept verbatim rather than reduced,
+     because the interesting cases are the keys we did not think to ask about:
+     a phone that quietly picked a different audio source, or a device that
+     cannot turn gain control off at all.
+  */
+  settings: MediaTrackSettings;
+  capabilities: MediaTrackCapabilities | null;
   stop(): Promise<void>;
 }
 
@@ -97,6 +106,13 @@ export async function startCapture(
     const track = stream.getAudioTracks()[0];
     const settings = track.getSettings();
     const warnings = checkAppliedProcessing(settings);
+    // Not implemented everywhere, and not worth failing a capture over.
+    let capabilities: MediaTrackCapabilities | null = null;
+    try {
+      capabilities = track.getCapabilities?.() ?? null;
+    } catch {
+      capabilities = null;
+    }
 
     // Construct at the device's own rate. Omitting this lets the context default
     // to the system rate and silently resample, which would corrupt fixtures.
@@ -144,6 +160,8 @@ export async function startCapture(
       sampleRate: ctx.sampleRate,
       requestedSampleRate,
       warnings,
+      settings,
+      capabilities,
       async stop() {
         stopped = true;
         track.removeEventListener('ended', handleEnded);

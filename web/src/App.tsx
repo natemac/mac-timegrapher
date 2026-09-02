@@ -527,6 +527,7 @@ export default function App() {
           beatErrorSpread: stability.current.spread('beatError')?.plusMinus ?? null,
           headroomDb: signalRef.current?.headroomDb ?? null,
           levelDb: signalRef.current?.levelDb ?? null,
+          floorDb: signalRef.current?.floorDb ?? null,
           clipped: signalRef.current?.clipped ?? false,
         });
       },
@@ -806,6 +807,8 @@ export default function App() {
         mode,
         settledBounds: SETTLED_BOUNDS,
         clockDriftSecondsPerDay: settings.clockDriftSecondsPerDay,
+        trackSettings: s.settings as Record<string, unknown>,
+        trackCapabilities: s.capabilities as Record<string, unknown> | null,
       });
       diagnostics.current.event('start', `${s.sampleRate} Hz`);
 

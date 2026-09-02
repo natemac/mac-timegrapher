@@ -36,6 +36,13 @@ export interface SignalState {
   levelDb: number;
   /** How far the ticks stand above the floor, in dB. */
   headroomDb: number;
+  /*
+     The floor itself, in dBFS. headroomDb is a difference, so a quiet input
+     with a quiet floor and a loud one with a loud floor look identical through
+     it — and telling those apart is the whole question when a device delivers
+     a signal too small to lock onto.
+  */
+  floorDb: number;
   strength: SignalStrength;
   clipped: boolean;
   /*
@@ -52,6 +59,7 @@ const SILENT: SignalState = {
   peakHold: 0,
   levelDb: -Infinity,
   headroomDb: 0,
+  floorDb: -Infinity,
   strength: 'none',
   clipped: false,
   hot: false,
@@ -170,6 +178,7 @@ export class SignalMeter {
       peakHold: this.peak,
       levelDb,
       headroomDb,
+      floorDb,
       strength: classify(headroomDb, levelDb),
       clipped: this.clipLatch > 0,
       hot: levelDb > HOT_DB,

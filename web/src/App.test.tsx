@@ -85,6 +85,8 @@ describe('capture startup', () => {
         sampleRate: 48_000,
         requestedSampleRate: 48_000,
         warnings: [],
+        settings: {},
+        capabilities: null,
         stop,
       });
     });

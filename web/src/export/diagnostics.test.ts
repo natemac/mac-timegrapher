@@ -41,6 +41,7 @@ function sample(over: Partial<DiagnosticSample> = {}): DiagnosticSample {
     beatErrorSpread: 0.85,
     headroomDb: 29,
     levelDb: -18,
+    floorDb: -47,
     clipped: false,
     ...over,
   };
@@ -264,4 +265,70 @@ describe('how the app was launched', () => {
     log.setContext(CONTEXT);
     expect(log.toText()).toMatch(/launched as {2,}(installed app.*|browser tab)/);
   });
+});
+
+describe('telling a quiet input from a noisy one', () => {
+  /*
+     From a Pixel 9 Pro report: audio arrived, tapping the pickup was audible,
+     but the escapement never locked and the signal read "really weak". The
+     same phone and the same USB pickup worked in another app.
+
+     headroomDb alone cannot answer that, because it is a difference: a tiny
+     tick over a tiny floor and a loud tick under a loud floor produce the same
+     number. Level and floor separately say which — and that decides whether
+     more gain would help at all.
+  */
+  it('reports level and floor separately, not only their difference', () => {
+    const log = new DiagnosticsLog();
+    log.setContext(CONTEXT);
+    // A quiet but clean input: 8 dB of headroom, both values far down.
+    log.sample(sample({ levelDb: -52, floorDb: -60, headroomDb: 8 }));
+    const text = log.toText();
+    expect(text).toMatch(/level dBFS/);
+    expect(text).toMatch(/noise floor dBFS/);
+    expect(text).toMatch(/-52/);
+    expect(text).toMatch(/-60/);
+  });
+
+  /*
+     The keys nobody predicted are the point. A platform that quietly chose a
+     different audio source, or cannot honour a constraint at all, shows up
+     here and nowhere else.
+  */
+  it('dumps what the browser granted and what the device can do', () => {
+    const log = new DiagnosticsLog();
+    log.setContext({
+      ...CONTEXT,
+      trackSettings: { autoGainControl: false, sampleRate: 48000, channelCount: 1 },
+      trackCapabilities: { autoGainControl: [true, false], channelCount: { max: 2, min: 1 } },
+    });
+    const text = log.toText();
+    expect(text).toMatch(/## Audio track, as granted/);
+    expect(text).toMatch(/autoGainControl\s+false/);
+    expect(text).toMatch(/## Audio track, what the device can do/);
+    expect(text).toMatch(/\[true,false\]/);
+  });
+
+  it('says so plainly when the browser reported nothing', () => {
+    const log = new DiagnosticsLog();
+    log.setContext(CONTEXT);
+    expect(log.toText()).toMatch(/the browser reported none/);
+  });
+});
+
+/*
+   The regression that matters most for a support report: a device delivering
+   an input too weak to lock onto produces no valid samples at all. Filtering
+   the signal figures by validity blanked them out in exactly that case.
+*/
+it('still reports the signal when nothing ever locked', () => {
+  const log = new DiagnosticsLog();
+  log.setContext(CONTEXT);
+  log.sample(sample({ valid: false, levelDb: -54, floorDb: -58, headroomDb: 4 }));
+  log.sample(sample({ valid: false, levelDb: -50, floorDb: -57, headroomDb: 7 }));
+  const text = log.toText();
+  expect(text).toMatch(/level dBFS\s+min -54\.00/);
+  expect(text).toMatch(/noise floor dBFS\s+min -58\.00/);
+  // The readings themselves are still withheld, because there were none.
+  expect(text).toMatch(/rate\s+no valid samples/);
 });

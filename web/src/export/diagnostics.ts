@@ -48,6 +48,7 @@ export interface DiagnosticSample {
   /** How far the ticks stand above the room, in dB. */
   headroomDb: number | null;
   levelDb: number | null;
+  floorDb: number | null;
   clipped: boolean;
 }
 
@@ -72,6 +73,17 @@ export interface DiagnosticContext {
   settledBounds: { rate: number; amplitude: number; beatError: number };
   /** The clock correction in force, which scales every rate in the file. */
   clockDriftSecondsPerDay: number;
+  /*
+     Everything the browser said about the track, verbatim, plus what it says
+     the device is capable of.
+
+     Reduced summaries answer the questions we thought to ask. The reports that
+     are hard to act on are the ones where a platform quietly did something
+     else — chose a different audio source, ignored a constraint, or cannot
+     honour one at all — and those only show up in the keys nobody predicted.
+  */
+  trackSettings?: Record<string, unknown> | null;
+  trackCapabilities?: Record<string, unknown> | null;
 }
 
 /*
@@ -150,13 +162,26 @@ export class DiagnosticsLog {
    * whether a bound was reachable at all. Only valid samples count — an
    * invalid one carries whatever the core last had, not a measurement.
    */
-  private stat(pick: (s: DiagnosticSample) => number | null): string {
-    const values = this.samples
-      .filter((s) => s.valid)
-      .map(pick)
-      .filter((v): v is number => v !== null && !Number.isNaN(v));
+  /*
+     `validOnly` is the default because a rate or amplitude from a sample the
+     core rejected is not a reading of anything.
 
-    if (values.length === 0) return 'no valid samples';
+     The signal figures are the exception, and the reason is the case they
+     exist for: an input too weak to lock onto produces no valid samples at
+     all, so filtering by validity blanked out the level and floor in exactly
+     the situation they were added to explain. What the microphone was
+     delivering is a fact whether or not the analysis could use it.
+  */
+  private stat(
+    pick: (s: DiagnosticSample) => number | null,
+    validOnly = true,
+  ): string {
+    const values = this.samples
+      .filter((s) => (validOnly ? s.valid : true))
+      .map(pick)
+      .filter((v): v is number => v !== null && !Number.isNaN(v) && Number.isFinite(v));
+
+    if (values.length === 0) return validOnly ? 'no valid samples' : 'nothing recorded';
     const min = Math.min(...values);
     const max = Math.max(...values);
     const mean = values.reduce((a, b) => a + b, 0) / values.length;
@@ -175,10 +200,10 @@ export class DiagnosticsLog {
        deciding whether to pass one on is often not the person who exported it.
        It is worth being able to see at a glance what is in it.
     */
-    lines.push('Contains: the audio device name, the browser version and how it');
-    lines.push('was launched, and every reading the analysis produced. It');
-    lines.push('does not contain the build number, the technician, any notes,');
-    lines.push('or any audio.');
+    lines.push('Contains: the audio device name and what the browser reported');
+    lines.push('about it, the browser version and how it was launched, and every');
+    lines.push('reading the analysis produced. It does not contain the build');
+    lines.push('number, the technician, any notes, or any audio.');
     lines.push('');
 
     lines.push('## Setup');
@@ -218,7 +243,14 @@ export class DiagnosticsLog {
     lines.push(`rate              ${this.stat((s) => s.rate)}`);
     lines.push(`amplitude         ${this.stat((s) => s.amplitude)}`);
     lines.push(`beat error        ${this.stat((s) => s.beatError)}`);
-    lines.push(`headroom dB       ${this.stat((s) => s.headroomDb)}`);
+    /* Over every sample, valid or not — see stat(). */
+    lines.push(`headroom dB       ${this.stat((s) => s.headroomDb, false)}`);
+    /* Level and floor separately, not just their difference. A signal too
+       small to lock onto and one buried in noise both show poor headroom, and
+       only the absolute pair says which — a quiet floor under a quiet tick is
+       a gain problem, a loud floor is not. */
+    lines.push(`level dBFS        ${this.stat((s) => s.levelDb, false)}`);
+    lines.push(`noise floor dBFS  ${this.stat((s) => s.floorDb, false)}`);
     lines.push('');
 
     const settledFor = this.samples.filter((s) => s.settling === 'settled').length;
@@ -227,6 +259,21 @@ export class DiagnosticsLog {
       settledFor === 0 ? '  <- never settled' : ''
     }`);
     lines.push('');
+
+    /* Verbatim, because the useful key is the one nobody predicted. */
+    const dump = (label: string, value: Record<string, unknown> | null | undefined) => {
+      lines.push(`## ${label}`);
+      if (!value || Object.keys(value).length === 0) {
+        lines.push('(the browser reported none)');
+      } else {
+        for (const key of Object.keys(value).sort()) {
+          lines.push(`${key.padEnd(22)}${JSON.stringify(value[key])}`);
+        }
+      }
+      lines.push('');
+    };
+    dump('Audio track, as granted', c?.trackSettings);
+    dump('Audio track, what the device can do', c?.trackCapabilities);
 
     lines.push('## Events');
     if (this.events.length === 0) lines.push('(none)');
@@ -238,7 +285,7 @@ export class DiagnosticsLog {
     lines.push('## Samples');
     lines.push([
       't', 'valid', 'rate', 'amp', 'beat', 'bph', 'qual',
-      'settling', 'dRate', 'dAmp', 'dBeat', 'headroom', 'level', 'clip',
+      'settling', 'dRate', 'dAmp', 'dBeat', 'headroom', 'level', 'floor', 'clip',
     ].join('\t'));
 
     for (const s of this.samples) {
@@ -256,6 +303,7 @@ export class DiagnosticsLog {
         fmt(s.beatErrorSpread, 2),
         fmt(s.headroomDb, 1),
         fmt(s.levelDb, 1),
+        fmt(s.floorDb, 1),
         s.clipped ? '1' : '0',
       ].join('\t'));
     }
