@@ -59,6 +59,7 @@ import {
 import { Certificate } from './components/Certificate';
 import { DEFAULT_LIFT_ANGLE } from './timegrapher/movements';
 import { assessReadiness } from './timegrapher/readiness';
+import { probeInputGain, type GainProbeResult } from './audio/gain-probe';
 import type { ProcessingWarning } from './audio/audio-engine';
 
 function describeError(err: unknown): string {
@@ -108,6 +109,13 @@ export default function App() {
   /* The processing states the browser reported at capture start, kept so the
      readiness check can grade them. Empty means none applied / none known. */
   const [processing, setProcessing] = useState<ProcessingWarning[]>([]);
+  /* The input-gain comparison. Kept in state rather than the diagnostics log
+     because it is worth reading on screen — the phone being tested may never
+     run a capture at all. */
+  const [gainProbe, setGainProbe] = useState<GainProbeResult | null>(null);
+  const [probePhase, setProbePhase] = useState<'off' | 'on' | null>(null);
+  /* Read when a capture starts, which is after the probe was run. */
+  const gainProbeRef = useRef<GainProbeResult | null>(null);
   /* The last few detected beat rates, for judging whether the lock is holding.
      A ref, not state: it feeds a memo read on render, and per-block setState
      would re-render the app on every measurement for no visible gain. */
@@ -809,6 +817,12 @@ export default function App() {
         clockDriftSecondsPerDay: settings.clockDriftSecondsPerDay,
         trackSettings: s.settings as Record<string, unknown>,
         trackCapabilities: s.capabilities as Record<string, unknown> | null,
+        gainProbe: gainProbeRef.current && {
+          offRmsDb: gainProbeRef.current.off.rmsDb,
+          onRmsDb: gainProbeRef.current.on.rmsDb,
+          differenceDb: gainProbeRef.current.differenceDb,
+          secondsEach: gainProbeRef.current.secondsEach,
+        },
       });
       diagnostics.current.event('start', `${s.sampleRate} Hz`);
 
@@ -886,6 +900,31 @@ export default function App() {
       return;
     }
     engine.current?.startClockCheck();
+  };
+
+  /*
+     Measures the same microphone twice, once with our constraints and once
+     with the processing a voice app would ask for. It needs the input to
+     itself, so it refuses while a capture is running.
+  */
+  const probeGain = async () => {
+    if (!selectedId || capturing || probePhase !== null) return;
+    setError(null);
+    setGainProbe(null);
+    try {
+      const result = await probeInputGain(selectedId, setProbePhase);
+      setGainProbe(result);
+      gainProbeRef.current = result;
+      diagnostics.current.event(
+        'input gain probe',
+        `off ${result.off.rmsDb.toFixed(1)} dBFS, on ${result.on.rmsDb.toFixed(1)} dBFS, ` +
+        `difference ${result.differenceDb > 0 ? '+' : ''}${result.differenceDb.toFixed(1)} dB`,
+      );
+    } catch (err) {
+      setError(describeError(err));
+    } finally {
+      setProbePhase(null);
+    }
   };
 
   const stopClockCheck = () => {
@@ -1000,6 +1039,10 @@ export default function App() {
         onStartCapture={start}
         onStopCapture={stop}
         readiness={readinessReport}
+        gainProbe={gainProbe}
+        probeBusy={probePhase !== null}
+        probePhase={probePhase}
+        onProbeGain={probeGain}
       />
 
       {!secure && (

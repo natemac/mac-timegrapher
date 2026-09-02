@@ -19,6 +19,12 @@ import type { AudioInput } from '../audio/device-manager';
 import { CalibrationPanel } from './CalibrationPanel';
 import { ReadinessCheck } from './ReadinessCheck';
 import type { ReadinessReport } from '../timegrapher/readiness';
+import type { GainProbeResult } from '../audio/gain-probe';
+
+/** -Infinity is silence, not a number worth printing. */
+function fmtDb(db: number): string {
+  return Number.isFinite(db) ? `${db.toFixed(1)} dBFS` : 'silent';
+}
 
 export interface Settings {
   /** Milliseconds of drift spanning the trace width. Smaller magnifies more. */
@@ -123,6 +129,12 @@ interface Props {
   onStartClockCheck: () => void;
   onStopClockCheck: () => void;
   readiness: ReadinessReport;
+  /* The input-gain probe: a comparison that needs no watch, for working out
+     why a device that measures elsewhere cannot measure here. */
+  gainProbe: GainProbeResult | null;
+  probeBusy: boolean;
+  probePhase: 'off' | 'on' | null;
+  onProbeGain: () => void;
 }
 
 type Tab = 'guide' | 'settings' | 'calibration' | 'check';
@@ -230,6 +242,7 @@ export function SettingsSheet({
   clockCheck, onStartClockCheck, onStopClockCheck,
   granted, onRequestMic, busy, devices, selectedId, onSelectDevice, sampleRate,
   capturing, onStartCapture, onStopCapture, readiness,
+  gainProbe, probeBusy, probePhase, onProbeGain,
 }: Props) {
   /* Settings first. The guide is read once; the settings are the reason the
      cog gets pressed again. */
@@ -427,6 +440,43 @@ export function SettingsSheet({
                     ? 'Nothing measured yet'
                     : `Export log — ${diagnosticSamples} readings`}
                 </button>
+
+                {/*
+                   Needs no watch and no pickup, so it can be run on any phone
+                   to hand. It measures what the platform's voice processing is
+                   worth in level on this device — the thing that decides
+                   whether a quiet pickup is usable here at all.
+                */}
+                <div className="settings__probe">
+                  <button
+                    className="secondary"
+                    onClick={onProbeGain}
+                    disabled={capturing || probeBusy || !selectedId}
+                    style={{ width: '100%', fontSize: 13 }}
+                  >
+                    {probeBusy
+                      ? `Measuring — ${probePhase === 'on' ? 'processing on' : 'processing off'}…`
+                      : 'Compare input gain'}
+                  </button>
+                  <p className="dim settings__probe-note">
+                    {probeBusy
+                      ? 'Keep making a steady sound — talk, or rub a finger on the mic.'
+                      : capturing
+                        ? 'Stop the capture first; it needs the microphone to itself.'
+                        : !selectedId
+                          ? 'Allow the microphone from the opening screen first.'
+                          : 'Six seconds, no watch needed. Make a steady sound throughout.'}
+                  </p>
+                  {gainProbe && !probeBusy && (
+                    <table className="calibration__table">
+                      <tbody>
+                        <tr><th>processing off</th><td className="mono">{fmtDb(gainProbe.off.rmsDb)}</td></tr>
+                        <tr><th>processing on</th><td className="mono">{fmtDb(gainProbe.on.rmsDb)}</td></tr>
+                        <tr><th>difference</th><td className="mono">{gainProbe.differenceDb > 0 ? '+' : ''}{gainProbe.differenceDb.toFixed(1)} dB</td></tr>
+                      </tbody>
+                    </table>
+                  )}
+                </div>
               </Setting>
 
 

@@ -84,6 +84,17 @@ export interface DiagnosticContext {
   */
   trackSettings?: Record<string, unknown> | null;
   trackCapabilities?: Record<string, unknown> | null;
+  /*
+     The input-gain comparison, when one has been run. It needs no watch, so it
+     is often the only measurement available from a device that cannot measure
+     at all — which is exactly the report that is hardest to act on otherwise.
+  */
+  gainProbe?: {
+    offRmsDb: number;
+    onRmsDb: number;
+    differenceDb: number;
+    secondsEach: number;
+  } | null;
 }
 
 /*
@@ -272,6 +283,17 @@ export class DiagnosticsLog {
       }
       lines.push('');
     };
+    if (c?.gainProbe) {
+      const g = c.gainProbe;
+      const n = (v: number) => (Number.isFinite(v) ? `${v.toFixed(1)} dBFS` : 'silent');
+      lines.push('## Input gain, processing off against on');
+      lines.push(`same microphone, ${g.secondsEach}s each, same room`);
+      lines.push(`processing off        ${n(g.offRmsDb)}   <- what this app asks for`);
+      lines.push(`processing on         ${n(g.onRmsDb)}`);
+      lines.push(`difference            ${g.differenceDb > 0 ? '+' : ''}${g.differenceDb.toFixed(1)} dB`);
+      lines.push('');
+    }
+
     dump('Audio track, as granted', c?.trackSettings);
     dump('Audio track, what the device can do', c?.trackCapabilities);
 

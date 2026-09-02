@@ -793,6 +793,9 @@ select {
   .settings-sheet__close { padding-inline: 10px !important; }
 }
 
+.settings__probe { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.settings__probe-note { font-size: 11px; margin: 0; }
+
 /* ---------- Readiness check tab ---------- */
 .readiness { display: flex; flex-direction: column; gap: 12px; }
 

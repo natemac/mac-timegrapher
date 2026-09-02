@@ -332,3 +332,25 @@ it('still reports the signal when nothing ever locked', () => {
   // The readings themselves are still withheld, because there were none.
   expect(text).toMatch(/rate\s+no valid samples/);
 });
+
+/*
+   A device that cannot measure at all produces no readings, so the probe is
+   often the only measurement in the file. It has to survive into the export.
+*/
+it('carries the input-gain comparison when one was run', () => {
+  const log = new DiagnosticsLog();
+  log.setContext({
+    ...CONTEXT,
+    gainProbe: { offRmsDb: -52.4, onRmsDb: -28.1, differenceDb: 24.3, secondsEach: 3 },
+  });
+  const text = log.toText();
+  expect(text).toMatch(/## Input gain, processing off against on/);
+  expect(text).toMatch(/processing off\s+-52\.4 dBFS/);
+  expect(text).toMatch(/difference\s+\+24\.3 dB/);
+});
+
+it('leaves the gain section out when no probe was run', () => {
+  const log = new DiagnosticsLog();
+  log.setContext(CONTEXT);
+  expect(log.toText()).not.toMatch(/Input gain/);
+});
