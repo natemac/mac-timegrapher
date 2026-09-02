@@ -215,8 +215,13 @@ export function formatDrift(value: number): string {
    shift every later reading.
 */
 export function parseDrift(text: string): number | null {
-  const parsed = Number.parseFloat(text.replace(/[\s,]/g, '').replace(/s\/?d(ay)?$/i, ''));
-  return Number.isFinite(parsed) ? clampDrift(parsed) : null;
+  const normalized = text.trim().replace(/\s*s\/?d(?:ay)?$/i, '').trim();
+  /* Number.parseFloat takes a numeric prefix and discards the rest, so "1.7oops"
+     became 1.7 and "1..7" became 1 — and because whitespace was stripped first,
+     "1 7" became 17. This figure scales every rate reading afterwards, so a
+     partial entry has to be refused rather than half-read. */
+  if (!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(normalized)) return null;
+  return clampDrift(Number(normalized));
 }
 
 export function SettingsSheet({
@@ -289,11 +294,11 @@ export function SettingsSheet({
   return (
     <>
     <Sheet open={open} onClose={onClose} label={focused ? focused.title : 'Guide and settings'}>
-        <div className="sheet__head">
+        <div className="sheet__head settings-sheet__head">
           {focused ? (
             <span style={{ fontWeight: 600, fontSize: 15 }}>{focused.title}</span>
           ) : (
-            <div style={{ display: 'flex', gap: 6 }}>
+            <div className="settings-sheet__tabs">
               {(['guide', 'settings', 'calibration', 'check'] as const).map((t) => (
                 <button
                   key={t}
@@ -309,7 +314,7 @@ export function SettingsSheet({
           )}
           <button
             ref={closeRef}
-            className="secondary"
+            className="secondary settings-sheet__close"
             onClick={onClose}
             aria-label="Close"
             style={{ padding: '7px 13px', fontSize: 15, lineHeight: 1 }}

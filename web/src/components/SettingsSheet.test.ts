@@ -91,6 +91,19 @@ describe('the audio clock correction, typed by hand', () => {
   });
 
   /*
+     Half-readable entries are the dangerous ones, because parseFloat takes a
+     numeric prefix and discards the rest without complaint. "1 7" was the worst
+     of them: whitespace was stripped before parsing, so it silently became 17 —
+     an order of magnitude out, applied to every reading that followed.
+  */
+  it('refuses an entry it can only partly read', () => {
+    expect(parseDrift('1.7oops')).toBeNull();
+    expect(parseDrift('1..7')).toBeNull();
+    expect(parseDrift('1 7')).toBeNull();
+    expect(parseDrift('12abc')).toBeNull();
+  });
+
+  /*
      A slipped decimal point is the failure that matters: 170 instead of 1.7
      rescales every reading by two parts per thousand and looks like nothing.
      Two hundred s/day is 2,300 ppm, far beyond any real crystal.

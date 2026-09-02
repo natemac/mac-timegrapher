@@ -42,7 +42,7 @@ check() { # label bph rate beat_error
 	local label="$1" bph="$2" rate="$3" be="$4"
 	local wav="$TMP/${label}.wav"
 
-	( cd "$ROOT/web" && npx vite-node "$GEN" -- \
+	( cd "$ROOT/web" && node "$GEN" -- \
 		--bph "$bph" --rate "$rate" --beatError "$be" \
 		--seconds 30 --out "$wav" ) >/dev/null 2>&1
 

@@ -6,10 +6,19 @@
     it under the terms of the GNU General Public License version 2 as
     published by the Free Software Foundation.
 */
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useSwipeDismiss } from '../hooks/useSwipeDismiss';
 import { useScrollLock } from '../hooks/useScrollLock';
+
+/*
+   Open sheets form a stack: an InfoSheet can sit above the SettingsSheet that
+   opened it. Both listen on Window, and stopPropagation() cannot separate two
+   listeners on the same target — only stopImmediatePropagation could, and even
+   that would depend on registration order rather than which sheet is on top.
+   So the top of this stack decides who consumes an Escape.
+*/
+const openSheets: symbol[] = [];
 
 /*
    The shell every sheet sits in.
@@ -40,19 +49,27 @@ interface Props {
 
 export function Sheet({ open, onClose, label, children, variant = 'sheet' }: Props) {
   const { nodeRef, offset, dragging } = useSwipeDismiss(onClose, open);
+  const sheetId = useRef(Symbol('sheet'));
 
   useScrollLock(open);
 
   useEffect(() => {
     if (!open) return;
+    const id = sheetId.current;
+    openSheets.push(id);
+
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && openSheets.at(-1) === id) {
         e.stopPropagation();
         onClose();
       }
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      const index = openSheets.lastIndexOf(id);
+      if (index !== -1) openSheets.splice(index, 1);
+    };
   }, [open, onClose]);
 
   if (!open) return null;

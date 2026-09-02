@@ -763,6 +763,36 @@ select {
   margin-top: 8px;
 }
 
+/* Four destinations plus a close control. At 320px the row overflowed by 73px
+   and put the close button entirely off screen — the sheet could be opened and
+   not shut. Below 360px the destinations take two rows and Close stays put. */
+.settings-sheet__tabs {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+.settings-sheet__close { flex: 0 0 auto; }
+
+@media (max-width: 359px) {
+  .settings-sheet__head {
+    align-items: flex-start;
+    gap: 6px;
+    padding-inline: 8px;
+  }
+  .settings-sheet__tabs {
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
+  }
+  .settings-sheet__tabs button {
+    min-width: 0;
+    padding-inline: 6px !important;
+    font-size: 12px !important;
+  }
+  .settings-sheet__close { padding-inline: 10px !important; }
+}
+
 /* ---------- Readiness check tab ---------- */
 .readiness { display: flex; flex-direction: column; gap: 12px; }
 

@@ -246,6 +246,17 @@ export default function App() {
   // MediaStream unreachable with its tracks still live — the browser's
   // recording indicator then stays lit until the tab closes.
   const inFlight = useRef(false);
+  /*
+     Which start request is still allowed to publish a session.
+
+     Returning home can happen while getUserMedia and the audio graph are still
+     being built. `capturing` is not true until that finishes, so it cannot tell
+     goHome() there is a microphone request to cancel — the session then lands
+     on the opening screen with the input live, which is the exact thing
+     goHome() exists to prevent. Advancing this makes the late session tear
+     itself down instead of becoming visible state.
+  */
+  const captureAttempt = useRef(0);
   // The measurement callback is created once when capture starts, so reading
   // settings directly from it would pin whatever they were at that moment.
   // A ref keeps it current when they change mid-capture.
@@ -758,11 +769,18 @@ export default function App() {
 
   const start = async () => {
     if (!selectedId || inFlight.current) return;
+    const attempt = ++captureAttempt.current;
     inFlight.current = true;
     setBusy(true);
     setError(null);
     try {
       const s = await startCapture(selectedId, handleBlock, handleDisconnect);
+      if (attempt !== captureAttempt.current) {
+        // Home was pressed while the browser was opening the input. This
+        // session was never published, so nothing else will release it.
+        await s.stop().catch(() => {});
+        return;
+      }
       session.current = s;
 
       // The rate the device actually granted, not the one requested. The core's
@@ -798,7 +816,8 @@ export default function App() {
         setWizard(begin);
       }
     } catch (err) {
-      setError(describeError(err));
+      // A cancelled request belongs to the screen that was left behind.
+      if (attempt === captureAttempt.current) setError(describeError(err));
     } finally {
       inFlight.current = false;
       setBusy(false);
@@ -841,7 +860,10 @@ export default function App() {
      where they were when you come back in.
   */
   const goHome = async () => {
-    if (capturing) await stop();
+    captureAttempt.current += 1;
+    // session.current covers the narrow gap where a session was published but
+    // React has not rendered `capturing` yet.
+    if (capturing || session.current) await stop();
     setGranted(false);
     setError(null);
   };
