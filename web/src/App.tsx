@@ -59,7 +59,8 @@ import {
 import { Certificate } from './components/Certificate';
 import { DEFAULT_LIFT_ANGLE } from './timegrapher/movements';
 import { assessReadiness } from './timegrapher/readiness';
-import { probeInputGain, type GainProbeResult } from './audio/gain-probe';
+import { runDeviceTest, type DeviceTestReport, type TestProgress } from './audio/device-test';
+import { deviceReportText, deviceReportFilename } from './export/device-report';
 import type { ProcessingWarning } from './audio/audio-engine';
 
 function describeError(err: unknown): string {
@@ -109,13 +110,12 @@ export default function App() {
   /* The processing states the browser reported at capture start, kept so the
      readiness check can grade them. Empty means none applied / none known. */
   const [processing, setProcessing] = useState<ProcessingWarning[]>([]);
-  /* The input-gain comparison. Kept in state rather than the diagnostics log
-     because it is worth reading on screen — the phone being tested may never
-     run a capture at all. */
-  const [gainProbe, setGainProbe] = useState<GainProbeResult | null>(null);
-  const [probePhase, setProbePhase] = useState<'off' | 'on' | null>(null);
-  /* Read when a capture starts, which is after the probe was run. */
-  const gainProbeRef = useRef<GainProbeResult | null>(null);
+  /* The device test. Held here rather than in the diagnostics log because the
+     phone being diagnosed may never complete a capture at all, and its report
+     is the thing worth sending on. */
+  const [deviceTestReport, setDeviceTestReport] = useState<DeviceTestReport | null>(null);
+  const [deviceTestProgress, setDeviceTestProgress] = useState<TestProgress | null>(null);
+  const [deviceTestRunning, setDeviceTestRunning] = useState(false);
   /* The last few detected beat rates, for judging whether the lock is holding.
      A ref, not state: it feeds a memo read on render, and per-block setState
      would re-render the app on every measurement for no visible gain. */
@@ -817,12 +817,6 @@ export default function App() {
         clockDriftSecondsPerDay: settings.clockDriftSecondsPerDay,
         trackSettings: s.settings as Record<string, unknown>,
         trackCapabilities: s.capabilities as Record<string, unknown> | null,
-        gainProbe: gainProbeRef.current && {
-          offRmsDb: gainProbeRef.current.off.rmsDb,
-          onRmsDb: gainProbeRef.current.on.rmsDb,
-          differenceDb: gainProbeRef.current.differenceDb,
-          secondsEach: gainProbeRef.current.secondsEach,
-        },
       });
       diagnostics.current.event('start', `${s.sampleRate} Hz`);
 
@@ -903,32 +897,49 @@ export default function App() {
   };
 
   /*
-     Measures the same microphone twice, once with our constraints and once
-     with the processing a voice app would ask for. It needs the input to
-     itself, so it refuses while a capture is running.
+     Every configuration, the spectrum, and whether the analysis locks — in one
+     press. It drives the microphone directly, so it refuses while a capture is
+     running or still opening.
   */
-  const probeGain = async () => {
-    // session.current covers the window where a capture is opening but React
-    // has not rendered `capturing` yet — the probe would then take the input
-    // out from under it.
-    if (!selectedId || capturing || session.current || probePhase !== null) return;
+  const startDeviceTest = async () => {
+    if (!selectedId || capturing || session.current || deviceTestRunning) return;
     setError(null);
-    setGainProbe(null);
+    setDeviceTestReport(null);
+    setDeviceTestRunning(true);
     try {
-      const result = await probeInputGain(selectedId, setProbePhase);
-      setGainProbe(result);
-      gainProbeRef.current = result;
-      diagnostics.current.event(
-        'input gain probe',
-        `off ${result.off.rmsDb.toFixed(1)} dBFS, on ${result.on.rmsDb.toFixed(1)} dBFS, ` +
-        `difference ${result.differenceDb > 0 ? '+' : ''}${result.differenceDb.toFixed(1)} dB`,
+      const mv = findMovement(movementId);
+      const report = await runDeviceTest(
+        selectedId,
+        {
+          name: movementLabelRef.current,
+          // 0 lets the core detect the beat rate, which is what a diagnostic
+          // wants: it should not be told the answer it is checking for.
+          bph: mv && !isQuartz(mv) ? (mv.bph ?? 0) : 0,
+          liftAngle: mv?.liftAngle ?? DEFAULT_LIFT_ANGLE,
+        },
+        setDeviceTestProgress,
       );
+      setDeviceTestReport(report);
     } catch (err) {
       setError(describeError(err));
     } finally {
-      setProbePhase(null);
+      setDeviceTestRunning(false);
+      setDeviceTestProgress(null);
     }
   };
+
+  const exportDeviceTest = useCallback(async () => {
+    if (!deviceTestReport) return;
+    const name = deviceReportFilename(new Date());
+    try {
+      const file = new File([deviceReportText(deviceTestReport)], name, { type: 'text/plain' });
+      const outcome = await deliverSnapshot(file);
+      setSnapshotNote(outcome === 'shared' ? 'Device test shared.' : `Saved as ${name}`);
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return;
+      setSnapshotNote('Could not save the device test.');
+    }
+  }, [deviceTestReport]);
 
   const stopClockCheck = () => {
     wantClockCheck.current = false;
@@ -1042,10 +1053,11 @@ export default function App() {
         onStartCapture={start}
         onStopCapture={stop}
         readiness={readinessReport}
-        gainProbe={gainProbe}
-        probeBusy={probePhase !== null}
-        probePhase={probePhase}
-        onProbeGain={probeGain}
+        deviceTestRunning={deviceTestRunning}
+        deviceTestProgress={deviceTestProgress}
+        deviceTestReport={deviceTestReport}
+        onRunDeviceTest={startDeviceTest}
+        onExportDeviceTest={exportDeviceTest}
       />
 
       {!secure && (

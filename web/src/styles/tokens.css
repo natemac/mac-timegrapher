@@ -763,9 +763,10 @@ select {
   margin-top: 8px;
 }
 
-/* Four destinations plus a close control. At 320px the row overflowed by 73px
-   and put the close button entirely off screen — the sheet could be opened and
-   not shut. Below 360px the destinations take two rows and Close stays put. */
+/* Five destinations plus a close control will not sit on one row on a phone,
+   and the row does not wrap on its own — at 393px the last tab ran under the
+   close button. Three columns below 520px puts them on two rows with Close
+   pinned; wider layouts keep the single row. */
 .settings-sheet__tabs {
   display: flex;
   gap: 6px;
@@ -773,7 +774,7 @@ select {
 }
 .settings-sheet__close { flex: 0 0 auto; }
 
-@media (max-width: 359px) {
+@media (max-width: 519px) {
   .settings-sheet__head {
     align-items: flex-start;
     gap: 6px;
@@ -782,7 +783,7 @@ select {
   .settings-sheet__tabs {
     flex: 1 1 auto;
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 5px;
   }
   .settings-sheet__tabs button {
@@ -793,8 +794,32 @@ select {
   .settings-sheet__close { padding-inline: 10px !important; }
 }
 
-.settings__probe { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
-.settings__probe-note { font-size: 11px; margin: 0; }
+@media (max-width: 359px) {
+  .settings-sheet__tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .settings-sheet__tabs button { font-size: 11px !important; }
+}
+
+/* The device test: one press, a minute, a verdict. */
+.devicetest__progress { display: flex; flex-direction: column; gap: 6px; }
+.devicetest__phase { margin: 0; font-size: 13px; font-weight: 600; }
+.devicetest__bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--panel-3);
+  overflow: hidden;
+}
+.devicetest__bar-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 300ms ease;
+}
+.devicetest__verdict {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+.devicetest__verdict p { margin: 0 0 4px; font-size: 12.5px; line-height: 1.4; }
+.devicetest__verdict p:last-child { margin-bottom: 0; }
 
 /* ---------- Readiness check tab ---------- */
 .readiness { display: flex; flex-direction: column; gap: 12px; }

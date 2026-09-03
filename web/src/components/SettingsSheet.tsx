@@ -19,12 +19,8 @@ import type { AudioInput } from '../audio/device-manager';
 import { CalibrationPanel } from './CalibrationPanel';
 import { ReadinessCheck } from './ReadinessCheck';
 import type { ReadinessReport } from '../timegrapher/readiness';
-import type { GainProbeResult } from '../audio/gain-probe';
-
-/** -Infinity is silence, not a number worth printing. */
-function fmtDb(db: number): string {
-  return Number.isFinite(db) ? `${db.toFixed(1)} dBFS` : 'silent';
-}
+import { DeviceTest } from './DeviceTest';
+import type { DeviceTestReport, TestProgress } from '../audio/device-test';
 
 export interface Settings {
   /** Milliseconds of drift spanning the trace width. Smaller magnifies more. */
@@ -129,15 +125,17 @@ interface Props {
   onStartClockCheck: () => void;
   onStopClockCheck: () => void;
   readiness: ReadinessReport;
-  /* The input-gain probe: a comparison that needs no watch, for working out
-     why a device that measures elsewhere cannot measure here. */
-  gainProbe: GainProbeResult | null;
-  probeBusy: boolean;
-  probePhase: 'off' | 'on' | null;
-  onProbeGain: () => void;
+  /* The device test: every processing configuration, the spectrum, and whether
+     the analysis locks — in one press, for diagnosing a phone that will not
+     measure without a round trip per hypothesis. */
+  deviceTestRunning: boolean;
+  deviceTestProgress: TestProgress | null;
+  deviceTestReport: DeviceTestReport | null;
+  onRunDeviceTest: () => void;
+  onExportDeviceTest: () => void;
 }
 
-type Tab = 'guide' | 'settings' | 'calibration' | 'check';
+type Tab = 'guide' | 'settings' | 'calibration' | 'check' | 'android test';
 
 /*
    One setting: its name, a ? that opens its explanation, and the control.
@@ -242,7 +240,7 @@ export function SettingsSheet({
   clockCheck, onStartClockCheck, onStopClockCheck,
   granted, onRequestMic, busy, devices, selectedId, onSelectDevice, sampleRate,
   capturing, onStartCapture, onStopCapture, readiness,
-  gainProbe, probeBusy, probePhase, onProbeGain,
+  deviceTestRunning, deviceTestProgress, deviceTestReport, onRunDeviceTest, onExportDeviceTest,
 }: Props) {
   /* Settings first. The guide is read once; the settings are the reason the
      cog gets pressed again. */
@@ -312,7 +310,7 @@ export function SettingsSheet({
             <span style={{ fontWeight: 600, fontSize: 15 }}>{focused.title}</span>
           ) : (
             <div className="settings-sheet__tabs">
-              {(['guide', 'settings', 'calibration', 'check'] as const).map((t) => (
+              {(['guide', 'settings', 'calibration', 'check', 'android test'] as const).map((t) => (
                 <button
                   key={t}
                   className={tab === t ? undefined : 'secondary'}
@@ -349,6 +347,21 @@ export function SettingsSheet({
                 Full guide
               </button>
             </>
+          ) : tab === 'android test' ? (
+            <DeviceTest
+              granted={granted}
+              onRequestMic={onRequestMic}
+              busy={busy}
+              devices={devices}
+              selectedId={selectedId}
+              onSelectDevice={onSelectDevice}
+              capturing={capturing}
+              running={deviceTestRunning}
+              progress={deviceTestProgress}
+              report={deviceTestReport}
+              onRun={onRunDeviceTest}
+              onExport={onExportDeviceTest}
+            />
           ) : tab === 'check' ? (
             <ReadinessCheck
               granted={granted}
@@ -441,49 +454,6 @@ export function SettingsSheet({
                     : `Export log — ${diagnosticSamples} readings`}
                 </button>
 
-                {/*
-                   Needs no watch and no pickup, so it can be run on any phone
-                   to hand. It measures what the platform's voice processing is
-                   worth in level on this device — the thing that decides
-                   whether a quiet pickup is usable here at all.
-                */}
-                <div className="settings__probe">
-                  <button
-                    className="secondary"
-                    onClick={onProbeGain}
-                    disabled={capturing || probeBusy || !selectedId}
-                    style={{ width: '100%', fontSize: 13 }}
-                  >
-                    {probeBusy
-                      ? `Measuring — ${probePhase === 'on' ? 'processing on' : 'processing off'}…`
-                      : 'Compare input gain'}
-                  </button>
-                  <p className="dim settings__probe-note">
-                    {probeBusy
-                      ? 'Keep making a steady sound — talk, or rub a finger on the mic.'
-                      : capturing
-                        ? 'Stop the capture first; it needs the microphone to itself.'
-                        : !selectedId
-                          ? 'Allow the microphone from the opening screen first.'
-                          : 'Six seconds, no watch needed. Make a steady sound throughout.'}
-                  </p>
-                  {gainProbe && !probeBusy && (
-                    <table className="calibration__table">
-                      <tbody>
-                        <tr><th>processing off</th><td className="mono">{fmtDb(gainProbe.off.rmsDb)}</td></tr>
-                        <tr><th>processing on</th><td className="mono">{fmtDb(gainProbe.on.rmsDb)}</td></tr>
-                        <tr><th>difference</th><td className="mono">{gainProbe.differenceDb > 0 ? '+' : ''}{gainProbe.differenceDb.toFixed(1)} dB</td></tr>
-                      </tbody>
-                    </table>
-                  )}
-                  {gainProbe && !probeBusy && (
-                    <p className="dim settings__probe-note">
-                      It compares two three-second windows, so it is only as
-                      steady as the sound you made. Run it a few times: a real
-                      difference repeats, a stray one does not.
-                    </p>
-                  )}
-                </div>
               </Setting>
 
 

@@ -93,8 +93,15 @@ export async function startCapture(
   deviceId: string,
   onBlock: (block: Float32Array) => void,
   onDisconnect?: () => void,
+  /*
+     Overridden only by the device test, which has to open the same graph under
+     several processing configurations to find out which one a platform will
+     actually give it. Measuring that through a parallel capture path would
+     measure the parallel path; this way it is the real one.
+  */
+  constraints: MediaStreamConstraints = buildAudioConstraints(deviceId),
 ): Promise<CaptureSession> {
-  const stream = await navigator.mediaDevices.getUserMedia(buildAudioConstraints(deviceId));
+  const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
   // Everything below can throw partway through setup (unsupported sample
   // rate, a missing/failed worklet fetch, graph construction). If it does,
