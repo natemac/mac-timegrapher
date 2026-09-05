@@ -1208,8 +1208,8 @@ export default function App() {
                browser. A number here would be confidently wrong.
             */
             amplitudeUnavailable={
-              amplitudeUnavailableReason(captureProfile)
-                ? { reason: amplitudeUnavailableReason(captureProfile)! }
+              amplitudeUnavailableReason(captureProfile, navigator.userAgent)
+                ? { reason: amplitudeUnavailableReason(captureProfile, navigator.userAgent)! }
                 : null
             }
             onHelp={showHelp}

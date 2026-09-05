@@ -83,7 +83,7 @@ const MIN_SECONDS = 2;
 const DASH = '—';
 
 function Reading({
-  label, value, unit, spread, format, sub,
+  label, value, unit, spread, format, sub, insteadOfValue,
 }: {
   label: string;
   value: string;
@@ -92,27 +92,54 @@ function Reading({
   format?: (n: number) => string;
   /** Replaces the ± line — a range, when the figure is a summary not a reading. */
   sub?: string;
+  /*
+     Said in place of the figure, when there is a reason there will never be
+     one. A dash reads as "waiting", which is wrong when the answer is that
+     this platform cannot supply it at all — and the panel has no height to
+     spare, so it is set small enough to occupy the same two lines the figure
+     and its spread would have taken.
+  */
+  insteadOfValue?: string;
 }) {
   return (
     <div>
       <div className="eyebrow">{label}</div>
-      <div
-        className="mono"
-        style={{
-          fontSize: 'clamp(26px, 8vw, 34px)',
-          lineHeight: 1.1,
-          fontWeight: 500,
-          fontVariantNumeric: 'tabular-nums',
-          letterSpacing: '-0.02em',
-        }}
-      >
-        {value}
-        {unit && <span className="dim" style={{ fontSize: 13, marginLeft: 4 }}>{unit}</span>}
-      </div>
+      {insteadOfValue ? (
+        <div
+          className="dim"
+          style={{
+            fontSize: 12,
+            lineHeight: 1.25,
+            // Two lines here plus nothing below equals the figure plus its
+            // spread, so the tile keeps the height it already had.
+            minHeight: 52,
+            paddingTop: 4,
+            maxWidth: '14em',
+          }}
+        >
+          {insteadOfValue}
+        </div>
+      ) : (
+        <div
+          className="mono"
+          style={{
+            fontSize: 'clamp(26px, 8vw, 34px)',
+            lineHeight: 1.1,
+            fontWeight: 500,
+            fontVariantNumeric: 'tabular-nums',
+            letterSpacing: '-0.02em',
+          }}
+        >
+          {value}
+          {unit && <span className="dim" style={{ fontSize: 13, marginLeft: 4 }}>{unit}</span>}
+        </div>
+      )}
       {/* Spread is the point: a reading cannot be judged without it. */}
-      <div className="mono dim" style={{ fontSize: 11, minHeight: 15 }}>
-        {sub ?? (spread && format ? `±${format(spread.plusMinus)}` : '')}
-      </div>
+      {!insteadOfValue && (
+        <div className="mono dim" style={{ fontSize: 11, minHeight: 15 }}>
+          {sub ?? (spread && format ? `±${format(spread.plusMinus)}` : '')}
+        </div>
+      )}
     </div>
   );
 }
@@ -178,21 +205,19 @@ export function MeasurementPanel({
         />
         <Reading
           label="Amplitude"
+          insteadOfValue={amplitudeWithheld ? amplitudeUnavailable!.reason : undefined}
           value={
-            amplitudeWithheld ? DASH
-              : hasAmplitude ? m!.amplitude.toFixed(0)
-                : showSummary && !quartz && summary!.amplitude
-                  ? summary!.amplitude.mean.toFixed(0)
-                  : DASH
+            hasAmplitude ? m!.amplitude.toFixed(0)
+              : showSummary && !quartz && summary!.amplitude
+                ? summary!.amplitude.mean.toFixed(0)
+                : DASH
           }
           unit={!amplitudeWithheld && (hasAmplitude || (showSummary && !quartz && summary!.amplitude)) ? '°' : undefined}
           spread={hasAmplitude ? spreads.amplitude : null}
           format={(n) => n.toFixed(0)}
-          sub={amplitudeWithheld
-            ? amplitudeUnavailable!.reason
-            : showSummary && !quartz && summary!.amplitude
-              ? range(summary!.amplitude.min, summary!.amplitude.max, (n) => n.toFixed(0))
-              : undefined}
+          sub={showSummary && !quartz && summary!.amplitude
+            ? range(summary!.amplitude.min, summary!.amplitude.max, (n) => n.toFixed(0))
+            : undefined}
         />
         <Reading
           label="Beat error"

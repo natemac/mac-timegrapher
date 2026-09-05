@@ -48,11 +48,20 @@ describe('which route a device gets', () => {
 });
 
 describe('telling the reader amplitude is missing', () => {
-  it('gives a reason on the compatibility route', () => {
-    expect(amplitudeUnavailableReason('ec-only')).toBe('Not measurable on this route');
+  it('names Android, which is where this ships', () => {
+    expect(amplitudeUnavailableReason('ec-only', ANDROID))
+      .toBe('Not available on Android at this time');
+  });
+
+  /* The route can be forced anywhere, and saying "Android" on a Mac would be
+     a plain falsehood sitting where a measurement should be. */
+  it('does not claim Android when the route was forced elsewhere', () => {
+    expect(amplitudeUnavailableReason('ec-only', MAC))
+      .toBe('Not available on this route at this time');
   });
 
   it('says nothing on the direct route, where amplitude is real', () => {
-    expect(amplitudeUnavailableReason('ours')).toBeNull();
+    expect(amplitudeUnavailableReason('ours', ANDROID)).toBeNull();
+    expect(amplitudeUnavailableReason('ours', MAC)).toBeNull();
   });
 });

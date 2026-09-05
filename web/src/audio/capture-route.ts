@@ -58,6 +58,15 @@ export function resolveCaptureProfile(route: CaptureRoute, userAgent: string): C
    Amplitude is withheld on the compatibility route, and the reason is worth
    stating where it is missed rather than only in settings.
 */
-export function amplitudeUnavailableReason(profile: CaptureProfile): string | null {
-  return profile === 'ec-only' ? 'Not measurable on this route' : null;
+export function amplitudeUnavailableReason(
+  profile: CaptureProfile,
+  userAgent: string,
+): string | null {
+  if (profile !== 'ec-only') return null;
+  /* Naming the platform is the honest form on the device this ships to, but
+     the route can be forced anywhere, and saying "Android" on a Mac would be
+     a plain falsehood. */
+  return isAndroid(userAgent)
+    ? 'Not available on Android at this time'
+    : 'Not available on this route at this time';
 }

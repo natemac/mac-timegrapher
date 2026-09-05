@@ -245,15 +245,15 @@ describe('withholding amplitude that cannot mean anything', () => {
   };
 
   it('shows a dash and the reason instead of the number', () => {
-    render(<MeasurementPanel {...props} amplitudeUnavailable={{ reason: 'Not measurable on this profile' }} />);
-    expect(screen.getByText('Not measurable on this profile')).toBeInTheDocument();
+    render(<MeasurementPanel {...props} amplitudeUnavailable={{ reason: 'Not available on Android at this time' }} />);
+    expect(screen.getByText('Not available on Android at this time')).toBeInTheDocument();
     expect(screen.queryByText('171')).not.toBeInTheDocument();
   });
 
   /* Rate and beat error read timing rather than level, so they survive the
      same processing and must not be withheld with it. */
   it('keeps rate and beat error, which the gain does not invalidate', () => {
-    render(<MeasurementPanel {...props} amplitudeUnavailable={{ reason: 'Not measurable on this profile' }} />);
+    render(<MeasurementPanel {...props} amplitudeUnavailable={{ reason: 'Not available on Android at this time' }} />);
     expect(screen.getByText('-4.2')).toBeInTheDocument();
     expect(screen.getByText('1.0')).toBeInTheDocument();
   });
