@@ -900,6 +900,18 @@ export default function App() {
     } finally {
       inFlight.current = false;
       setBusy(false);
+      /*
+         A start that never produced a session must not leave the input marked
+         as owned. The owner is normally released by releaseCaptureState, which
+         only runs once there is something to release — so a throw here, or a
+         cancelled attempt, held the claim for the life of the page and every
+         later press returned at the guard in silence, with nothing on screen
+         to say why.
+      */
+      if (!session.current && audioOwner.current === 'capture') {
+        audioOwner.current = null;
+        activeDeviceId.current = null;
+      }
     }
   };
 

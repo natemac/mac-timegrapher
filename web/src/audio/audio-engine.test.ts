@@ -8,7 +8,9 @@
 */
 
 import { describe, it, expect } from 'vitest';
-import { buildAudioConstraints, checkAppliedProcessing, deviceIdMismatch, isProcessingRequested } from './audio-engine';
+import {
+  buildAudioConstraints, checkAppliedProcessing, deviceIdMismatch, isProcessingRequested, resumeWithin, armGestureResume,
+} from './audio-engine';
 import { constraintsFor } from './device-test';
 
 describe('buildAudioConstraints', () => {
@@ -198,5 +200,60 @@ describe('which destination the graph ends at', () => {
   it('treats audio:true as requesting nothing in particular', () => {
     expect(isProcessingRequested({ audio: true }, 'echoCancellation')).toBe(false);
     expect(isProcessingRequested({ audio: false }, 'echoCancellation')).toBe(false);
+  });
+});
+
+describe('starting a context that the browser is holding back', () => {
+  /*
+     Firefox gates AudioContext on user activation, and when it decides the
+     context may not start it leaves resume() pending forever rather than
+     rejecting. Opening a real USB input takes long enough for the click that
+     began the capture to stop counting, so awaiting it parked the whole app:
+     no error, no console output, the Start button greyed by a busy flag that
+     could never clear. Measured on Firefox 155 — still pending after four
+     seconds, against 129ms once the context was allowed to run.
+  */
+  it('gives up waiting rather than hanging forever', async () => {
+    const ctx = { resume: () => new Promise<void>(() => {}) } as unknown as AudioContext;
+    const started = Date.now();
+    await resumeWithin(ctx, 40);
+    expect(Date.now() - started).toBeLessThan(1000);
+  });
+
+  /* Everywhere it works, it resolves in single-digit milliseconds — the race
+     has to settle on that rather than sitting out the timeout. */
+  it('returns as soon as the context starts', async () => {
+    let resolved = false;
+    const ctx = { resume: async () => { resolved = true; } } as unknown as AudioContext;
+    await resumeWithin(ctx, 5000);
+    expect(resolved).toBe(true);
+  });
+
+  it('carries on when resume rejects outright', async () => {
+    const ctx = { resume: () => Promise.reject(new Error('blocked')) } as unknown as AudioContext;
+    await expect(resumeWithin(ctx, 50)).resolves.toBeUndefined();
+  });
+});
+
+describe('a second chance at starting the context', () => {
+  /* A suspended context is a silent capture. The next thing the operator does
+     is the moment it can start, so it repairs itself instead of needing a
+     reload — and nothing stays attached once it has. */
+  it('resumes on the next gesture and then detaches', () => {
+    let resumes = 0;
+    const ctx = { resume: async () => { resumes++; } } as unknown as AudioContext;
+    armGestureResume(ctx);
+    document.dispatchEvent(new Event('pointerdown'));
+    expect(resumes).toBe(1);
+    document.dispatchEvent(new Event('pointerdown'));
+    expect(resumes).toBe(1);
+  });
+
+  it('can be disarmed without ever firing', () => {
+    let resumes = 0;
+    const ctx = { resume: async () => { resumes++; } } as unknown as AudioContext;
+    armGestureResume(ctx)();
+    document.dispatchEvent(new Event('pointerdown'));
+    expect(resumes).toBe(0);
   });
 });

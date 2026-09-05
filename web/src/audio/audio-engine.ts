@@ -152,6 +152,46 @@ export function deviceIdMismatch(
   return { requested, granted };
 }
 
+/*
+   How long to wait for a context to start before carrying on without it.
+   Generous next to the milliseconds it takes wherever it works at all.
+*/
+const RESUME_TIMEOUT_MS = 2000;
+
+/*
+   Resume, but never wait forever. A context that has not started yet is a
+   capture with no audio, which the signal meter reports honestly; a promise
+   that never settles is an application with a dead button and nothing to say.
+*/
+export async function resumeWithin(ctx: AudioContext, ms: number): Promise<void> {
+  await Promise.race([
+    // A rejection here is not fatal either: the gesture rearm below is the
+    // second chance, and the graph is worth building regardless.
+    ctx.resume().catch(() => undefined),
+    new Promise<void>((resolve) => setTimeout(resolve, ms)),
+  ]);
+}
+
+/*
+   Try again on the next thing the operator does.
+
+   Where a context is held suspended for want of user activation, the next real
+   click or keypress is the moment it can start — so the capture repairs itself
+   as soon as the operator touches anything, rather than needing a reload. The
+   listeners are one-shot and remove each other, so nothing is left attached to
+   the document once the context is running.
+*/
+export function armGestureResume(ctx: AudioContext): () => void {
+  const events = ['pointerdown', 'keydown', 'touchstart'] as const;
+  const off = () => events.forEach((e) => document.removeEventListener(e, onGesture, true));
+  const onGesture = () => {
+    void ctx.resume().catch(() => undefined);
+    off();
+  };
+  events.forEach((e) => document.addEventListener(e, onGesture, true));
+  return off;
+}
+
 export async function startCapture(
   deviceId: string,
   onBlock: (block: Float32Array) => void,
@@ -210,7 +250,24 @@ export async function startCapture(
       : new AudioContext();
     context = ctx; // tracked outside the try so the catch block can clean it up
 
-    await ctx.resume(); // Safari starts contexts suspended
+    /*
+       Safari starts contexts suspended, so this has to be called — but it must
+       never be awaited without a bound.
+
+       Firefox gates AudioContext on user activation, and when it decides the
+       context may not start it leaves resume() pending forever rather than
+       rejecting. Opening a real USB input takes long enough for the click that
+       started the capture to stop counting as activation, so on Firefox this
+       line parked the whole capture: no error, no console output, the Start
+       button greyed out by a busy flag that could never clear, and no way back
+       short of reloading. Measured on Firefox 155: resume() still pending
+       after four seconds with the context suspended, while the identical code
+       resolves in 129ms once the context is allowed to run.
+
+       Elsewhere it resolves in single-digit milliseconds, so the race settles
+       immediately and nothing changes for Chrome, Safari or Android.
+    */
+    await resumeWithin(ctx, RESUME_TIMEOUT_MS);
 
     const workletUrl = `${import.meta.env.BASE_URL}capture-worklet.js`;
     await ctx.audioWorklet.addModule(workletUrl);
@@ -264,6 +321,13 @@ export async function startCapture(
     node.connect(silence);
     silence.connect(sink);
 
+    /*
+       If the context never started, the graph is built but silent. Rearming on
+       the next gesture turns that from a dead session into one that begins the
+       moment the operator touches anything.
+    */
+    const disarmResume = ctx.state === 'running' ? undefined : armGestureResume(ctx);
+
     return {
       context: ctx,
       stream,
@@ -274,6 +338,9 @@ export async function startCapture(
       capabilities,
       async stop() {
         stopped = true;
+        // Nothing should stay attached to the document past the session that
+        // armed it.
+        disarmResume?.();
         track.removeEventListener('ended', handleEnded);
         node.port.onmessage = null;
         source.disconnect();
