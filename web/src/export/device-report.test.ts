@@ -7,11 +7,12 @@
     published by the Free Software Foundation.
 */
 import { describe, it, expect } from 'vitest';
-import { verdict, deviceReportText } from './device-report';
+import { verdict, deviceReportText, sourceAppearsToChange } from './device-report';
 import { bandEnergies, looksBandLimited, BANDS, type DeviceTestReport, type VariantResult, type LockResult } from '../audio/device-test';
 
 const variant = (over: Partial<VariantResult> = {}): VariantResult => ({
-  id: 'ours', label: 'All processing off', granted: { autoGainControl: false },
+  id: 'ours', label: 'All processing off', grantedDeviceId: 'usb-1',
+  granted: { autoGainControl: false },
   contextSampleRate: 48000, rmsDb: -30, peakDb: -12,
   bands: BANDS.map((b) => ({ label: b.label, db: -60 })),
   bandLimited: false, error: null, ...over,
@@ -25,6 +26,7 @@ const lock = (over: Partial<LockResult> = {}): LockResult => ({
 
 const report = (over: Partial<DeviceTestReport> = {}): DeviceTestReport => ({
   startedAt: '2026-09-02T20:00:00.000Z',
+  requestedDeviceId: 'usb-1',
   userAgent: 'Mozilla/5.0 (Linux; Android 10; K) Chrome/152',
   devices: [{ deviceId: 'default', label: 'Default', groupId: 'g' }],
   selected: { deviceId: 'default', label: 'Default' },
@@ -122,5 +124,87 @@ describe('the exported file', () => {
 
   it('says outright when a lock attempt never found a beat', () => {
     expect(deviceReportText(report())).toMatch(/never locked onto a beat/);
+  });
+});
+
+describe('when the chosen input is not the one being heard', () => {
+  /*
+     A USB pickup was selected on a Pixel, its light came on, and the audio
+     was the phone's own microphone. The log could not distinguish "the
+     browser substituted a device" from "the browser agreed and the platform
+     ignored it" — they need opposite fixes, so the report separates them.
+  */
+  it('reports a substituted device above every measurement', () => {
+    const r = report({
+      requestedDeviceId: 'usb-1',
+      variants: [variant({ grantedDeviceId: 'builtin-9' }), variant({ id: 'voice', grantedDeviceId: 'usb-1' })],
+      locks: [lock({ validReadings: 8 })],
+    });
+    const v = verdict(r).join(' ');
+    expect(v).toMatch(/did not give us the input that was asked for/);
+    // Said before the good news about locking, because the lock is on the
+    // wrong device.
+    expect(v).not.toMatch(/locked onto a beat/);
+  });
+
+  it('stays quiet when every variant got the device it asked for', () => {
+    const r = report({ requestedDeviceId: 'usb-1', variants: [variant({ grantedDeviceId: 'usb-1' })] });
+    expect(verdict(r).join(' ')).not.toMatch(/did not give us/);
+  });
+
+  /*
+     Neither configuration applies gain control, so a large level gap between
+     them cannot be processing — it is a different microphone, which is how a
+     platform that only routes the chosen device on its communication path
+     gives itself away.
+  */
+  it('recognises the source changing when echo cancellation goes on', () => {
+    const ours = variant({ id: 'ours', rmsDb: -47 });
+    const ec = variant({ id: 'ec-only', rmsDb: -26 });
+    expect(sourceAppearsToChange(ours, ec)).toBe(true);
+    const v = verdict(report({ variants: [ours, ec] })).join(' ');
+    expect(v).toMatch(/two different physical inputs/);
+  });
+
+  it('does not call ordinary variation a change of source', () => {
+    expect(sourceAppearsToChange(variant({ rmsDb: -40 }), variant({ rmsDb: -44 }))).toBe(false);
+  });
+
+  it('treats one being band-limited as a change of source', () => {
+    const full = variant({ bandLimited: false });
+    const voice = variant({ bandLimited: true });
+    expect(sourceAppearsToChange(full, voice)).toBe(true);
+  });
+});
+
+describe('when a configuration other than ours is the one that works', () => {
+  /* The finding worth acting on: the app's own defaults are what failed. */
+  it('says so, and that echo cancellation alone costs no amplitude', () => {
+    const r = report({
+      locks: [
+        lock({ id: 'ours', validReadings: 0 }),
+        lock({ id: 'ec-only', label: 'Echo cancellation only', validReadings: 14, detectedBph: 28800 }),
+      ],
+    });
+    const v = verdict(r).join(' ');
+    expect(v).toMatch(/did NOT lock, and this one did/);
+    expect(v).toMatch(/amplitude stays measurable/);
+  });
+
+  it('warns that amplitude is lost when only the gain path works', () => {
+    const r = report({
+      locks: [
+        lock({ id: 'ours', validReadings: 0 }),
+        lock({ id: 'voice', label: 'Full voice processing', validReadings: 11, detectedBph: 28800 }),
+      ],
+    });
+    expect(verdict(r).join(' ')).toMatch(/amplitude would not be\s+trustworthy/);
+  });
+
+  it('does not editorialise when the app default is what locked', () => {
+    const r = report({ locks: [lock({ id: 'ours', validReadings: 9, detectedBph: 21600 })] });
+    const v = verdict(r).join(' ');
+    expect(v).toMatch(/This device can measure/);
+    expect(v).not.toMatch(/did NOT lock/);
   });
 });

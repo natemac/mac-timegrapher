@@ -26,11 +26,42 @@ const db = (v: number) => (Number.isFinite(v) ? `${v.toFixed(1)} dB` : 'silent')
    band-limited input cannot be fixed by gain, and a stream that never arrives
    cannot be judged for bandwidth.
 */
+/*
+   Two configurations that differ only in echo cancellation should be hearing
+   the same room through the same microphone. Neither applies gain control, so
+   a large level gap between them is not processing — it is a different
+   physical input, which is the signature of a platform routing the chosen
+   device only on its communication audio path.
+*/
+const SOURCE_CHANGE_DB = 10;
+
+export function sourceAppearsToChange(a: VariantResult, b: VariantResult): boolean {
+  if (!Number.isFinite(a.rmsDb) || !Number.isFinite(b.rmsDb)) return false;
+  if (a.bandLimited !== b.bandLimited) return true;
+  return Math.abs(a.rmsDb - b.rmsDb) > SOURCE_CHANGE_DB;
+}
+
 export function verdict(report: DeviceTestReport): string[] {
   const out: string[] = [];
   const ours = report.variants.find((v) => v.id === 'ours');
+  const ecOnly = report.variants.find((v) => v.id === 'ec-only');
   const voice = report.variants.find((v) => v.id === 'voice');
   const locked = report.locks.filter((l) => l.validReadings > 0);
+
+  /*
+     Checked before anything measured, because if the browser handed back a
+     different device then every level below describes the wrong microphone.
+  */
+  const substituted = report.variants.filter(
+    (v) => v.grantedDeviceId && v.grantedDeviceId !== report.requestedDeviceId,
+  );
+  if (substituted.length > 0) {
+    out.push('The browser did not give us the input that was asked for.');
+    out.push(`Requested ${report.selected?.label ?? 'an input'}, and got a different device`);
+    out.push(`back under: ${substituted.map((v) => v.label).join(', ')}.`);
+    out.push('Everything measured below describes whatever it substituted.');
+    return out;
+  }
 
   if (ours?.error) {
     out.push(`The app's own configuration could not open this input: ${ours.error}`);
@@ -54,14 +85,38 @@ export function verdict(report: DeviceTestReport): string[] {
 
   if (locked.length > 0) {
     const best = locked.reduce((a, b) => (b.validReadings > a.validReadings ? b : a));
+    const oursLocked = locked.some((l) => l.id === 'ours');
     out.push(`The analysis locked onto a beat under "${best.label}" —`);
     out.push(`${best.validReadings} valid readings of ${best.samples}, detected ${best.detectedBph} bph.`);
-    out.push('This device can measure. If a real session still fails, the difference is the');
-    out.push('watch, the contact, or the room rather than the phone.');
+    if (!oursLocked) {
+      /* The finding worth sending on: the app's own configuration is the one
+         that failed, and a configuration this device will accept exists. */
+      out.push('');
+      out.push('The configuration the app asks for did NOT lock, and this one did.');
+      if (best.id === 'ec-only') {
+        out.push('The only difference is echo cancellation, which on Android decides');
+        out.push('whether a chosen input is routed at all. Gain control and noise');
+        out.push('suppression were off throughout, so amplitude stays measurable — this');
+        out.push('is a routing fix rather than a trade. Send this file on.');
+      } else {
+        out.push('That configuration applies gain control, so amplitude would not be');
+        out.push('trustworthy under it, but rate and beat error would be. Send this file on.');
+      }
+    } else {
+      out.push('This device can measure. If a real session still fails, the difference is the');
+      out.push('watch, the contact, or the room rather than the phone.');
+    }
     return out;
   }
 
   out.push('No configuration produced a single valid reading.');
+  if (ours && ecOnly && sourceAppearsToChange(ours, ecOnly)) {
+    out.push('');
+    out.push('Turning echo cancellation on changed what the microphone heard, though');
+    out.push(`neither applies gain control (${db(ours.rmsDb)} against ${db(ecOnly.rmsDb)}).`);
+    out.push('That is two different physical inputs, which means the chosen device is');
+    out.push('only reached on one of the two audio paths. Send this file on.');
+  }
   if (ours && voice && Number.isFinite(ours.rmsDb) && Number.isFinite(voice.rmsDb)) {
     const gain = voice.rmsDb - ours.rmsDb;
     if (gain > 12) {
@@ -85,6 +140,7 @@ function variantBlock(v: VariantResult): string[] {
     return lines;
   }
   lines.push(`level                 rms ${db(v.rmsDb)}   peak ${db(v.peakDb)}`);
+  lines.push(`granted device        ${v.grantedDeviceId ?? 'not reported'}`);
   lines.push(`context rate          ${v.contextSampleRate ?? '?'} Hz`);
   if (v.granted) {
     for (const key of Object.keys(v.granted).sort()) {
@@ -135,6 +191,7 @@ export function deviceReportText(report: DeviceTestReport): string {
 
   lines.push('## Setup');
   lines.push(`selected input        ${report.selected?.label ?? 'none'}`);
+  lines.push(`requested id          ${report.requestedDeviceId}`);
   lines.push(`movement              ${report.movement.name ?? 'not chosen'}`);
   lines.push(`beat rate             ${report.movement.bph} bph`);
   lines.push(`lift angle            ${report.movement.liftAngle}°`);

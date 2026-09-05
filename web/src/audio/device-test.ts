@@ -27,10 +27,21 @@ import { TimegrapherEngine, type Measurement } from '../timegrapher/tg-engine';
 
 /* The configurations worth distinguishing. Ours is what the app asks for; the
    rest exist to find out what a platform will do differently. */
-export type VariantId = 'ours' | 'gain-only' | 'voice' | 'unconstrained';
+export type VariantId = 'ours' | 'ec-only' | 'ns-only' | 'gain-only' | 'voice' | 'unconstrained';
 
 export const VARIANTS: { id: VariantId; label: string; note: string }[] = [
   { id: 'ours', label: 'All processing off', note: 'What the app asks for.' },
+  /*
+     The one variant that could be adopted without losing anything.
+
+     Android routes a chosen input on the communication audio path, and Chrome
+     only takes that path when echo cancellation is on. With nothing playing
+     there is no echo to cancel, and gain control and noise suppression stay
+     off — so if this reaches a device that "all off" cannot, it is a routing
+     fix rather than a trade.
+  */
+  { id: 'ec-only', label: 'Echo cancellation only', note: 'Gain control and noise suppression still off.' },
+  { id: 'ns-only', label: 'Noise suppression only', note: 'The other half of the pair, on its own.' },
   { id: 'gain-only', label: 'Gain control on', note: 'Louder, but amplitude is no longer measurable.' },
   { id: 'voice', label: 'Full voice processing', note: 'What a call or dictation app asks for.' },
   { id: 'unconstrained', label: 'No constraints at all', note: 'Whatever the platform prefers.' },
@@ -41,6 +52,10 @@ export function constraintsFor(id: VariantId, deviceId: string): MediaStreamCons
   switch (id) {
     case 'ours':
       return buildAudioConstraints(deviceId);
+    case 'ns-only':
+      return { audio: { ...device, echoCancellation: false, autoGainControl: false, noiseSuppression: true, channelCount: 1 }, video: false };
+    case 'ec-only':
+      return { audio: { ...device, echoCancellation: true, autoGainControl: false, noiseSuppression: false, channelCount: 1 }, video: false };
     case 'gain-only':
       return { audio: { ...device, echoCancellation: false, autoGainControl: true, noiseSuppression: false, channelCount: 1 }, video: false };
     case 'voice':
@@ -100,6 +115,8 @@ export function looksBandLimited(bands: BandEnergy[]): boolean {
 export interface VariantResult {
   id: VariantId;
   label: string;
+  /** What getSettings() reported back, which may not be what was asked for. */
+  grantedDeviceId: string | null;
   granted: Record<string, unknown> | null;
   contextSampleRate: number | null;
   rmsDb: number;
@@ -129,6 +146,8 @@ export interface DeviceTestReport {
   userAgent: string;
   devices: AudioInput[];
   selected: { deviceId: string; label: string } | null;
+  /** The id every variant was asked for, to compare against what came back. */
+  requestedDeviceId: string;
   movement: { name: string | null; bph: number; liftAngle: number };
   variants: VariantResult[];
   locks: LockResult[];
@@ -137,11 +156,11 @@ export interface DeviceTestReport {
 export interface TestProgress { step: number; total: number; label: string }
 
 const LEVEL_SECONDS = 3;
-const LOCK_SECONDS = 20;
-/* Level and spectrum for every variant; the analysis only for the two worth
-   comparing — what the app asks for, against the loudest thing the platform
-   offers. Four full lock attempts would be two minutes for no more insight. */
-const LOCK_VARIANTS: VariantId[] = ['ours', 'voice'];
+const LOCK_SECONDS = 15;
+/* Level and spectrum for every variant; the analysis only for the three that
+   decide something — what the app asks for, the routing fix that costs
+   nothing if it works, and the full voice path as the fallback. */
+const LOCK_VARIANTS: VariantId[] = ['ours', 'ec-only', 'voice'];
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -151,7 +170,7 @@ async function measureVariant(
   deviceId: string,
 ): Promise<VariantResult> {
   const base: VariantResult = {
-    id, label, granted: null, contextSampleRate: null,
+    id, label, grantedDeviceId: null, granted: null, contextSampleRate: null,
     rmsDb: -Infinity, peakDb: -Infinity, bands: [], bandLimited: false, error: null,
   };
   let stream: MediaStream | undefined;
@@ -160,6 +179,8 @@ async function measureVariant(
     stream = await navigator.mediaDevices.getUserMedia(constraintsFor(id, deviceId));
     const track = stream.getAudioTracks()[0];
     base.granted = track.getSettings() as Record<string, unknown>;
+    const gid = (base.granted as { deviceId?: unknown }).deviceId;
+    base.grantedDeviceId = typeof gid === 'string' ? gid : null;
 
     ctx = new AudioContext();
     base.contextSampleRate = ctx.sampleRate;
@@ -306,6 +327,7 @@ export async function runDeviceTest(
     startedAt: new Date().toISOString(),
     userAgent: typeof navigator === 'undefined' ? '' : navigator.userAgent,
     devices,
+    requestedDeviceId: deviceId,
     selected: {
       deviceId,
       label: devices.find((d) => d.deviceId === deviceId)?.label ?? 'unknown',

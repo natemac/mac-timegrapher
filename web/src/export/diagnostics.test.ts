@@ -358,3 +358,51 @@ it('counts the valid ones without editorialising when some locked', () => {
   expect(text).toMatch(/valid readings\s+1 of 2$/m);
   expect(text).not.toMatch(/never locked/);
 });
+
+/*
+   A USB pickup was chosen on a Pixel and the phone's own microphone was what
+   got recorded. This file could not settle which layer did it: it kept the
+   granted id and the chosen label, but never the id that was asked for.
+*/
+it('compares the input requested against the one granted', () => {
+  const log = new DiagnosticsLog();
+  log.setContext({
+    ...CONTEXT,
+    requestedDeviceId: 'usb-abc',
+    trackSettings: { deviceId: 'usb-abc' },
+  });
+  expect(log.toText()).toMatch(/input granted.*<- the browser reports the device that was asked for/);
+});
+
+it('says outright when the browser substituted a different device', () => {
+  const log = new DiagnosticsLog();
+  log.setContext({
+    ...CONTEXT,
+    requestedDeviceId: 'usb-abc',
+    trackSettings: { deviceId: 'builtin-xyz' },
+  });
+  expect(log.toText()).toMatch(/NOT what was asked for/);
+});
+
+/* A matching id is not proof the audio came from that device, and a reader
+   who assumes it is stops looking in the one case that matters. */
+it('warns that a matching id is not proof of the audio source', () => {
+  const log = new DiagnosticsLog();
+  log.setContext({ ...CONTEXT, requestedDeviceId: 'usb-abc', trackSettings: { deviceId: 'usb-abc' } });
+  expect(log.toText()).toMatch(/not proof the audio came from that device/);
+});
+
+it('lists every input offered, marking the one chosen', () => {
+  const log = new DiagnosticsLog();
+  log.setContext({
+    ...CONTEXT,
+    requestedDeviceId: 'usb-abc',
+    availableInputs: [
+      { deviceId: 'default', label: 'Default', groupId: 'g1' },
+      { deviceId: 'usb-abc', label: 'USB audio', groupId: 'g2' },
+    ],
+  });
+  const text = log.toText();
+  expect(text).toMatch(/\* USB audio/);
+  expect(text).toMatch(/ {2}Default/);
+});

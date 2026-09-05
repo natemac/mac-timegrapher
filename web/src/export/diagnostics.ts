@@ -84,6 +84,43 @@ export interface DiagnosticContext {
   */
   trackSettings?: Record<string, unknown> | null;
   trackCapabilities?: Record<string, unknown> | null;
+  /*
+     What was asked for, against what came back.
+
+     A report that the wrong microphone was used could not be checked against
+     this file: it recorded the granted id and the chosen label, but never the
+     id that was requested, so "the browser gave us something else" and "the
+     browser gave us what we asked for and the platform ignored it" produced
+     identical logs. They need completely different fixes.
+  */
+  requestedDeviceId?: string | null;
+  availableInputs?: { deviceId: string; label: string; groupId: string }[];
+}
+
+/** Device ids are 64 hex characters; a file is readable with the ends. */
+function short(id: string | null | undefined): string {
+  if (!id) return 'unknown';
+  if (id.length <= 24) return id;
+  return `${id.slice(0, 12)}…${id.slice(-6)}`;
+}
+
+function grantedId(c: DiagnosticContext | null | undefined): string | null {
+  const v = c?.trackSettings?.deviceId;
+  return typeof v === 'string' ? v : null;
+}
+
+/*
+   The comparison the file existed without. A mismatch means the browser
+   substituted a device and the request needs fixing; a match moves the
+   question below the Web Audio API, where nothing in this file can reach.
+*/
+function deviceVerdict(c: DiagnosticContext | null | undefined): string {
+  const asked = c?.requestedDeviceId;
+  const got = grantedId(c);
+  if (!asked || !got) return '';
+  return asked === got
+    ? '  <- the browser reports the device that was asked for'
+    : '  <- NOT what was asked for; the browser substituted a device';
 }
 
 /*
@@ -217,6 +254,8 @@ export class DiagnosticsLog {
     // wrong: automatic gain control does not degrade amplitude, it invalidates
     // it.
     lines.push(`processing        ${c?.processing.length ? c.processing.join(', ') : 'none reported'}`);
+    lines.push(`input requested   ${short(c?.requestedDeviceId)}`);
+    lines.push(`input granted     ${short(grantedId(c))}${deviceVerdict(c)}`);
     lines.push(`movement          ${c?.movement ?? 'not chosen'}`);
     lines.push(`lift angle        ${c?.quartz ? 'n/a — quartz' : `${c?.liftAngle ?? '?'}°`}`);
     lines.push(`beat rate         ${c?.bph ? `${c.bph} bph` : 'detected'}`);
@@ -286,6 +325,30 @@ export class DiagnosticsLog {
       }
       lines.push('');
     };
+    if (c?.availableInputs?.length) {
+      lines.push('## Every audio input this device offered');
+      /*
+         The chosen label alone could not distinguish a phone that offers one
+         microphone from one offering four, which is the difference between a
+         selection that could not have gone wrong and one that could.
+      */
+      for (const d of c.availableInputs) {
+        lines.push(`${d.deviceId === c.requestedDeviceId ? '* ' : '  '}${d.label}`);
+        lines.push(`    id ${d.deviceId}`);
+      }
+      lines.push('');
+    }
+
+    if (c?.requestedDeviceId && grantedId(c)) {
+      lines.push('## On a matching id');
+      lines.push('A match here means the browser accepted the request and reported the');
+      lines.push('same device back. It is not proof the audio came from that device:');
+      lines.push('a platform can honour the constraint at the API and still capture from');
+      lines.push('somewhere else underneath. The Android Test measures the level and');
+      lines.push('spectrum of each configuration, which is what settles it.');
+      lines.push('');
+    }
+
     dump('Audio track, as granted', c?.trackSettings);
     dump('Audio track, what the device can do', c?.trackCapabilities);
 

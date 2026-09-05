@@ -817,6 +817,8 @@ export default function App() {
         clockDriftSecondsPerDay: settings.clockDriftSecondsPerDay,
         trackSettings: s.settings as Record<string, unknown>,
         trackCapabilities: s.capabilities as Record<string, unknown> | null,
+        requestedDeviceId: selectedId,
+        availableInputs: devices,
       });
       diagnostics.current.event('start', `${s.sampleRate} Hz`);
 

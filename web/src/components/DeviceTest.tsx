@@ -62,7 +62,7 @@ export function DeviceTest(p: Props) {
       <ul className="calibration__needs">
         <li>Put the watch on the sensor first — the last part listens for a beat.</li>
         <li>Stay on this tab and keep the screen awake.</li>
-        <li>About a minute. It will say what it found at the end.</li>
+        <li>About ninety seconds. It will say what it found at the end.</li>
       </ul>
 
       <label className="calibration__device">
