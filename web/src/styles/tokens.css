@@ -813,6 +813,17 @@ select {
   background: var(--accent);
   transition: width 300ms ease;
 }
+.devicetest__profile { display: flex; flex-direction: column; gap: 6px; }
+.devicetest__profile-title {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.devicetest__profile-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.devicetest__profile-row button { width: 100%; font-size: 13px; }
+
 .devicetest__verdict {
   border: 1px solid var(--line);
   border-radius: var(--radius);

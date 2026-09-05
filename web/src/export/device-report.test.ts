@@ -7,7 +7,7 @@
     published by the Free Software Foundation.
 */
 import { describe, it, expect } from 'vitest';
-import { verdict, deviceReportText, sourceAppearsToChange } from './device-report';
+import { verdict, deviceReportText, routeAppearsToChange } from './device-report';
 import { bandEnergies, looksBandLimited, BANDS, type DeviceTestReport, type VariantResult, type LockResult } from '../audio/device-test';
 
 const variant = (over: Partial<VariantResult> = {}): VariantResult => ({
@@ -153,33 +153,36 @@ describe('when the chosen input is not the one being heard', () => {
   });
 
   /*
-     Neither configuration applies gain control, so a large level gap between
-     them cannot be processing — it is a different microphone, which is how a
-     platform that only routes the chosen device on its communication path
-     gives itself away.
+     A level gap between two configurations is a lead, not an identification.
+     Android applies source-specific tuning, so the same microphone can sound
+     materially different on a different route — the report has to say that
+     rather than name a second device.
   */
-  it('recognises the source changing when echo cancellation goes on', () => {
+  it('flags a possible route change without claiming a second microphone', () => {
     const ours = variant({ id: 'ours', rmsDb: -47 });
     const ec = variant({ id: 'ec-only', rmsDb: -26 });
-    expect(sourceAppearsToChange(ours, ec)).toBe(true);
+    expect(routeAppearsToChange(ours, ec)).toBe(true);
     const v = verdict(report({ variants: [ours, ec] })).join(' ');
-    expect(v).toMatch(/two different physical inputs/);
+    expect(v).toMatch(/possible route or processing change/);
+    expect(v).toMatch(/Verify physically/);
+    expect(v).not.toMatch(/two different physical inputs/);
   });
 
-  it('does not call ordinary variation a change of source', () => {
-    expect(sourceAppearsToChange(variant({ rmsDb: -40 }), variant({ rmsDb: -44 }))).toBe(false);
+  it('does not call ordinary variation a change of route', () => {
+    expect(routeAppearsToChange(variant({ rmsDb: -40 }), variant({ rmsDb: -44 }))).toBe(false);
   });
 
-  it('treats one being band-limited as a change of source', () => {
+  it('treats one being band-limited as a change of route', () => {
     const full = variant({ bandLimited: false });
     const voice = variant({ bandLimited: true });
-    expect(sourceAppearsToChange(full, voice)).toBe(true);
+    expect(routeAppearsToChange(full, voice)).toBe(true);
   });
 });
 
 describe('when a configuration other than ours is the one that works', () => {
-  /* The finding worth acting on: the app's own defaults are what failed. */
-  it('says so, and that echo cancellation alone costs no amplitude', () => {
+  /* The app's own defaults failing is the finding. What it is NOT is proof of
+     which microphone was heard, or that the readings are accurate. */
+  it('says the app default failed without certifying the winner', () => {
     const r = report({
       locks: [
         lock({ id: 'ours', validReadings: 0 }),
@@ -188,7 +191,9 @@ describe('when a configuration other than ours is the one that works', () => {
     });
     const v = verdict(r).join(' ');
     expect(v).toMatch(/did NOT lock, and this one did/);
-    expect(v).toMatch(/amplitude stays measurable/);
+    expect(v).toMatch(/does not say which\s+microphone was heard/);
+    expect(v).toMatch(/identify the source physically/);
+    expect(v).not.toMatch(/amplitude stays measurable/);
   });
 
   it('warns that amplitude is lost when only the gain path works', () => {
@@ -198,13 +203,17 @@ describe('when a configuration other than ours is the one that works', () => {
         lock({ id: 'voice', label: 'Full voice processing', validReadings: 11, detectedBph: 28800 }),
       ],
     });
-    expect(verdict(r).join(' ')).toMatch(/amplitude would not be\s+trustworthy/);
+    expect(verdict(r).join(' ')).toMatch(/amplitude cannot be trusted/);
   });
 
-  it('does not editorialise when the app default is what locked', () => {
+  /* Even the good case does not get to certify the source: a phone microphone
+     can hear a watch sitting on the same bench, which is how a USB pickup that
+     was never reached still produces a plausible reading. */
+  it('still asks for a physical check when the app default locks', () => {
     const r = report({ locks: [lock({ id: 'ours', validReadings: 9, detectedBph: 21600 })] });
     const v = verdict(r).join(' ');
-    expect(v).toMatch(/This device can measure/);
+    expect(v).toMatch(/found a beat under the configuration the app asks for/);
+    expect(v).toMatch(/physical check/);
     expect(v).not.toMatch(/did NOT lock/);
   });
 });

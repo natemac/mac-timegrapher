@@ -27,15 +27,18 @@ const db = (v: number) => (Number.isFinite(v) ? `${v.toFixed(1)} dB` : 'silent')
    cannot be judged for bandwidth.
 */
 /*
-   Two configurations that differ only in echo cancellation should be hearing
-   the same room through the same microphone. Neither applies gain control, so
-   a large level gap between them is not processing — it is a different
-   physical input, which is the signature of a platform routing the chosen
-   device only on its communication audio path.
+   A large level gap between two configurations that differ only in echo
+   cancellation is worth chasing, but it does not identify a microphone.
+
+   Android applies source-specific tuning, so the same physical input can sound
+   materially different on a different route, and neither the level nor the
+   bandwidth distinguishes "another device" from "the same device, processed
+   differently". This flags a lead. Only a physical check — exciting one source
+   while the other is isolated — settles it.
 */
 const SOURCE_CHANGE_DB = 10;
 
-export function sourceAppearsToChange(a: VariantResult, b: VariantResult): boolean {
+export function routeAppearsToChange(a: VariantResult, b: VariantResult): boolean {
   if (!Number.isFinite(a.rmsDb) || !Number.isFinite(b.rmsDb)) return false;
   if (a.bandLimited !== b.bandLimited) return true;
   return Math.abs(a.rmsDb - b.rmsDb) > SOURCE_CHANGE_DB;
@@ -89,33 +92,40 @@ export function verdict(report: DeviceTestReport): string[] {
     out.push(`The analysis locked onto a beat under "${best.label}" —`);
     out.push(`${best.validReadings} valid readings of ${best.samples}, detected ${best.detectedBph} bph.`);
     if (!oursLocked) {
-      /* The finding worth sending on: the app's own configuration is the one
-         that failed, and a configuration this device will accept exists. */
+      /*
+         A lock says the algorithm produced readings. It does not say which
+         microphone produced them, and it certainly does not certify their
+         accuracy — a phone's own microphone can hear a watch on the bench.
+      */
       out.push('');
       out.push('The configuration the app asks for did NOT lock, and this one did.');
+      out.push('That says the algorithm found a beat under it. It does not say which');
+      out.push('microphone was heard, and a lock is not a check of accuracy.');
       if (best.id === 'ec-only') {
-        out.push('The only difference is echo cancellation, which on Android decides');
-        out.push('whether a chosen input is routed at all. Gain control and noise');
-        out.push('suppression were off throughout, so amplitude stays measurable — this');
-        out.push('is a routing fix rather than a trade. Send this file on.');
+        out.push('Only echo cancellation differs, which on Android can change the route');
+        out.push('as well as the sound. Hold a capture open under each profile from the');
+        out.push('Android Test tab and identify the source physically before relying on it.');
       } else {
-        out.push('That configuration applies gain control, so amplitude would not be');
-        out.push('trustworthy under it, but rate and beat error would be. Send this file on.');
+        out.push('That configuration applies gain control, so amplitude cannot be trusted');
+        out.push('under it whatever the source turns out to be.');
       }
     } else {
-      out.push('This device can measure. If a real session still fails, the difference is the');
-      out.push('watch, the contact, or the room rather than the phone.');
+      out.push('The analysis found a beat under the configuration the app asks for.');
+      out.push('Which microphone supplied it still needs a physical check if a USB');
+      out.push('pickup was selected — a phone can hear a watch on the same bench.');
     }
     return out;
   }
 
   out.push('No configuration produced a single valid reading.');
-  if (ours && ecOnly && sourceAppearsToChange(ours, ecOnly)) {
+  if (ours && ecOnly && routeAppearsToChange(ours, ecOnly)) {
     out.push('');
-    out.push('Turning echo cancellation on changed what the microphone heard, though');
-    out.push(`neither applies gain control (${db(ours.rmsDb)} against ${db(ecOnly.rmsDb)}).`);
-    out.push('That is two different physical inputs, which means the chosen device is');
-    out.push('only reached on one of the two audio paths. Send this file on.');
+    out.push('Turning echo cancellation on changed what was captured, though neither');
+    out.push(`applies gain control (${db(ours.rmsDb)} against ${db(ecOnly.rmsDb)}).`);
+    out.push('That is a possible route or processing change, not proof of a different');
+    out.push('microphone: the same input can sound different on a different route.');
+    out.push('Verify physically — excite only the pickup, then only near the phone,');
+    out.push('under each profile — before treating either as the USB device.');
   }
   if (ours && voice && Number.isFinite(ours.rmsDb) && Number.isFinite(voice.rmsDb)) {
     const gain = voice.rmsDb - ours.rmsDb;

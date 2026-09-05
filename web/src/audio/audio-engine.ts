@@ -18,7 +18,14 @@ const PROCESSED_SETTINGS = ['echoCancellation', 'autoGainControl', 'noiseSuppres
  */
 export interface ProcessingWarning {
   setting: string;
-  state: 'applied' | 'unreported';
+  /*
+     'applied' is the browser overriding what was asked for, which invalidates
+     a measurement silently. 'intentional' is the same flag arrived at on
+     purpose — a diagnostic profile deliberately requesting it — and reads
+     completely differently to anyone holding the report. 'unreported' is
+     Safari omitting the key, which is not the same as off.
+  */
+  state: 'applied' | 'intentional' | 'unreported';
 }
 
 export interface CaptureSession {
@@ -79,14 +86,56 @@ export function buildAudioConstraints(deviceId: string): MediaStreamConstraints 
  * clean screen as confirmation that a setting is off when the browser never
  * said so. It is reported as a neutral note instead.
  */
-export function checkAppliedProcessing(settings: MediaTrackSettings): ProcessingWarning[] {
+export function checkAppliedProcessing(
+  settings: MediaTrackSettings,
+  /* Settings this capture deliberately asked to have switched on. Anything
+     here that comes back true was obeyed, not imposed. */
+  intentional: readonly string[] = [],
+): ProcessingWarning[] {
   const warnings: ProcessingWarning[] = [];
   for (const setting of PROCESSED_SETTINGS) {
     const value = settings[setting];
-    if (value === true) warnings.push({ setting, state: 'applied' });
-    else if (value === undefined) warnings.push({ setting, state: 'unreported' });
+    if (value === true) {
+      warnings.push({ setting, state: intentional.includes(setting) ? 'intentional' : 'applied' });
+    } else if (value === undefined) {
+      warnings.push({ setting, state: 'unreported' });
+    }
   }
   return warnings;
+}
+
+/*
+   Whether the browser gave back the input that was asked for.
+
+   Only a concrete id can be checked. 'default' and the communication aliases
+   resolve to whatever the platform picks, so they are not mismatches; and a
+   track that reports no deviceId at all is unknown, which is not the same as
+   verified. Both return null rather than a false accusation.
+
+   Note what this can and cannot settle: it compares identifiers, so it catches
+   a browser substituting a device. It cannot detect a platform that returns
+   the requested id and captures from somewhere else anyway — that needs a
+   physical source check.
+*/
+/* Ids that name a choice rather than a device. */
+const ALIAS_IDS = new Set(['default', 'communications']);
+
+export function deviceIdMismatch(
+  requested: string,
+  settings: MediaTrackSettings,
+): { requested: string; granted: string } | null {
+  if (ALIAS_IDS.has(requested) || requested === '') return null;
+  const granted = settings.deviceId;
+  if (typeof granted !== 'string' || granted === '') return null;
+  if (granted === requested) return null;
+  /*
+     An alias coming back is the platform naming the same choice differently,
+     not a substitution. Treating it as one would break capture on browsers
+     that answer a concrete request with the alias they resolved it through —
+     and every device that works today does so through this path.
+  */
+  if (ALIAS_IDS.has(granted)) return null;
+  return { requested, granted };
 }
 
 export async function startCapture(
@@ -100,6 +149,9 @@ export async function startCapture(
      measure the parallel path; this way it is the real one.
   */
   constraints: MediaStreamConstraints = buildAudioConstraints(deviceId),
+  /* Processing this caller asked for on purpose, so an obeyed request is not
+     reported as the browser overriding the constraints. */
+  intentional: readonly string[] = [],
 ): Promise<CaptureSession> {
   const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
@@ -112,7 +164,22 @@ export async function startCapture(
   try {
     const track = stream.getAudioTracks()[0];
     const settings = track.getSettings();
-    const warnings = checkAppliedProcessing(settings);
+
+    /*
+       A browser that substitutes a device has produced a stream that answers a
+       question nobody asked. Measuring it and labelling it with the requested
+       input is worse than failing, because the reading looks ordinary.
+    */
+    const mismatch = deviceIdMismatch(deviceId, settings);
+    if (mismatch) {
+      throw new Error(
+        `The browser opened a different input than the one selected ` +
+        `(asked for ${mismatch.requested.slice(0, 12)}…, got ${mismatch.granted.slice(0, 12)}…). ` +
+        `Reselect the input and try again.`,
+      );
+    }
+
+    const warnings = checkAppliedProcessing(settings, intentional);
     // Not implemented everywhere, and not worth failing a capture over.
     let capabilities: MediaTrackCapabilities | null = null;
     try {

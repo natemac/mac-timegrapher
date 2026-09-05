@@ -20,7 +20,7 @@ import { CalibrationPanel } from './CalibrationPanel';
 import { ReadinessCheck } from './ReadinessCheck';
 import type { ReadinessReport } from '../timegrapher/readiness';
 import { DeviceTest } from './DeviceTest';
-import type { DeviceTestReport, TestProgress } from '../audio/device-test';
+import type { DeviceTestReport, TestProgress, CaptureProfile } from '../audio/device-test';
 
 export interface Settings {
   /** Milliseconds of drift spanning the trace width. Smaller magnifies more. */
@@ -133,6 +133,8 @@ interface Props {
   deviceTestReport: DeviceTestReport | null;
   onRunDeviceTest: () => void;
   onExportDeviceTest: () => void;
+  captureProfile: CaptureProfile;
+  onCaptureProfileChange: (p: CaptureProfile) => void;
 }
 
 type Tab = 'guide' | 'settings' | 'calibration' | 'check' | 'android test';
@@ -241,6 +243,7 @@ export function SettingsSheet({
   granted, onRequestMic, busy, devices, selectedId, onSelectDevice, sampleRate,
   capturing, onStartCapture, onStopCapture, readiness,
   deviceTestRunning, deviceTestProgress, deviceTestReport, onRunDeviceTest, onExportDeviceTest,
+  captureProfile, onCaptureProfileChange,
 }: Props) {
   /* Settings first. The guide is read once; the settings are the reason the
      cog gets pressed again. */
@@ -361,6 +364,8 @@ export function SettingsSheet({
               report={deviceTestReport}
               onRun={onRunDeviceTest}
               onExport={onExportDeviceTest}
+              profile={captureProfile}
+              onProfileChange={onCaptureProfileChange}
             />
           ) : tab === 'check' ? (
             <ReadinessCheck

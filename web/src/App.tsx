@@ -59,7 +59,10 @@ import {
 import { Certificate } from './components/Certificate';
 import { DEFAULT_LIFT_ANGLE } from './timegrapher/movements';
 import { assessReadiness } from './timegrapher/readiness';
-import { runDeviceTest, type DeviceTestReport, type TestProgress } from './audio/device-test';
+import {
+  runDeviceTest, constraintsFor,
+  type DeviceTestReport, type TestProgress, type CaptureProfile,
+} from './audio/device-test';
 import { deviceReportText, deviceReportFilename } from './export/device-report';
 import type { ProcessingWarning } from './audio/audio-engine';
 
@@ -254,6 +257,32 @@ export default function App() {
   // MediaStream unreachable with its tracks still live — the browser's
   // recording indicator then stays lit until the tab closes.
   const inFlight = useRef(false);
+  /*
+     One owner for the audio input, claimed synchronously.
+
+     Permission, normal capture and the device test each open their own stream,
+     and each guarded against a different subset of the others: the device test
+     never checked whether a capture was mid-open, and start never checked
+     whether a test was running. Closing the sheet and pressing Start during a
+     test began a second acquisition of the same microphone, which is a
+     confounder in exactly the measurements being used to diagnose one.
+
+     Held for as long as the input is, not merely while it is being opened.
+  */
+  const audioOwner = useRef<'permission' | 'capture' | 'device test' | null>(null);
+  /*
+     The input a capture is actually running on, which is deliberately not the
+     dropdown: the dropdown is a preference and can be re-resolved by a hot
+     plug, while this identifies the stream in flight.
+  */
+  const activeDeviceId = useRef<string | null>(null);
+  /*
+     Which constraints the ordinary capture path runs under. 'ours' is what the
+     app asks for; 'ec-only' exists so the same path can be held open under one
+     changed variable, to find out which microphone is physically being heard.
+     Never changes on its own — see the Android Test tab.
+  */
+  const [captureProfile, setCaptureProfile] = useState<CaptureProfile>('ours');
   /*
      Which start request is still allowed to publish a session.
 
@@ -680,11 +709,35 @@ export default function App() {
   const refreshDevices = useCallback(async () => {
     const found = await listAudioInputs();
     setDevices(found);
-    const chosen = resolveSelection(loadSelection(), found);
-    setSelectedId(chosen?.deviceId ?? null);
+
+    /*
+       An input that vanishes mid-capture ends the measurement even if the
+       browser keeps handing us a live track: whatever is still arriving is not
+       the device that was selected, and carrying on would attribute it to one
+       that has been unplugged. The disconnect path relies on track.ended,
+       which does not always fire.
+    */
+    const active = activeDeviceId.current;
+    if (active && !found.some((d) => d.deviceId === active)) {
+      activeDeviceId.current = null;
+      void stopRef.current?.();
+      setError('The selected input was disconnected. Choose an input and start again.');
+    }
+
+    /*
+       Only re-resolve when the current choice is actually gone. Re-resolving on
+       every device change let an unrelated hot plug silently move the selection
+       back to whatever was last saved.
+    */
+    setSelectedId((prev) => {
+      if (prev && found.some((d) => d.deviceId === prev)) return prev;
+      return resolveSelection(loadSelection(), found)?.deviceId ?? null;
+    });
   }, []);
 
   const grant = async () => {
+    if (audioOwner.current) return;
+    audioOwner.current = 'permission';
     setBusy(true);
     setError(null);
     try {
@@ -694,6 +747,7 @@ export default function App() {
     } catch (err) {
       setError(describeError(err));
     } finally {
+      if (audioOwner.current === 'permission') audioOwner.current = null;
       setBusy(false);
     }
   };
@@ -743,6 +797,8 @@ export default function App() {
     // already recorded is left alone — stopping is how each one ends.
     setWizard(abort);
     session.current = null;
+    activeDeviceId.current = null;
+    if (audioOwner.current === 'capture') audioOwner.current = null;
     setMeasurement(null);
     measurementRef.current = null;
     setSecondsCaptured(0);
@@ -777,13 +833,24 @@ export default function App() {
   }, [releaseCaptureState]);
 
   const start = async () => {
-    if (!selectedId || inFlight.current) return;
+    if (!selectedId || inFlight.current || audioOwner.current) return;
     const attempt = ++captureAttempt.current;
     inFlight.current = true;
+    audioOwner.current = 'capture';
     setBusy(true);
     setError(null);
     try {
-      const s = await startCapture(selectedId, handleBlock, handleDisconnect);
+      const s = await startCapture(
+        selectedId,
+        handleBlock,
+        handleDisconnect,
+        constraintsFor(captureProfile, selectedId),
+        // Echo cancellation under this profile was asked for deliberately, so
+        // it is reported as intentional rather than as the browser overriding
+        // the request.
+        captureProfile === 'ec-only' ? ['echoCancellation'] : [],
+      );
+      activeDeviceId.current = selectedId;
       if (attempt !== captureAttempt.current) {
         // Home was pressed while the browser was opening the input. This
         // session was never published, so nothing else will release it.
@@ -808,6 +875,7 @@ export default function App() {
         sampleRate: s.sampleRate,
         requestedSampleRate: s.requestedSampleRate ?? null,
         processing: s.warnings.map((w) => `${w.setting}: ${w.state}`),
+        captureProfile,
         movement: movementLabelRef.current,
         liftAngle: findMovement(movementId)?.liftAngle ?? null,
         bph: findMovement(movementId)?.bph ?? null,
@@ -904,7 +972,8 @@ export default function App() {
      running or still opening.
   */
   const startDeviceTest = async () => {
-    if (!selectedId || capturing || session.current || deviceTestRunning) return;
+    if (!selectedId || inFlight.current || audioOwner.current || deviceTestRunning) return;
+    audioOwner.current = 'device test';
     setError(null);
     setDeviceTestReport(null);
     setDeviceTestRunning(true);
@@ -925,6 +994,7 @@ export default function App() {
     } catch (err) {
       setError(describeError(err));
     } finally {
+      if (audioOwner.current === 'device test') audioOwner.current = null;
       setDeviceTestRunning(false);
       setDeviceTestProgress(null);
     }
@@ -1060,6 +1130,8 @@ export default function App() {
         deviceTestReport={deviceTestReport}
         onRunDeviceTest={startDeviceTest}
         onExportDeviceTest={exportDeviceTest}
+        captureProfile={captureProfile}
+        onCaptureProfileChange={setCaptureProfile}
       />
 
       {!secure && (
@@ -1119,6 +1191,15 @@ export default function App() {
             movementId={movementId}
             onSelectMovement={selectMovement}
           />
+
+          {captureProfile !== 'ours' && (
+            <div className="panel panel--tight">
+              <p className="warn" style={{ margin: 0, fontSize: 12 }}>
+                Diagnostic profile: echo cancellation on. Amplitude is not
+                trustworthy — reset it in Settings → Android Test.
+              </p>
+            </div>
+          )}
 
           {error && (
             <div className="panel panel--tight">

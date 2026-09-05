@@ -7,7 +7,7 @@
     published by the Free Software Foundation.
 */
 import type { AudioInput } from '../audio/device-manager';
-import type { DeviceTestReport, TestProgress } from '../audio/device-test';
+import type { DeviceTestReport, TestProgress, CaptureProfile } from '../audio/device-test';
 import { verdict } from '../export/device-report';
 
 /*
@@ -33,6 +33,10 @@ interface Props {
   report: DeviceTestReport | null;
   onRun: () => void;
   onExport: () => void;
+  /* The profile an ordinary capture runs under, for identifying by hand which
+     microphone is physically being heard. */
+  profile: CaptureProfile;
+  onProfileChange: (p: CaptureProfile) => void;
 }
 
 export function DeviceTest(p: Props) {
@@ -108,6 +112,44 @@ export function DeviceTest(p: Props) {
           </p>
         </div>
       )}
+
+      {/*
+         Automatic three-second samples cannot settle which microphone is
+         physically in use — a sound reaches both, and a level or bandwidth
+         difference can equally be the same microphone on a different route.
+         This holds an ordinary capture open, waveform and all, under one
+         changed variable, so the question can be answered by hand.
+      */}
+      <div className="devicetest__profile">
+        <p className="devicetest__profile-title">Capture profile</p>
+        <div className="devicetest__profile-row">
+          {([
+            ['ours', 'App default'],
+            ['ec-only', 'Echo cancellation'],
+          ] as const).map(([id, label]) => (
+            <button
+              key={id}
+              className={p.profile === id ? '' : 'secondary'}
+              onClick={() => p.onProfileChange(id)}
+              disabled={p.capturing || p.running}
+              aria-pressed={p.profile === id}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="dim settings__probe-note">
+          {p.profile === 'ours'
+            ? 'All processing off — what the app normally asks for.'
+            : 'Echo cancellation on, gain control and noise suppression off. Amplitude under this profile is not trustworthy until it has been checked against a known-good reading.'}
+        </p>
+        <p className="dim settings__probe-note">
+          Close this sheet and press Start to hold a capture open under the
+          chosen profile. Tap only the pickup, then only near the phone, and
+          watch which one the waveform follows. It stays selected until you
+          change it back.
+        </p>
+      </div>
 
       {p.report && !p.running && (
         <>

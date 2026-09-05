@@ -105,3 +105,32 @@ describe('requestPermission', () => {
     expect(stopB).toHaveBeenCalledOnce();
   });
 });
+
+/*
+   Hot plug used to re-resolve from the saved preference on every device
+   change, so plugging in an unrelated device could silently move the selection
+   away from the input a measurement was being set up on.
+*/
+describe('keeping a selection across a device change', () => {
+  const usb = { deviceId: 'usb-1', label: 'USB audio', groupId: 'g1' };
+  const builtin = { deviceId: 'default', label: 'Default', groupId: 'g2' };
+  const headset = { deviceId: 'hs-1', label: 'Headset', groupId: 'g3' };
+
+  /* Mirrors the reducer App applies on devicechange. */
+  const next = (prev: string | null, saved: string | null, available: typeof usb[]) =>
+    prev && available.some((d) => d.deviceId === prev)
+      ? prev
+      : (resolveSelection(saved, available)?.deviceId ?? null);
+
+  it('keeps the current choice when an unrelated device appears', () => {
+    expect(next('usb-1', 'default', [builtin, usb, headset])).toBe('usb-1');
+  });
+
+  it('re-resolves only once the current choice is gone', () => {
+    expect(next('usb-1', 'default', [builtin, headset])).toBe('default');
+  });
+
+  it('reports nothing selectable when every input disappears', () => {
+    expect(next('usb-1', 'default', [])).toBeNull();
+  });
+});

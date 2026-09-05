@@ -141,6 +141,17 @@ function processingItems(facts: ReadinessFacts): CheckItem[] {
       // invalidates it. On is a hard fail, not a warning.
       return { id: name, label: PROCESSING_LABEL[name], state: 'fail' as const, detail: 'On — turn it off' };
     }
+    if (reported === 'intentional') {
+      /*
+         Requested on purpose by a diagnostic profile. Still not a pass — the
+         processing is genuinely applied and the measurement is affected — but
+         calling it a fault would be wrong when it is the thing being tested.
+      */
+      return {
+        id: name, label: PROCESSING_LABEL[name], state: 'warning' as const,
+        detail: 'On — asked for by the diagnostic profile',
+      };
+    }
     if (reported === 'unreported') {
       return { id: name, label: PROCESSING_LABEL[name], state: 'unknown' as const, detail: 'Browser did not say' };
     }

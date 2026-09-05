@@ -32,20 +32,34 @@ export type VariantId = 'ours' | 'ec-only' | 'ns-only' | 'gain-only' | 'voice' |
 export const VARIANTS: { id: VariantId; label: string; note: string }[] = [
   { id: 'ours', label: 'All processing off', note: 'What the app asks for.' },
   /*
-     The one variant that could be adopted without losing anything.
+     The variant worth testing against ours, because it changes one thing.
 
-     Android routes a chosen input on the communication audio path, and Chrome
-     only takes that path when echo cancellation is on. With nothing playing
-     there is no echo to cancel, and gain control and noise suppression stay
-     off — so if this reaches a device that "all off" cannot, it is a routing
-     fix rather than a trade.
+     Chromium's Android audio manager avoids entering communication mode when
+     the effects mask is NO_EFFECTS, and the chosen input is routed on the
+     communication path — so asking for echo cancellation can change which
+     device is captured, not just how it sounds.
+
+     It is not free. Android's source-specific tuning can apply different
+     preprocessing on a different path, and the absence of playback does not
+     make the chain transparent. If this reaches a device that "all off"
+     cannot, that is a lead to verify physically, not a settled trade.
   */
   { id: 'ec-only', label: 'Echo cancellation only', note: 'Gain control and noise suppression still off.' },
   { id: 'ns-only', label: 'Noise suppression only', note: 'The other half of the pair, on its own.' },
   { id: 'gain-only', label: 'Gain control on', note: 'Louder, but amplitude is no longer measurable.' },
   { id: 'voice', label: 'Full voice processing', note: 'What a call or dictation app asks for.' },
-  { id: 'unconstrained', label: 'No constraints at all', note: 'Whatever the platform prefers.' },
+  /* Named for what it does: the device is still pinned, only the processing
+     is left to the browser. Its success is not evidence that USB selection
+     worked, because every variant here asks for the same exact device. */
+  { id: 'unconstrained', label: 'Device only; browser processing defaults', note: 'Processing left to the browser.' },
 ];
+
+/*
+   The profiles the ordinary capture path will run under, for identifying which
+   microphone is physically being heard. Deliberately only two: the app's own
+   request, and the one variable worth changing.
+*/
+export type CaptureProfile = Extract<VariantId, 'ours' | 'ec-only'>;
 
 export function constraintsFor(id: VariantId, deviceId: string): MediaStreamConstraints {
   const device = { deviceId: { exact: deviceId } };

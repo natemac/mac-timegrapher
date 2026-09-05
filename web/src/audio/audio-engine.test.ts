@@ -8,7 +8,8 @@
 */
 
 import { describe, it, expect } from 'vitest';
-import { buildAudioConstraints, checkAppliedProcessing } from './audio-engine';
+import { buildAudioConstraints, checkAppliedProcessing, deviceIdMismatch } from './audio-engine';
+import { constraintsFor } from './device-test';
 
 describe('buildAudioConstraints', () => {
   const audio = () => buildAudioConstraints('usb-1').audio as MediaTrackConstraints;
@@ -88,4 +89,82 @@ describe('checkAppliedProcessing', () => {
     expect(applied(settings)).toEqual(['noiseSuppression']);
     expect(unreported(settings)).toEqual(['autoGainControl']);
   });
+});
+
+describe('the two capture profiles', () => {
+  /*
+     The whole point of an A/B is that one thing differs. If the profiles drift
+     apart in any other constraint, a difference in what is captured stops
+     meaning anything.
+  */
+  it('differ only in echo cancellation', () => {
+    const ours = constraintsFor('ours', 'dev-1').audio as MediaTrackConstraints;
+    const ec = constraintsFor('ec-only', 'dev-1').audio as MediaTrackConstraints;
+    expect(ours.echoCancellation).toBe(false);
+    expect(ec.echoCancellation).toBe(true);
+    for (const key of ['autoGainControl', 'noiseSuppression', 'channelCount'] as const) {
+      expect(ec[key]).toEqual(ours[key]);
+    }
+    expect(ec.deviceId).toEqual(ours.deviceId);
+    expect(ec.deviceId).toEqual({ exact: 'dev-1' });
+  });
+
+  /* The default request must be untouched by any of this, because it is what
+     every already-working Apple and desktop device uses. */
+  it('leaves the app default identical to buildAudioConstraints', () => {
+    expect(constraintsFor('ours', 'dev-1')).toEqual(buildAudioConstraints('dev-1'));
+  });
+});
+
+describe('processing the caller asked for', () => {
+  it('is reported as intentional rather than as an override', () => {
+    const w = checkAppliedProcessing({ echoCancellation: true, autoGainControl: false, noiseSuppression: false },
+      ['echoCancellation']);
+    expect(w).toContainEqual({ setting: 'echoCancellation', state: 'intentional' });
+  });
+
+  it('still reports an override the caller did not ask for', () => {
+    const w = checkAppliedProcessing({ echoCancellation: true, autoGainControl: true, noiseSuppression: false },
+      ['echoCancellation']);
+    expect(w).toContainEqual({ setting: 'autoGainControl', state: 'applied' });
+  });
+
+  /* Safari omits keys from getSettings(); absent is unknown, never verified. */
+  it('keeps an absent setting unknown even when it was requested', () => {
+    const w = checkAppliedProcessing({ autoGainControl: false, noiseSuppression: false }, ['echoCancellation']);
+    expect(w).toContainEqual({ setting: 'echoCancellation', state: 'unreported' });
+  });
+});
+
+describe('the input the browser actually returned', () => {
+  /* Matching ids cannot prove the audio came from that device, but a mismatch
+     does prove it did not — and a stream answering a question nobody asked is
+     worse than no stream, because the reading looks ordinary. */
+  it('reports a concrete id that came back different', () => {
+    expect(deviceIdMismatch('usb-1', { deviceId: 'builtin-9' }))
+      .toEqual({ requested: 'usb-1', granted: 'builtin-9' });
+  });
+
+  it('accepts the id it asked for', () => {
+    expect(deviceIdMismatch('usb-1', { deviceId: 'usb-1' })).toBeNull();
+  });
+
+  /* 'default' resolves to whatever the platform picks, so a different concrete
+     id back is the alias working, not a substitution. */
+  it('does not accuse the default alias', () => {
+    expect(deviceIdMismatch('default', { deviceId: 'builtin-9' })).toBeNull();
+  });
+
+  it('treats a missing id as unknown rather than as a mismatch', () => {
+    expect(deviceIdMismatch('usb-1', {})).toBeNull();
+    expect(deviceIdMismatch('usb-1', { deviceId: '' })).toBeNull();
+  });
+});
+
+/* Every device that works today opens through this path, so a check meant to
+   catch a hypothetical substitution must not reject a platform that answers a
+   concrete request with the alias it resolved through. */
+it('does not treat an alias coming back as a substitution', () => {
+  expect(deviceIdMismatch('usb-1', { deviceId: 'default' })).toBeNull();
+  expect(deviceIdMismatch('usb-1', { deviceId: 'communications' })).toBeNull();
 });

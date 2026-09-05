@@ -94,6 +94,10 @@ export interface DiagnosticContext {
      identical logs. They need completely different fixes.
   */
   requestedDeviceId?: string | null;
+  /* Which constraints were asked for, kept separate from what the browser said
+     it granted. A reader cannot otherwise tell a deliberate diagnostic profile
+     from the browser overriding the request. */
+  captureProfile?: string | null;
   availableInputs?: { deviceId: string; label: string; groupId: string }[];
 }
 
@@ -254,6 +258,11 @@ export class DiagnosticsLog {
     // wrong: automatic gain control does not degrade amplitude, it invalidates
     // it.
     lines.push(`processing        ${c?.processing.length ? c.processing.join(', ') : 'none reported'}`);
+    lines.push(`capture profile   ${
+      c?.captureProfile === 'ec-only'
+        ? 'ec-only — echo cancellation requested deliberately (diagnostic)'
+        : 'ours — all processing off'
+    }`);
     lines.push(`input requested   ${short(c?.requestedDeviceId)}`);
     lines.push(`input granted     ${short(grantedId(c))}${deviceVerdict(c)}`);
     lines.push(`movement          ${c?.movement ?? 'not chosen'}`);
