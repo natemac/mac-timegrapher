@@ -117,6 +117,20 @@ export function checkAppliedProcessing(
    the requested id and captures from somewhere else anyway — that needs a
    physical source check.
 */
+/*
+   Whether this request deliberately switches a processing flag on. Read from
+   the constraints rather than from a profile name so the graph cannot drift
+   out of step with what was actually asked for.
+*/
+export function isProcessingRequested(
+  constraints: MediaStreamConstraints,
+  setting: 'echoCancellation' | 'autoGainControl' | 'noiseSuppression',
+): boolean {
+  const audio = constraints.audio;
+  if (!audio || typeof audio === 'boolean') return false;
+  return (audio as MediaTrackConstraints)[setting] === true;
+}
+
 /* Ids that name a choice rather than a device. */
 const ALIAS_IDS = new Set(['default', 'communications']);
 
@@ -220,13 +234,35 @@ export async function startCapture(
     };
     track.addEventListener('ended', handleEnded);
 
-    // A worklet is only pulled when its output reaches the destination, so route
-    // through a muted gain node rather than playing the watch out of the speakers.
+    /*
+       A worklet is only pulled when its output reaches a destination, so the
+       graph has to end somewhere. Which destination is not a free choice on
+       Android.
+
+       Reaching ctx.destination opens a hardware output stream, and Android
+       routes a communication device as an input/output pair — so about
+       thirty-four seconds after that output appears it re-evaluates the pair
+       and drags the input back to the built-in microphone. Measured on a
+       Pixel 3 XL with a USB pickup: an analyser alone held the USB input for
+       fifty seconds at full scale; the same graph ending at ctx.destination
+       collapsed by seventy decibels at thirty-four seconds every time; ending
+       at a MediaStreamAudioDestinationNode held for fifty-five.
+
+       A stream sink pulls the graph without opening a hardware output, so it
+       is used wherever the route has to survive. It is not the default,
+       because every Apple and desktop device that works today works through
+       ctx.destination and Safari has its own history with stream sinks.
+    */
+    const usesCommunicationRoute = isProcessingRequested(constraints, 'echoCancellation');
+    const sink: AudioNode = usesCommunicationRoute
+      ? ctx.createMediaStreamDestination()
+      : ctx.destination;
+
     const silence = ctx.createGain();
     silence.gain.value = 0;
     source.connect(node);
     node.connect(silence);
-    silence.connect(ctx.destination);
+    silence.connect(sink);
 
     return {
       context: ctx,

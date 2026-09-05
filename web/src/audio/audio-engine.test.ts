@@ -8,7 +8,7 @@
 */
 
 import { describe, it, expect } from 'vitest';
-import { buildAudioConstraints, checkAppliedProcessing, deviceIdMismatch } from './audio-engine';
+import { buildAudioConstraints, checkAppliedProcessing, deviceIdMismatch, isProcessingRequested } from './audio-engine';
 import { constraintsFor } from './device-test';
 
 describe('buildAudioConstraints', () => {
@@ -167,4 +167,36 @@ describe('the input the browser actually returned', () => {
 it('does not treat an alias coming back as a substitution', () => {
   expect(deviceIdMismatch('usb-1', { deviceId: 'default' })).toBeNull();
   expect(deviceIdMismatch('usb-1', { deviceId: 'communications' })).toBeNull();
+});
+
+describe('which destination the graph ends at', () => {
+  /*
+     Measured on a Pixel 3 XL with a USB pickup, three runs differing only in
+     the sink: an analyser alone held the USB input for 50s at full scale; the
+     same graph ending at ctx.destination collapsed by ~70 dB at 34s every
+     time; ending at a MediaStreamAudioDestinationNode held for 55s.
+
+     Android routes a communication device as an input/output pair, so a
+     hardware output stream is what triggers the re-pair. The choice is read
+     from the constraints, not from a profile name, so the graph cannot drift
+     out of step with what was actually requested.
+  */
+  it('recognises a request that deliberately turns echo cancellation on', () => {
+    expect(isProcessingRequested(constraintsFor('ec-only', 'd'), 'echoCancellation')).toBe(true);
+  });
+
+  it('leaves the app default off the communication route', () => {
+    expect(isProcessingRequested(constraintsFor('ours', 'd'), 'echoCancellation')).toBe(false);
+    expect(isProcessingRequested(buildAudioConstraints('d'), 'echoCancellation')).toBe(false);
+  });
+
+  it('does not mistake another flag for echo cancellation', () => {
+    expect(isProcessingRequested(constraintsFor('gain-only', 'd'), 'echoCancellation')).toBe(false);
+    expect(isProcessingRequested(constraintsFor('gain-only', 'd'), 'autoGainControl')).toBe(true);
+  });
+
+  it('treats audio:true as requesting nothing in particular', () => {
+    expect(isProcessingRequested({ audio: true }, 'echoCancellation')).toBe(false);
+    expect(isProcessingRequested({ audio: false }, 'echoCancellation')).toBe(false);
+  });
 });
