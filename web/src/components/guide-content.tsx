@@ -24,7 +24,7 @@ export type Topic =
   // page is a list of controls and not a wall of prose.
   | 'setting-movement' | 'setting-steadiness' | 'setting-branding'
   | 'setting-magnification' | 'setting-history' | 'setting-diagnostics'
-  | 'setting-route'
+  | 'android-usb'
   | 'setting-clock';
 
 export interface GuideEntry {
@@ -163,9 +163,9 @@ export const GUIDE: Record<Topic, GuideEntry> = {
     ),
   },
 
-  'setting-route': {
-    title: 'Microphone route',
-    lede: 'Which audio path the app opens. It decides whether a chosen input is reached at all, and whether amplitude means anything.',
+  'android-usb': {
+    title: 'USB pickups on Android',
+    lede: 'Android reaches a chosen microphone only on one audio path, and taking it costs something on Chrome. Both are handled for you.',
     body: (
       <>
         <p>
@@ -197,11 +197,11 @@ export const GUIDE: Record<Topic, GuideEntry> = {
           readings carry no warning.
         </p>
         <p>
-          <b>Automatic</b> is right for every device known so far: the
-          compatibility route on Android, the direct route everywhere else. The
-          two overrides exist because this is platform behaviour that can
-          change, and being wrong about it should never leave you unable to
-          measure.
+          None of this is a setting. Android is asked for the route it needs
+          and every other platform is not, because the answer is the same for
+          every Android device tested — the first report came from a phone
+          where both Chrome and Firefox failed to reach the pickup. A control
+          here could only let you pick the configuration that cannot measure.
         </p>
       </>
     ),
@@ -596,4 +596,8 @@ export const GUIDE: Record<Topic, GuideEntry> = {
 export const GUIDE_ORDER: Topic[] = [
   'modes', 'input', 'measurement', 'settling', 'signal', 'trace', 'beat',
   'waveform', 'inspection',
+  /* Reads as part of the input story rather than as a setting, because it is
+     no longer one — it sits last so it does not interrupt the walkthrough for
+     the people it does not affect. */
+  'android-usb',
 ];

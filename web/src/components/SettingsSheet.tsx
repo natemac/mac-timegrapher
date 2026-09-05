@@ -21,7 +21,6 @@ import { ReadinessCheck } from './ReadinessCheck';
 import type { ReadinessReport } from '../timegrapher/readiness';
 import { DeviceTest } from './DeviceTest';
 import type { DeviceTestReport, TestProgress } from '../audio/device-test';
-import { CAPTURE_ROUTES, resolveCaptureProfile, type CaptureRoute } from '../audio/capture-route';
 
 export interface Settings {
   /** Milliseconds of drift spanning the trace width. Smaller magnifies more. */
@@ -44,13 +43,6 @@ export interface Settings {
      it is left at zero — a constant offset, invisible to the spread.
   */
   clockDriftSecondsPerDay: number;
-  /*
-     Which audio route to open. 'auto' is right for every device we know of —
-     the compatibility route on Android, direct everywhere else. The override
-     exists because this is a platform behaviour that can change, and being
-     wrong about it must not leave anyone unable to measure.
-  */
-  captureRoute: CaptureRoute;
 }
 
 /* Auto by default: the operator should not have to work out that +17 s/day
@@ -60,7 +52,6 @@ export const DEFAULT_SETTINGS: Settings = {
   traceSeconds: 30,
   showLogo: false,
   clockDriftSecondsPerDay: 0,
-  captureRoute: 'auto',
 };
 
 /* Magnification in the units a watchmaker already thinks in, plus Auto. */
@@ -472,33 +463,6 @@ export function SettingsSheet({
                   />
                   <span>Show the MAC mark</span>
                 </label>
-              </Setting>
-
-              <Setting onInfo={setInfo} label="Microphone route" topic="setting-route">
-                <div className="settings__route">
-                  {CAPTURE_ROUTES.map((r) => (
-                    <button
-                      key={r.id}
-                      className={settings.captureRoute === r.id ? '' : 'secondary'}
-                      onClick={() => onChange({ ...settings, captureRoute: r.id })}
-                      disabled={capturing}
-                      aria-pressed={settings.captureRoute === r.id}
-                      style={{ fontSize: 13 }}
-                    >
-                      {r.label}
-                    </button>
-                  ))}
-                </div>
-                <p className="dim settings__route-note">
-                  {CAPTURE_ROUTES.find((r) => r.id === settings.captureRoute)!.note}
-                </p>
-                {resolveCaptureProfile(settings.captureRoute, navigator.userAgent) === 'ec-only' && (
-                  <p className="dim settings__route-note">
-                    In force now: amplitude is withheld, because this route
-                    applies gain control of its own that no constraint can turn
-                    off. Rate and beat error are unaffected.
-                  </p>
-                )}
               </Setting>
 
               <Setting onInfo={setInfo} label="Session diagnostics" topic="setting-diagnostics">

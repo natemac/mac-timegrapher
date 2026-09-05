@@ -25,18 +25,17 @@ import type { CaptureProfile } from './device-test';
    where the impulse peak sits in time, so it cannot be trusted there, and the
    panel withholds it. Rate and beat error read timing and survive.
 
-   Everywhere else the direct route is correct and already works, so 'auto'
-   means the compatibility route on Android and the direct route elsewhere.
-   The override exists because this is a platform behaviour that may change,
-   and being wrong about it should not leave anyone unable to measure.
-*/
-export type CaptureRoute = 'auto' | 'direct' | 'compatibility';
+   It applies to Android as a platform, not to one browser. The first report
+   of this came from a Pixel 9 Pro where Chrome and Firefox both failed to
+   reach a USB pickup, and it was reproduced on a Pixel 3 XL — so the route is
+   chosen by the operating system and there is nothing here for anyone to
+   decide. Everywhere else the direct route is correct and already works.
 
-export const CAPTURE_ROUTES: { id: CaptureRoute; label: string; note: string }[] = [
-  { id: 'auto', label: 'Automatic', note: 'Compatibility on Android, direct everywhere else.' },
-  { id: 'direct', label: 'Direct', note: 'All processing off. Amplitude is measurable.' },
-  { id: 'compatibility', label: 'Compatibility', note: 'Echo cancellation on. Needed to reach a USB pickup on Android; amplitude is not measurable.' },
-];
+   There was a setting offering this as a choice while it was still being
+   worked out. It is gone: the answer is known for every Android device tested,
+   and the only thing a control could do now is let someone quietly select the
+   configuration that cannot measure.
+*/
 
 /*
    Read from the user agent because that is what decides the audio backend.
@@ -47,10 +46,8 @@ export function isAndroid(userAgent: string): boolean {
   return /android/i.test(userAgent);
 }
 
-/** The constraints profile a route resolves to on this device. */
-export function resolveCaptureProfile(route: CaptureRoute, userAgent: string): CaptureProfile {
-  if (route === 'direct') return 'ours';
-  if (route === 'compatibility') return 'ec-only';
+/** Which constraints to open a capture with on this device. */
+export function resolveCaptureProfile(userAgent: string): CaptureProfile {
   return isAndroid(userAgent) ? 'ec-only' : 'ours';
 }
 

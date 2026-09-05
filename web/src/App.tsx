@@ -275,12 +275,12 @@ export default function App() {
   */
   const activeDeviceId = useRef<string | null>(null);
   /*
-     Which constraints a capture opens with, resolved from the saved route and
-     the platform. Android needs the communication route to reach a chosen
-     input at all; everywhere else the direct route is correct and measures
-     amplitude, so that stays the default.
+     Which constraints a capture opens with. Android needs the communication
+     route to reach a chosen input at all — Chrome and Firefox both fail
+     without it — and everywhere else the direct route is correct and measures
+     amplitude. Nothing here is a preference.
   */
-  const captureProfile = resolveCaptureProfile(settings.captureRoute, navigator.userAgent);
+  const captureProfile = resolveCaptureProfile(navigator.userAgent);
   /*
      Which start request is still allowed to publish a session.
 

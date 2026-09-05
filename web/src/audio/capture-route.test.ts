@@ -11,6 +11,7 @@ import {
   isAndroid, isChromiumAndroid, resolveCaptureProfile, amplitudeCaveat,
 } from './capture-route';
 
+const FIREFOX_ANDROID = 'Mozilla/5.0 (Android 14; Mobile; rv:109.0) Gecko/109.0 Firefox/121.0';
 const ANDROID = 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/152.0.0.0 Mobile Safari/537.36';
 const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1';
 const IPAD = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15';
@@ -19,16 +20,22 @@ const MAC = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 
 describe('which route a device gets', () => {
   /*
      Android binds a chosen input only on its communication route, so a USB
-     pickup is unreachable without echo cancellation. Everywhere else the
-     direct route works and measures amplitude, so it stays the default.
+     pickup is unreachable without echo cancellation. It is the platform, not
+     one browser: first reported on a Pixel 9 Pro where Chrome and Firefox both
+     failed to reach the pickup, then reproduced on a Pixel 3 XL. Everywhere
+     else the direct route works and measures amplitude.
   */
   it('picks the compatibility route on Android', () => {
-    expect(resolveCaptureProfile('auto', ANDROID)).toBe('ec-only');
+    expect(resolveCaptureProfile(ANDROID)).toBe('ec-only');
+  });
+
+  it('picks it for Firefox on Android too, which also could not reach a pickup', () => {
+    expect(resolveCaptureProfile(FIREFOX_ANDROID)).toBe('ec-only');
   });
 
   it('leaves every other platform on the direct route', () => {
     for (const ua of [IPHONE, IPAD, MAC]) {
-      expect(resolveCaptureProfile('auto', ua)).toBe('ours');
+      expect(resolveCaptureProfile(ua)).toBe('ours');
     }
   });
 
@@ -39,15 +46,8 @@ describe('which route a device gets', () => {
     expect(isAndroid(ANDROID)).toBe(true);
   });
 
-  /* The override is the safety valve: a platform behaviour may change, and
-     being wrong about it must never leave someone unable to measure. */
-  it('honours an explicit override in both directions', () => {
-    expect(resolveCaptureProfile('direct', ANDROID)).toBe('ours');
-    expect(resolveCaptureProfile('compatibility', MAC)).toBe('ec-only');
-  });
 });
 
-const FIREFOX_ANDROID = 'Mozilla/5.0 (Android 14; Mobile; rv:109.0) Gecko/109.0 Firefox/121.0';
 const SAMSUNG = 'Mozilla/5.0 (Linux; Android 13; SAMSUNG SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/23.0 Chrome/115.0.0.0 Mobile Safari/537.36';
 const EDGE_ANDROID = 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 EdgA/120.0';
 

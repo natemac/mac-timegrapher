@@ -48,10 +48,7 @@ describe('loadSettings', () => {
   });
 
   it('round-trips every setting', () => {
-    const chosen = {
-      zoomMs: 10, traceSeconds: 60, showLogo: true, clockDriftSecondsPerDay: 4.32,
-      captureRoute: 'compatibility' as const,
-    };
+    const chosen = { zoomMs: 10, traceSeconds: 60, showLogo: true, clockDriftSecondsPerDay: 4.32 };
     saveSettings(chosen);
     expect(loadSettings()).toEqual(chosen);
   });
@@ -133,16 +130,3 @@ describe('the audio clock correction, typed by hand', () => {
   });
 });
 
-/*
-   A preference saved before the route setting existed must keep working, and
-   must land on 'auto' rather than on undefined — an undefined route would
-   resolve to the direct path and leave an Android user unable to reach a USB
-   pickup at all, which is the failure this setting exists to prevent.
-*/
-it('gives a settings file saved before the route existed the automatic one', () => {
-  localStorage.setItem(
-    'mac-timegrapher.settings',
-    JSON.stringify({ zoomMs: 10, traceSeconds: 60, showLogo: true, clockDriftSecondsPerDay: 0 }),
-  );
-  expect(loadSettings().captureRoute).toBe('auto');
-});
