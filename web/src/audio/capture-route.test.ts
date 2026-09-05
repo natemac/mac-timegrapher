@@ -78,7 +78,7 @@ describe('warning about an amplitude rather than hiding it', () => {
   /* Shown either way: a reading with a caveat can be checked against another
      device, a blank cannot be checked against anything. */
   it('warns on Chrome for Android, on the route where it was measured', () => {
-    expect(amplitudeCaveat('ec-only', ANDROID)).toBe('May be inaccurate in this browser');
+    expect(amplitudeCaveat('ec-only', ANDROID)).toBe('May be inaccurate in this browser — try Firefox');
   });
 
   it('says nothing on Firefox for Android', () => {

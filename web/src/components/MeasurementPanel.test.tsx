@@ -247,15 +247,15 @@ describe('an amplitude that may be wrong on this browser', () => {
   /* Shown, not hidden: a caveated reading can be checked against another
      device, a blank cannot be checked against anything. */
   it('shows the figure and the warning together', () => {
-    render(<MeasurementPanel {...props} amplitudeCaveat="May be inaccurate in this browser" />);
+    render(<MeasurementPanel {...props} amplitudeCaveat="May be inaccurate in this browser — try Firefox" />);
     expect(screen.getByText('171')).toBeInTheDocument();
-    expect(screen.getByText('May be inaccurate in this browser')).toBeInTheDocument();
+    expect(screen.getByText("May be inaccurate in this browser — try Firefox")).toBeInTheDocument();
   });
 
   /* Rate and beat error read timing rather than level, so they survive the
      same processing and must not be withheld with it. */
   it('keeps rate and beat error, which the gain does not invalidate', () => {
-    render(<MeasurementPanel {...props} amplitudeCaveat="May be inaccurate in this browser" />);
+    render(<MeasurementPanel {...props} amplitudeCaveat="May be inaccurate in this browser — try Firefox" />);
     expect(screen.getByText('-4.2')).toBeInTheDocument();
     expect(screen.getByText('1.0')).toBeInTheDocument();
   });

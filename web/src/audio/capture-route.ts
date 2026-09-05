@@ -78,8 +78,12 @@ export function isChromiumAndroid(userAgent: string): boolean {
 
    The figure is shown either way. A reading with a caveat can be checked
    against another device; a blank cannot be checked against anything.
+
+   And the caveat names the way out. Firefox is on the same phone, needs no
+   hardware and no account, and measures this correctly — so the useful thing
+   to say is not only that the number is suspect but what to do about it.
 */
 export function amplitudeCaveat(profile: CaptureProfile, userAgent: string): string | null {
   if (profile !== 'ec-only') return null;
-  return isChromiumAndroid(userAgent) ? 'May be inaccurate in this browser' : null;
+  return isChromiumAndroid(userAgent) ? 'May be inaccurate in this browser — try Firefox' : null;
 }
