@@ -22,6 +22,22 @@ function fill(
   }
 }
 
+/*
+   The tracker ignores the first three seconds of a run, because the readings
+   jolt while the lock forms and one of those pins the range for the next
+   thirty seconds. Tests about what the window holds have to step over it
+   first; the values pushed here are discarded by design, so they cannot
+   colour what follows.
+
+   Returns the time to carry on from.
+*/
+function warmUp(t: StabilityTracker, from = 0): number {
+  // Strictly inside the window: a sample landing exactly on the boundary
+  // counts, and would drag the range it is meant to keep out of.
+  for (let i = 0; i * 0.5 < 3; i++) t.push(from + i * 0.5, 0, 0, 0, 0.5);
+  return from + 3.5;
+}
+
 describe('spread', () => {
   it('is null before anything has been pushed', () => {
     expect(new StabilityTracker().spread('rate')).toBeNull();
@@ -109,13 +125,13 @@ describe('best spread', () => {
 
   it('records the tightest window once enough samples exist', () => {
     const t = new StabilityTracker();
-    fill(t, MIN_SAMPLES_FOR_BEST + 4, 0.4);
+    fill(t, MIN_SAMPLES_FOR_BEST + 4, 0.4, { from: warmUp(t) });
     expect(t.best().rate).toBeCloseTo(0.4, 5);
   });
 
   it('keeps the best rather than the latest', () => {
     const t = new StabilityTracker();
-    fill(t, MIN_SAMPLES_FOR_BEST + 4, 0.2);
+    fill(t, MIN_SAMPLES_FOR_BEST + 4, 0.2, { from: warmUp(t) });
     const tight = t.best().rate!;
     fill(t, MIN_SAMPLES_FOR_BEST + 4, 3, { from: 100 });
     expect(t.best().rate).toBeCloseTo(tight, 5);
@@ -145,7 +161,8 @@ describe('best spread', () => {
      those is not a steady amplitude. */
   it('does not let undetermined amplitude set the record', () => {
     const t = new StabilityTracker();
-    for (let i = 0; i < MIN_SAMPLES_FOR_BEST + 4; i++) t.push(i * 0.5, 10, 0, 0.3);
+    const t0 = warmUp(t);
+    for (let i = 0; i < MIN_SAMPLES_FOR_BEST + 4; i++) t.push(t0 + i * 0.5, 10, 0, 0.3);
     expect(t.best().amplitude).toBeNull();
     expect(t.best().rate).not.toBeNull();
   });
@@ -308,10 +325,13 @@ describe('a reading as the core gains confidence', () => {
 
   it('starts a fresh window at each step up', () => {
     const t = new StabilityTracker();
-    t.push(0.5, 99, 99, 9, 0.5);
-    t.push(1.0, 12, 210, 1.6, 0.75);
+    // Warm-up runs at the lowest confidence, so the first real push below is
+    // a step up and clears whatever it left behind.
+    const t0 = warmUp(t);
+    t.push(t0, 99, 99, 9, 0.5);
+    t.push(t0 + 0.5, 12, 210, 1.6, 0.75);
     expect(t.spread('rate')!.count).toBe(1);
-    t.push(1.5, 12, 210, 1.6, 1);
+    t.push(t0 + 1.0, 12, 210, 1.6, 1);
     expect(t.spread('rate')!.count).toBe(1);
     expect(t.spread('rate')!.mean).toBe(12);
   });
@@ -320,7 +340,70 @@ describe('a reading as the core gains confidence', () => {
     const t = new StabilityTracker();
     replay(t);
     t.reset();
-    t.push(0.5, 13, 218, 1.5, 0.5);
+    // reset() restarts the warm-up too: a restarted average is a fresh run,
+    // and the jolt it is there to absorb happens again.
+    const t0 = warmUp(t, 100);
+    t.push(t0, 13, 218, 1.5, 0.5);
     expect(t.spread('rate')!.count).toBe(1);
+  });
+});
+
+describe('the first seconds of a lock', () => {
+  /*
+     Reported from a Pixel: amplitude reading 280 degrees with a spread of
+     +/-140. A balance does not swing by half its own amplitude — the range was
+     0 to 280, one report of "could not determine" against a settled reading.
+  */
+  it('does not let an undetermined amplitude halve the reading', () => {
+    const t = new StabilityTracker();
+    const t0 = warmUp(t);
+    t.push(t0, 10, 0, 0.3);
+    for (let i = 1; i < 12; i++) t.push(t0 + i * 0.5, 10, 280, 0.3);
+    const amp = t.spread('amplitude')!;
+    expect(amp.plusMinus).toBe(0);
+    expect(amp.mean).toBe(280);
+    expect(amp.min).toBe(280);
+  });
+
+  it('reports nothing rather than zero when amplitude never resolved', () => {
+    const t = new StabilityTracker();
+    const t0 = warmUp(t);
+    for (let i = 0; i < 12; i++) t.push(t0 + i * 0.5, 10, 0, 0.3);
+    expect(t.spread('amplitude')).toBeNull();
+    // Rate is genuine at zero and must survive the same filter.
+    expect(t.spread('rate')!.count).toBe(12);
+  });
+
+  /* The reading is shown from the first report; only the range waits, because
+     a range is a claim about movement and three seconds cannot support one. */
+  it('withholds a spread until the run has been going three seconds', () => {
+    const t = new StabilityTracker();
+    t.push(0.5, 10, 260, 0.3);
+    t.push(1.0, 99, 12, 9.9);
+    t.push(2.5, 10, 260, 0.3);
+    expect(t.spread('rate')).toBeNull();
+    expect(t.spread('amplitude')).toBeNull();
+  });
+
+  it('starts measuring the spread once the warm-up has passed', () => {
+    const t = new StabilityTracker();
+    // A jolt inside the warm-up, then a steady reading after it.
+    t.push(0.5, 99, 12, 9.9);
+    t.push(1.0, 10, 260, 0.3);
+    for (let i = 0; i < 8; i++) t.push(3.5 + i * 0.5, 10, 260, 0.3);
+    const rate = t.spread('rate')!;
+    expect(rate.count).toBe(8);
+    expect(rate.plusMinus).toBe(0);
+    expect(t.spread('amplitude')!.plusMinus).toBe(0);
+  });
+
+  /* Restarting the average is a fresh run, and the jolt happens again. */
+  it('warms up again after the average is restarted', () => {
+    const t = new StabilityTracker();
+    for (let i = 0; i < 20; i++) t.push(i * 0.5, 10, 260, 0.3);
+    expect(t.spread('rate')).not.toBeNull();
+    t.reset();
+    t.push(10.5, 99, 12, 9.9);
+    expect(t.spread('rate')).toBeNull();
   });
 });

@@ -68,6 +68,20 @@ export const MIN_SAMPLES_FOR_BEST = 10;
 const WINDOW_SECONDS = 30;
 
 /**
+ * How long a fresh lock is watched before its readings count towards a spread.
+ *
+ * The first seconds after the analysis latches on are a transient, not a
+ * measurement: the readings jolt as the core finds the beat, and a single one
+ * of those pins the range for the next thirty seconds. The reading itself is
+ * shown throughout — it is only the +/- that waits, because a range is a claim
+ * about how much a figure moves and the answer is not yet knowable.
+ *
+ * Timed from the first report of a run rather than from every change in the
+ * core's confidence, which has its own handling in push().
+ */
+const WARMUP_SECONDS = 3;
+
+/**
  * A reading is settled when its spread stays inside these bounds.
  *
  * Measured, not chosen. A USB pickup on a running NH35 with an excellent
@@ -134,9 +148,13 @@ export class StabilityTracker {
   */
   private tightest: BestSpread = { rate: null, amplitude: null, beatError: null };
 
+  /** When the current run first reported, for the warm-up. */
+  private firstReportAt: number | null = null;
+
   reset(): void {
     this.samples = [];
     this.quality = 0;
+    this.firstReportAt = null;
   }
 
   /** Forget what this bench has managed — a new watch on a new mount. */
@@ -176,10 +194,20 @@ export class StabilityTracker {
    * would leave a wandering signal permanently unable to fill a window.
    */
   push(now: number, rate: number, amplitude: number, beatError: number, quality = 1): void {
+    if (this.firstReportAt === null) this.firstReportAt = now;
+
     if (quality > this.quality) {
       this.samples = [];
       this.quality = quality;
     }
+
+    /*
+       Still settling in. Counted for the warm-up, kept out of the window: one
+       jolt from a lock that has not finished forming sets the range for the
+       next thirty seconds, and a watch reading 280 degrees does not swing by
+       140 of them.
+    */
+    if (now - this.firstReportAt < WARMUP_SECONDS) return;
 
     this.samples.push({ t: now, rate, amplitude, beatError });
     const cutoff = now - WINDOW_SECONDS;
@@ -200,18 +228,31 @@ export class StabilityTracker {
     let min = Infinity;
     let max = -Infinity;
     let sum = 0;
+    let count = 0;
     for (const s of this.samples) {
       const v = s[field];
+      /*
+         Zero amplitude is the core saying it could not determine one, not a
+         balance at rest. Averaging it in drags the mean down; taking it as the
+         minimum is worse, because the range then reads as half the reading —
+         a watch showing 280 degrees came back as +/-140, which is 0 to 280
+         rather than anything the balance did.
+
+         Rate and beat error are genuine at zero and are not filtered.
+      */
+      if (field === 'amplitude' && v <= 0) continue;
       if (v < min) min = v;
       if (v > max) max = v;
       sum += v;
+      count++;
     }
+    if (count === 0) return null;
     return {
-      mean: sum / this.samples.length,
+      mean: sum / count,
       min,
       max,
       plusMinus: (max - min) / 2,
-      count: this.samples.length,
+      count,
     };
   }
 
