@@ -55,18 +55,34 @@ export function resolveCaptureProfile(route: CaptureRoute, userAgent: string): C
 }
 
 /*
-   Amplitude is withheld on the compatibility route, and the reason is worth
-   stating where it is missed rather than only in settings.
+   Whether this is a Chromium browser on Android — Chrome itself, Edge, Opera,
+   Samsung Internet, anything sharing that audio backend. They all carry a
+   Chrome/ token; Firefox on Android carries none, which is the distinction
+   that matters here.
 */
-export function amplitudeUnavailableReason(
-  profile: CaptureProfile,
-  userAgent: string,
-): string | null {
+export function isChromiumAndroid(userAgent: string): boolean {
+  return isAndroid(userAgent) && /Chrome\//.test(userAgent);
+}
+
+/*
+   Whether the amplitude on screen deserves a warning under it.
+
+   The gain control that makes amplitude untrustworthy was measured on Chrome
+   for Android, on the communication route: the level climbs to full scale
+   within a second of the capture opening and stays there, and padding the
+   movement raised it rather than lowered it. Amplitude read 156-171 degrees
+   against 282-291 for the same watch on the same pickup elsewhere.
+
+   Firefox on Android is not affected. On the same handset and the same USB
+   adapter it reports a clean signal 24-27 dB over the room with no clipping,
+   and a rate that settles — so the fault belongs to one browser's audio
+   backend rather than to the platform, and its readings should not carry
+   somebody else's warning.
+
+   The figure is shown either way. A reading with a caveat can be checked
+   against another device; a blank cannot be checked against anything.
+*/
+export function amplitudeCaveat(profile: CaptureProfile, userAgent: string): string | null {
   if (profile !== 'ec-only') return null;
-  /* Naming the platform is the honest form on the device this ships to, but
-     the route can be forced anywhere, and saying "Android" on a Mac would be
-     a plain falsehood. */
-  return isAndroid(userAgent)
-    ? 'Not available on Android at this time'
-    : 'Not available on this route at this time';
+  return isChromiumAndroid(userAgent) ? 'May be inaccurate in this browser' : null;
 }

@@ -31,8 +31,7 @@ interface Props {
   */
   clockCheck?: Calibration | null;
   /*
-     Amplitude is known to be meaningless for this capture, so it is withheld
-     rather than printed.
+     A warning to sit under the amplitude, where it is read.
 
      Measured on a Pixel 3 XL: the route that reaches a USB pickup on Android
      is the communication route, and that route applies its own gain control
@@ -47,7 +46,7 @@ interface Props {
      same pickup through a Mac. Rate and beat error read timing rather than
      level and survive, which is why only this one is withheld.
   */
-  amplitudeUnavailable?: { reason: string } | null;
+  amplitudeCaveat?: string | null;
   onHelp: (t: Topic) => void;
   onResetAverage: () => void;
   /** Save the reading on screen as an image. Absent while there is none. */
@@ -83,7 +82,7 @@ const MIN_SECONDS = 2;
 const DASH = '—';
 
 function Reading({
-  label, value, unit, spread, format, sub, insteadOfValue,
+  label, value, unit, spread, format, sub, note,
 }: {
   label: string;
   value: string;
@@ -99,45 +98,37 @@ function Reading({
      spare, so it is set small enough to occupy the same two lines the figure
      and its spread would have taken.
   */
-  insteadOfValue?: string;
+  /*
+     A short warning under the spread, for a figure that is real but may be
+     wrong on this browser. Deliberately not a replacement for the number:
+     a caveated reading can be checked against another device, a blank cannot
+     be checked against anything.
+  */
+  note?: string;
 }) {
   return (
     <div>
       <div className="eyebrow">{label}</div>
-      {insteadOfValue ? (
-        <div
-          className="dim"
-          style={{
-            fontSize: 12,
-            lineHeight: 1.25,
-            // Two lines here plus nothing below equals the figure plus its
-            // spread, so the tile keeps the height it already had.
-            minHeight: 52,
-            paddingTop: 4,
-            maxWidth: '14em',
-          }}
-        >
-          {insteadOfValue}
-        </div>
-      ) : (
-        <div
-          className="mono"
-          style={{
-            fontSize: 'clamp(26px, 8vw, 34px)',
-            lineHeight: 1.1,
-            fontWeight: 500,
-            fontVariantNumeric: 'tabular-nums',
-            letterSpacing: '-0.02em',
-          }}
-        >
-          {value}
-          {unit && <span className="dim" style={{ fontSize: 13, marginLeft: 4 }}>{unit}</span>}
-        </div>
-      )}
+      <div
+        className="mono"
+        style={{
+          fontSize: 'clamp(26px, 8vw, 34px)',
+          lineHeight: 1.1,
+          fontWeight: 500,
+          fontVariantNumeric: 'tabular-nums',
+          letterSpacing: '-0.02em',
+        }}
+      >
+        {value}
+        {unit && <span className="dim" style={{ fontSize: 13, marginLeft: 4 }}>{unit}</span>}
+      </div>
       {/* Spread is the point: a reading cannot be judged without it. */}
-      {!insteadOfValue && (
-        <div className="mono dim" style={{ fontSize: 11, minHeight: 15 }}>
-          {sub ?? (spread && format ? `±${format(spread.plusMinus)}` : '')}
+      <div className="mono dim" style={{ fontSize: 11, minHeight: 15 }}>
+        {sub ?? (spread && format ? `±${format(spread.plusMinus)}` : '')}
+      </div>
+      {note && (
+        <div className="warn" style={{ fontSize: 10.5, lineHeight: 1.25, maxWidth: '15em' }}>
+          {note}
         </div>
       )}
     </div>
@@ -147,7 +138,7 @@ function Reading({
 export function MeasurementPanel({
   measurement, capturing, secondsCaptured, settling, spreads, onHelp, onResetAverage,
   onSnapshot, guidance = true, quartz = false, summary = null, clockCheck = null,
-  amplitudeUnavailable = null,
+  amplitudeCaveat = null,
 }: Props) {
   const m = measurement;
   const live = m?.valid ?? false;
@@ -163,8 +154,7 @@ export function MeasurementPanel({
   const range = (lo: number, hi: number, f: (n: number) => string) =>
     (lo === hi ? '' : `${f(lo)} to ${f(hi)}`);
   const warmingUp = capturing && secondsCaptured < MIN_SECONDS;
-  const amplitudeWithheld = !quartz && !!amplitudeUnavailable;
-  const hasAmplitude = show && !quartz && !amplitudeWithheld && m!.amplitude > 0;
+  const hasAmplitude = show && !quartz && m!.amplitude > 0;
 
   return (
     <div className="panel panel--tight">
@@ -205,14 +195,14 @@ export function MeasurementPanel({
         />
         <Reading
           label="Amplitude"
-          insteadOfValue={amplitudeWithheld ? amplitudeUnavailable!.reason : undefined}
+          note={hasAmplitude || showSummary ? (amplitudeCaveat ?? undefined) : undefined}
           value={
             hasAmplitude ? m!.amplitude.toFixed(0)
               : showSummary && !quartz && summary!.amplitude
                 ? summary!.amplitude.mean.toFixed(0)
                 : DASH
           }
-          unit={!amplitudeWithheld && (hasAmplitude || (showSummary && !quartz && summary!.amplitude)) ? '°' : undefined}
+          unit={hasAmplitude || (showSummary && !quartz && summary!.amplitude) ? '°' : undefined}
           spread={hasAmplitude ? spreads.amplitude : null}
           format={(n) => n.toFixed(0)}
           sub={showSummary && !quartz && summary!.amplitude

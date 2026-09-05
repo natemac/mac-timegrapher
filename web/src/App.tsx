@@ -60,7 +60,7 @@ import { Certificate } from './components/Certificate';
 import { DEFAULT_LIFT_ANGLE } from './timegrapher/movements';
 import { assessReadiness } from './timegrapher/readiness';
 import { runDeviceTest, constraintsFor, type DeviceTestReport, type TestProgress } from './audio/device-test';
-import { resolveCaptureProfile, amplitudeUnavailableReason } from './audio/capture-route';
+import { resolveCaptureProfile, amplitudeCaveat } from './audio/capture-route';
 import { deviceReportText, deviceReportFilename } from './export/device-report';
 import type { ProcessingWarning } from './audio/audio-engine';
 
@@ -1203,15 +1203,12 @@ export default function App() {
             spreads={spreads}
             clockCheck={clockCheck}
             /*
-               The communication route is the only one that reaches a USB
-               pickup on Android, and it rescales continuously below the
-               browser. A number here would be confidently wrong.
+               Shown everywhere, warned about only where the fault was
+               measured: Chrome for Android on the communication route.
+               Firefox on the same handset and the same pickup is clean, and
+               its readings should not carry another browser's warning.
             */
-            amplitudeUnavailable={
-              amplitudeUnavailableReason(captureProfile, navigator.userAgent)
-                ? { reason: amplitudeUnavailableReason(captureProfile, navigator.userAgent)! }
-                : null
-            }
+            amplitudeCaveat={amplitudeCaveat(captureProfile, navigator.userAgent)}
             onHelp={showHelp}
             onResetAverage={resetAverage}
             onSnapshot={saveSnapshot}

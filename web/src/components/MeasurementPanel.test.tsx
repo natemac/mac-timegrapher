@@ -220,7 +220,7 @@ describe('while the audio clock is being checked', () => {
   });
 });
 
-describe('withholding amplitude that cannot mean anything', () => {
+describe('an amplitude that may be wrong on this browser', () => {
   /*
      Android's communication route is the only one that reaches a USB pickup,
      and it applies gain control below the browser that no constraint can see
@@ -244,22 +244,26 @@ describe('withholding amplitude that cannot mean anything', () => {
     onHelp: () => {}, onResetAverage: () => {},
   };
 
-  it('shows a dash and the reason instead of the number', () => {
-    render(<MeasurementPanel {...props} amplitudeUnavailable={{ reason: 'Not available on Android at this time' }} />);
-    expect(screen.getByText('Not available on Android at this time')).toBeInTheDocument();
-    expect(screen.queryByText('171')).not.toBeInTheDocument();
+  /* Shown, not hidden: a caveated reading can be checked against another
+     device, a blank cannot be checked against anything. */
+  it('shows the figure and the warning together', () => {
+    render(<MeasurementPanel {...props} amplitudeCaveat="May be inaccurate in this browser" />);
+    expect(screen.getByText('171')).toBeInTheDocument();
+    expect(screen.getByText('May be inaccurate in this browser')).toBeInTheDocument();
   });
 
   /* Rate and beat error read timing rather than level, so they survive the
      same processing and must not be withheld with it. */
   it('keeps rate and beat error, which the gain does not invalidate', () => {
-    render(<MeasurementPanel {...props} amplitudeUnavailable={{ reason: 'Not available on Android at this time' }} />);
+    render(<MeasurementPanel {...props} amplitudeCaveat="May be inaccurate in this browser" />);
     expect(screen.getByText('-4.2')).toBeInTheDocument();
     expect(screen.getByText('1.0')).toBeInTheDocument();
   });
 
-  it('shows the amplitude normally when nothing invalidates it', () => {
-    render(<MeasurementPanel {...props} amplitudeUnavailable={null} />);
+  /* Firefox on Android, and every desktop browser, get no warning at all. */
+  it('shows a bare figure where nothing is suspect', () => {
+    render(<MeasurementPanel {...props} amplitudeCaveat={null} />);
     expect(screen.getByText('171')).toBeInTheDocument();
+    expect(screen.queryByText(/May be inaccurate/)).not.toBeInTheDocument();
   });
 });

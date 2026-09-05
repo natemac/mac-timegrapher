@@ -4,10 +4,16 @@ Companion to `android-usb-audio-review.md`, which set the questions. This
 records the answers, measured on a Pixel 3 XL and a Pixel 9 Pro with a USB
 pickup, September 5 2026.
 
-**Conclusion.** On Android a USB timegrapher pickup gives rate and beat error,
-and never amplitude. The only audio route that reaches the device applies gain
-control that cannot be switched off or seen. That is a platform property, not a
-choice, and not a fault in this app or in the pickup.
+**Conclusion.** On **Chrome** for Android a USB timegrapher pickup gives
+trustworthy rate and beat error, and an amplitude that cannot be relied on: the
+audio route that reaches the device applies gain control that cannot be
+switched off or seen.
+
+**This is one browser, not the platform.** Firefox for Android, on the same
+handset and the same USB adapter, gives a clean signal 24-27 dB over the room
+with no clipping and a rate that settles to ±0.7 s/day. The fault belongs to
+Chrome's Android audio backend. Everything below was measured on Chrome unless
+it says otherwise, and the section at the end records how that was narrowed.
 
 ## The four findings
 
@@ -148,6 +154,24 @@ correction, and it was right.
 Wireless adb with Chrome DevTools driving the live page, which turned a
 round trip per hypothesis into experiments measured in seconds. Findings 1, 3
 and 4 all needed instrumented captures run directly on the device.
+
+## Narrowed afterwards: one browser, not the platform
+
+Everything above was measured on Chrome for Android, and written as though it
+described the platform. Firefox for Android then measured the same watch
+through the same USB adapter and returned a clean signal with no clipping and a
+settled rate, which is the one result none of the Chrome sessions could produce.
+
+So the gain control is Chrome's. The app now shows amplitude everywhere and
+warns underneath it only on Chromium browsers for Android — Chrome, Edge,
+Opera, Samsung Internet, anything carrying a Chrome/ token. A figure that can
+be checked against another device is worth more than a blank that cannot be
+checked against anything.
+
+What is still unverified is whether Firefox for Android needs the communication
+route at all: its session had echo cancellation forced on by the automatic
+rule, so the direct route was never tried there. And its amplitude has not yet
+been held against the 282-291 degree reference.
 
 ## Still open
 

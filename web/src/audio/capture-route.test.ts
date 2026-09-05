@@ -8,7 +8,7 @@
 */
 import { describe, it, expect } from 'vitest';
 import {
-  isAndroid, resolveCaptureProfile, amplitudeUnavailableReason,
+  isAndroid, isChromiumAndroid, resolveCaptureProfile, amplitudeCaveat,
 } from './capture-route';
 
 const ANDROID = 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 Chrome/152.0.0.0 Mobile Safari/537.36';
@@ -47,21 +47,46 @@ describe('which route a device gets', () => {
   });
 });
 
-describe('telling the reader amplitude is missing', () => {
-  it('names Android, which is where this ships', () => {
-    expect(amplitudeUnavailableReason('ec-only', ANDROID))
-      .toBe('Not available on Android at this time');
+const FIREFOX_ANDROID = 'Mozilla/5.0 (Android 14; Mobile; rv:109.0) Gecko/109.0 Firefox/121.0';
+const SAMSUNG = 'Mozilla/5.0 (Linux; Android 13; SAMSUNG SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/23.0 Chrome/115.0.0.0 Mobile Safari/537.36';
+const EDGE_ANDROID = 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36 EdgA/120.0';
+
+describe('which Android browsers share the affected audio backend', () => {
+  /*
+     The gain control that spoils amplitude was measured on Chrome for Android.
+     Firefox on Android, same handset and same USB adapter, reports a clean
+     signal 24-27 dB over the room with no clipping and a rate that settles —
+     so this belongs to one browser's backend, not to the platform.
+  */
+  it('counts Chrome and the browsers built on it', () => {
+    for (const ua of [ANDROID, SAMSUNG, EDGE_ANDROID]) {
+      expect(isChromiumAndroid(ua)).toBe(true);
+    }
   });
 
-  /* The route can be forced anywhere, and saying "Android" on a Mac would be
-     a plain falsehood sitting where a measurement should be. */
-  it('does not claim Android when the route was forced elsewhere', () => {
-    expect(amplitudeUnavailableReason('ec-only', MAC))
-      .toBe('Not available on this route at this time');
+  it('does not count Firefox on Android, which is unaffected', () => {
+    expect(isAndroid(FIREFOX_ANDROID)).toBe(true);
+    expect(isChromiumAndroid(FIREFOX_ANDROID)).toBe(false);
   });
 
-  it('says nothing on the direct route, where amplitude is real', () => {
-    expect(amplitudeUnavailableReason('ours', ANDROID)).toBeNull();
-    expect(amplitudeUnavailableReason('ours', MAC)).toBeNull();
+  it('does not count desktop Chrome, where amplitude is correct', () => {
+    expect(isChromiumAndroid(MAC)).toBe(false);
+  });
+});
+
+describe('warning about an amplitude rather than hiding it', () => {
+  /* Shown either way: a reading with a caveat can be checked against another
+     device, a blank cannot be checked against anything. */
+  it('warns on Chrome for Android, on the route where it was measured', () => {
+    expect(amplitudeCaveat('ec-only', ANDROID)).toBe('May be inaccurate in this browser');
+  });
+
+  it('says nothing on Firefox for Android', () => {
+    expect(amplitudeCaveat('ec-only', FIREFOX_ANDROID)).toBeNull();
+  });
+
+  it('says nothing on the direct route, which was never affected', () => {
+    expect(amplitudeCaveat('ours', ANDROID)).toBeNull();
+    expect(amplitudeCaveat('ours', MAC)).toBeNull();
   });
 });

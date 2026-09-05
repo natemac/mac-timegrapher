@@ -178,15 +178,23 @@ export const GUIDE: Record<Topic, GuideEntry> = {
           reached and the watch measured.
         </p>
         <p>
-          That route costs something. It applies gain control of its own,
-          underneath the browser, which the browser reports as switched off:
-          the level climbs to maximum within a second of starting and stays
-          there, and padding the movement raised it rather than lowered it.
-          Amplitude is read from where the tick's peak falls in time, so a
-          continuously rescaled signal gives a confident wrong answer — around
-          160° for a watch reading 280° on a desktop. Amplitude is withheld
-          there rather than guessed at. Rate and beat error read timing rather
-          than loudness and are unaffected.
+          On Chrome for Android that route costs something. It applies gain
+          control of its own, underneath the browser, which the browser reports
+          as switched off: the level climbs to maximum within a second of
+          starting and stays there, and padding the movement raised it rather
+          than lowered it. Amplitude is read from where the tick's peak falls
+          in time, so a continuously rescaled signal gives a confident wrong
+          answer — around 160° for a watch reading 280° on a desktop. The
+          figure is still shown, with a warning under it, because a reading you
+          can check against another device is worth more than a blank. Rate and
+          beat error read timing rather than loudness and are unaffected.
+        </p>
+        <p>
+          Firefox for Android is not affected. On the same handset and the same
+          USB adapter it gives a clean signal well above the room with no
+          clipping and a rate that settles, so the fault belongs to one
+          browser's audio backend rather than to the platform — and its
+          readings carry no warning.
         </p>
         <p>
           <b>Automatic</b> is right for every device known so far: the
