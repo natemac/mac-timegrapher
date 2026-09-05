@@ -24,6 +24,7 @@ export type Topic =
   // page is a list of controls and not a wall of prose.
   | 'setting-movement' | 'setting-steadiness' | 'setting-branding'
   | 'setting-magnification' | 'setting-history' | 'setting-diagnostics'
+  | 'setting-route'
   | 'setting-clock';
 
 export interface GuideEntry {
@@ -162,6 +163,41 @@ export const GUIDE: Record<Topic, GuideEntry> = {
     ),
   },
 
+  'setting-route': {
+    title: 'Microphone route',
+    lede: 'Which audio path the app opens. It decides whether a chosen input is reached at all, and whether amplitude means anything.',
+    body: (
+      <>
+        <p>
+          Asking for a particular microphone is not the same as being given it.
+          Android only binds that choice on the route it uses for calls, and a
+          browser only takes that route when it asks for echo cancellation. On
+          a Pixel with all processing off, four different inputs — including a
+          USB pickup — all returned the same built-in microphone, matching each
+          other to within a decibel. With echo cancellation on, the pickup was
+          reached and the watch measured.
+        </p>
+        <p>
+          That route costs something. It applies gain control of its own,
+          underneath the browser, which the browser reports as switched off:
+          the level climbs to maximum within a second of starting and stays
+          there, and padding the movement raised it rather than lowered it.
+          Amplitude is read from where the tick's peak falls in time, so a
+          continuously rescaled signal gives a confident wrong answer — around
+          160° for a watch reading 280° on a desktop. Amplitude is withheld
+          there rather than guessed at. Rate and beat error read timing rather
+          than loudness and are unaffected.
+        </p>
+        <p>
+          <b>Automatic</b> is right for every device known so far: the
+          compatibility route on Android, the direct route everywhere else. The
+          two overrides exist because this is platform behaviour that can
+          change, and being wrong about it should never leave you unable to
+          measure.
+        </p>
+      </>
+    ),
+  },
   'setting-diagnostics': {
     title: 'Session diagnostics',
     lede: 'A written record of what the last run actually did, for working out why a reading behaved the way it did.',

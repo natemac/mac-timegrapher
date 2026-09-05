@@ -783,7 +783,7 @@ select {
   .settings-sheet__tabs {
     flex: 1 1 auto;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 5px;
   }
   .settings-sheet__tabs button {
@@ -795,8 +795,7 @@ select {
 }
 
 @media (max-width: 359px) {
-  .settings-sheet__tabs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .settings-sheet__tabs button { font-size: 11px !important; }
+  .settings-sheet__tabs button { font-size: 11px !important; padding-inline: 4px !important; }
 }
 
 /* The device test: one press, a minute, a verdict. */
@@ -813,16 +812,17 @@ select {
   background: var(--accent);
   transition: width 300ms ease;
 }
-.devicetest__profile { display: flex; flex-direction: column; gap: 6px; }
-.devicetest__profile-title {
-  margin: 0;
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--dim);
+/* The live check and the full test are one tab; the rule separates a reading
+   taken in seconds from one that takes a minute. */
+.devicecheck__rule {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 18px 0 14px;
 }
-.devicetest__profile-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.devicetest__profile-row button { width: 100%; font-size: 13px; }
+
+.settings__route { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.settings__route button { width: 100%; min-width: 0; padding-inline: 6px; }
+.settings__route-note { font-size: 11px; margin: 6px 0 0; }
 
 .devicetest__verdict {
   border: 1px solid var(--line);

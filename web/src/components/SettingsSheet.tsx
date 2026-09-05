@@ -20,7 +20,8 @@ import { CalibrationPanel } from './CalibrationPanel';
 import { ReadinessCheck } from './ReadinessCheck';
 import type { ReadinessReport } from '../timegrapher/readiness';
 import { DeviceTest } from './DeviceTest';
-import type { DeviceTestReport, TestProgress, CaptureProfile } from '../audio/device-test';
+import type { DeviceTestReport, TestProgress } from '../audio/device-test';
+import { CAPTURE_ROUTES, resolveCaptureProfile, type CaptureRoute } from '../audio/capture-route';
 
 export interface Settings {
   /** Milliseconds of drift spanning the trace width. Smaller magnifies more. */
@@ -43,6 +44,13 @@ export interface Settings {
      it is left at zero — a constant offset, invisible to the spread.
   */
   clockDriftSecondsPerDay: number;
+  /*
+     Which audio route to open. 'auto' is right for every device we know of —
+     the compatibility route on Android, direct everywhere else. The override
+     exists because this is a platform behaviour that can change, and being
+     wrong about it must not leave anyone unable to measure.
+  */
+  captureRoute: CaptureRoute;
 }
 
 /* Auto by default: the operator should not have to work out that +17 s/day
@@ -52,6 +60,7 @@ export const DEFAULT_SETTINGS: Settings = {
   traceSeconds: 30,
   showLogo: false,
   clockDriftSecondsPerDay: 0,
+  captureRoute: 'auto',
 };
 
 /* Magnification in the units a watchmaker already thinks in, plus Auto. */
@@ -133,11 +142,18 @@ interface Props {
   deviceTestReport: DeviceTestReport | null;
   onRunDeviceTest: () => void;
   onExportDeviceTest: () => void;
-  captureProfile: CaptureProfile;
-  onCaptureProfileChange: (p: CaptureProfile) => void;
 }
 
-type Tab = 'guide' | 'settings' | 'calibration' | 'check' | 'android test';
+type Tab = 'guide' | 'settings' | 'quartz' | 'device';
+
+/* Spelled out rather than derived from the id: "quartz" and "device" are short
+   enough to fit a phone, and the headings inside each say the rest. */
+const TAB_LABEL: Record<Tab, string> = {
+  guide: 'Guide',
+  settings: 'Settings',
+  quartz: 'Quartz calibration',
+  device: 'Device check',
+};
 
 /*
    One setting: its name, a ? that opens its explanation, and the control.
@@ -243,7 +259,6 @@ export function SettingsSheet({
   granted, onRequestMic, busy, devices, selectedId, onSelectDevice, sampleRate,
   capturing, onStartCapture, onStopCapture, readiness,
   deviceTestRunning, deviceTestProgress, deviceTestReport, onRunDeviceTest, onExportDeviceTest,
-  captureProfile, onCaptureProfileChange,
 }: Props) {
   /* Settings first. The guide is read once; the settings are the reason the
      cog gets pressed again. */
@@ -313,15 +328,15 @@ export function SettingsSheet({
             <span style={{ fontWeight: 600, fontSize: 15 }}>{focused.title}</span>
           ) : (
             <div className="settings-sheet__tabs">
-              {(['guide', 'settings', 'calibration', 'check', 'android test'] as const).map((t) => (
+              {(['guide', 'settings', 'quartz', 'device'] as const).map((t) => (
                 <button
                   key={t}
                   className={tab === t ? undefined : 'secondary'}
-                  style={{ fontSize: 13, padding: '7px 14px', textTransform: 'capitalize' }}
+                  style={{ fontSize: 13, padding: '7px 14px' }}
                   onClick={() => setTab(t)}
                   aria-pressed={tab === t}
                 >
-                  {t}
+                  {TAB_LABEL[t]}
                 </button>
               ))}
             </div>
@@ -350,38 +365,50 @@ export function SettingsSheet({
                 Full guide
               </button>
             </>
-          ) : tab === 'android test' ? (
-            <DeviceTest
-              granted={granted}
-              onRequestMic={onRequestMic}
-              busy={busy}
-              devices={devices}
-              selectedId={selectedId}
-              onSelectDevice={onSelectDevice}
-              capturing={capturing}
-              running={deviceTestRunning}
-              progress={deviceTestProgress}
-              report={deviceTestReport}
-              onRun={onRunDeviceTest}
-              onExport={onExportDeviceTest}
-              profile={captureProfile}
-              onProfileChange={onCaptureProfileChange}
-            />
-          ) : tab === 'check' ? (
-            <ReadinessCheck
-              granted={granted}
-              onRequestMic={onRequestMic}
-              busy={busy}
-              devices={devices}
-              selectedId={selectedId}
-              onSelectDevice={onSelectDevice}
-              sampleRate={sampleRate}
-              capturing={capturing}
-              onStartCapture={onStartCapture}
-              onStopCapture={onStopCapture}
-              report={readiness}
-            />
-          ) : tab === 'calibration' ? (
+          ) : tab === 'device' ? (
+            /*
+               One tab for one question: is this device fit to measure on.
+
+               The live check answers it in seconds from the audio already
+               flowing; the full test answers it in a minute for a device that
+               cannot lock at all. They were separate tabs, which meant reading
+               a report to be told to go and read the other one.
+            */
+            <>
+              <ReadinessCheck
+                granted={granted}
+                onRequestMic={onRequestMic}
+                busy={busy}
+                devices={devices}
+                selectedId={selectedId}
+                onSelectDevice={onSelectDevice}
+                sampleRate={sampleRate}
+                capturing={capturing}
+                onStartCapture={onStartCapture}
+                onStopCapture={onStopCapture}
+                report={readiness}
+              />
+              {granted && (
+                <>
+                  <hr className="devicecheck__rule" />
+                  <DeviceTest
+                    granted={granted}
+                    onRequestMic={onRequestMic}
+                    busy={busy}
+                    devices={devices}
+                    selectedId={selectedId}
+                    onSelectDevice={onSelectDevice}
+                    capturing={capturing}
+                    running={deviceTestRunning}
+                    progress={deviceTestProgress}
+                    report={deviceTestReport}
+                    onRun={onRunDeviceTest}
+                    onExport={onExportDeviceTest}
+                  />
+                </>
+              )}
+            </>
+          ) : tab === 'quartz' ? (
             <CalibrationPanel
               granted={granted}
               onRequestMic={onRequestMic}
@@ -445,6 +472,33 @@ export function SettingsSheet({
                   />
                   <span>Show the MAC mark</span>
                 </label>
+              </Setting>
+
+              <Setting onInfo={setInfo} label="Microphone route" topic="setting-route">
+                <div className="settings__route">
+                  {CAPTURE_ROUTES.map((r) => (
+                    <button
+                      key={r.id}
+                      className={settings.captureRoute === r.id ? '' : 'secondary'}
+                      onClick={() => onChange({ ...settings, captureRoute: r.id })}
+                      disabled={capturing}
+                      aria-pressed={settings.captureRoute === r.id}
+                      style={{ fontSize: 13 }}
+                    >
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="dim settings__route-note">
+                  {CAPTURE_ROUTES.find((r) => r.id === settings.captureRoute)!.note}
+                </p>
+                {resolveCaptureProfile(settings.captureRoute, navigator.userAgent) === 'ec-only' && (
+                  <p className="dim settings__route-note">
+                    In force now: amplitude is withheld, because this route
+                    applies gain control of its own that no constraint can turn
+                    off. Rate and beat error are unaffected.
+                  </p>
+                )}
               </Setting>
 
               <Setting onInfo={setInfo} label="Session diagnostics" topic="setting-diagnostics">

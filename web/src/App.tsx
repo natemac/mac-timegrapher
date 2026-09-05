@@ -59,10 +59,8 @@ import {
 import { Certificate } from './components/Certificate';
 import { DEFAULT_LIFT_ANGLE } from './timegrapher/movements';
 import { assessReadiness } from './timegrapher/readiness';
-import {
-  runDeviceTest, constraintsFor,
-  type DeviceTestReport, type TestProgress, type CaptureProfile,
-} from './audio/device-test';
+import { runDeviceTest, constraintsFor, type DeviceTestReport, type TestProgress } from './audio/device-test';
+import { resolveCaptureProfile, amplitudeUnavailableReason } from './audio/capture-route';
 import { deviceReportText, deviceReportFilename } from './export/device-report';
 import type { ProcessingWarning } from './audio/audio-engine';
 
@@ -277,12 +275,12 @@ export default function App() {
   */
   const activeDeviceId = useRef<string | null>(null);
   /*
-     Which constraints the ordinary capture path runs under. 'ours' is what the
-     app asks for; 'ec-only' exists so the same path can be held open under one
-     changed variable, to find out which microphone is physically being heard.
-     Never changes on its own — see the Android Test tab.
+     Which constraints a capture opens with, resolved from the saved route and
+     the platform. Android needs the communication route to reach a chosen
+     input at all; everywhere else the direct route is correct and measures
+     amplitude, so that stays the default.
   */
-  const [captureProfile, setCaptureProfile] = useState<CaptureProfile>('ours');
+  const captureProfile = resolveCaptureProfile(settings.captureRoute, navigator.userAgent);
   /*
      Which start request is still allowed to publish a session.
 
@@ -1130,8 +1128,6 @@ export default function App() {
         deviceTestReport={deviceTestReport}
         onRunDeviceTest={startDeviceTest}
         onExportDeviceTest={exportDeviceTest}
-        captureProfile={captureProfile}
-        onCaptureProfileChange={setCaptureProfile}
       />
 
       {!secure && (
@@ -1192,14 +1188,6 @@ export default function App() {
             onSelectMovement={selectMovement}
           />
 
-          {captureProfile !== 'ours' && (
-            <div className="panel panel--tight">
-              <p className="warn" style={{ margin: 0, fontSize: 12 }}>
-                Diagnostic profile: echo cancellation on. Amplitude is not
-                trustworthy — reset it in Settings → Android Test.
-              </p>
-            </div>
-          )}
 
           {error && (
             <div className="panel panel--tight">
@@ -1220,8 +1208,8 @@ export default function App() {
                browser. A number here would be confidently wrong.
             */
             amplitudeUnavailable={
-              captureProfile === 'ec-only'
-                ? { reason: 'Not measurable on this profile' }
+              amplitudeUnavailableReason(captureProfile)
+                ? { reason: amplitudeUnavailableReason(captureProfile)! }
                 : null
             }
             onHelp={showHelp}
