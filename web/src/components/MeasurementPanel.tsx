@@ -30,6 +30,24 @@ interface Props {
      broken at exactly the moment it is working.
   */
   clockCheck?: Calibration | null;
+  /*
+     Amplitude is known to be meaningless for this capture, so it is withheld
+     rather than printed.
+
+     Measured on a Pixel 3 XL: the route that reaches a USB pickup on Android
+     is the communication route, and that route applies its own gain control
+     below the browser — the level ramps to full scale within a second of the
+     capture starting and stays welded there, and heavy acoustic padding made
+     it go up rather than down. getSettings() reports autoGainControl false
+     throughout, so nothing in the constraints can see it or switch it off.
+
+     Amplitude is read from where the impulse peak sits in time, so a
+     continuously rescaled and clipped signal produces a confident wrong
+     number: 156 to 171 degrees against 276 to 291 on the same watch and the
+     same pickup through a Mac. Rate and beat error read timing rather than
+     level and survive, which is why only this one is withheld.
+  */
+  amplitudeUnavailable?: { reason: string } | null;
   onHelp: (t: Topic) => void;
   onResetAverage: () => void;
   /** Save the reading on screen as an image. Absent while there is none. */
@@ -102,6 +120,7 @@ function Reading({
 export function MeasurementPanel({
   measurement, capturing, secondsCaptured, settling, spreads, onHelp, onResetAverage,
   onSnapshot, guidance = true, quartz = false, summary = null, clockCheck = null,
+  amplitudeUnavailable = null,
 }: Props) {
   const m = measurement;
   const live = m?.valid ?? false;
@@ -117,7 +136,8 @@ export function MeasurementPanel({
   const range = (lo: number, hi: number, f: (n: number) => string) =>
     (lo === hi ? '' : `${f(lo)} to ${f(hi)}`);
   const warmingUp = capturing && secondsCaptured < MIN_SECONDS;
-  const hasAmplitude = show && !quartz && m!.amplitude > 0;
+  const amplitudeWithheld = !quartz && !!amplitudeUnavailable;
+  const hasAmplitude = show && !quartz && !amplitudeWithheld && m!.amplitude > 0;
 
   return (
     <div className="panel panel--tight">
@@ -159,17 +179,20 @@ export function MeasurementPanel({
         <Reading
           label="Amplitude"
           value={
-            hasAmplitude ? m!.amplitude.toFixed(0)
-              : showSummary && !quartz && summary!.amplitude
-                ? summary!.amplitude.mean.toFixed(0)
-                : DASH
+            amplitudeWithheld ? DASH
+              : hasAmplitude ? m!.amplitude.toFixed(0)
+                : showSummary && !quartz && summary!.amplitude
+                  ? summary!.amplitude.mean.toFixed(0)
+                  : DASH
           }
-          unit={hasAmplitude || (showSummary && !quartz && summary!.amplitude) ? '°' : undefined}
+          unit={!amplitudeWithheld && (hasAmplitude || (showSummary && !quartz && summary!.amplitude)) ? '°' : undefined}
           spread={hasAmplitude ? spreads.amplitude : null}
           format={(n) => n.toFixed(0)}
-          sub={showSummary && !quartz && summary!.amplitude
-            ? range(summary!.amplitude.min, summary!.amplitude.max, (n) => n.toFixed(0))
-            : undefined}
+          sub={amplitudeWithheld
+            ? amplitudeUnavailable!.reason
+            : showSummary && !quartz && summary!.amplitude
+              ? range(summary!.amplitude.min, summary!.amplitude.max, (n) => n.toFixed(0))
+              : undefined}
         />
         <Reading
           label="Beat error"

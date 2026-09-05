@@ -219,3 +219,47 @@ describe('while the audio clock is being checked', () => {
     expect(screen.getByText(/result is in Calibration/)).toBeInTheDocument();
   });
 });
+
+describe('withholding amplitude that cannot mean anything', () => {
+  /*
+     Android's communication route is the only one that reaches a USB pickup,
+     and it applies gain control below the browser that no constraint can see
+     or switch off — measured on a Pixel 3 XL, the level ramps to full scale
+     within a second and stays there even through heavy acoustic padding.
+     Amplitude is read from where the impulse peak sits, so it came back at
+     156-171 degrees against 276-291 for the same watch and pickup on a Mac.
+
+     A wrong number in large type is worse than a dash, because it reads as a
+     measurement.
+  */
+  const reading = {
+    valid: true, rate: -4.2, amplitude: 171, beatError: 1.0,
+    detectedBph: 21600, signalQuality: 0.9,
+  } as never;
+
+  const props = {
+    measurement: reading, capturing: true, secondsCaptured: 20,
+    settling: 'settling' as const,
+    spreads: { rate: null, amplitude: null, beatError: null },
+    onHelp: () => {}, onResetAverage: () => {},
+  };
+
+  it('shows a dash and the reason instead of the number', () => {
+    render(<MeasurementPanel {...props} amplitudeUnavailable={{ reason: 'Not measurable on this profile' }} />);
+    expect(screen.getByText('Not measurable on this profile')).toBeInTheDocument();
+    expect(screen.queryByText('171')).not.toBeInTheDocument();
+  });
+
+  /* Rate and beat error read timing rather than level, so they survive the
+     same processing and must not be withheld with it. */
+  it('keeps rate and beat error, which the gain does not invalidate', () => {
+    render(<MeasurementPanel {...props} amplitudeUnavailable={{ reason: 'Not measurable on this profile' }} />);
+    expect(screen.getByText('-4.2')).toBeInTheDocument();
+    expect(screen.getByText('1.0')).toBeInTheDocument();
+  });
+
+  it('shows the amplitude normally when nothing invalidates it', () => {
+    render(<MeasurementPanel {...props} amplitudeUnavailable={null} />);
+    expect(screen.getByText('171')).toBeInTheDocument();
+  });
+});

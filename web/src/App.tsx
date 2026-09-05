@@ -1214,6 +1214,16 @@ export default function App() {
             settling={settling}
             spreads={spreads}
             clockCheck={clockCheck}
+            /*
+               The communication route is the only one that reaches a USB
+               pickup on Android, and it rescales continuously below the
+               browser. A number here would be confidently wrong.
+            */
+            amplitudeUnavailable={
+              captureProfile === 'ec-only'
+                ? { reason: 'Not measurable on this profile' }
+                : null
+            }
             onHelp={showHelp}
             onResetAverage={resetAverage}
             onSnapshot={saveSnapshot}
