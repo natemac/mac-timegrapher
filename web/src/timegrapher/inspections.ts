@@ -8,7 +8,7 @@
 */
 import {
   POSITIONS, summarise, positionName,
-  type PositionId, type Reading, type SessionSummary,
+  type PositionId, type Reading,
 } from './session';
 
 /*
@@ -191,10 +191,6 @@ export function comparePair(before: Inspection, after: Inspection): PairComparis
     spreadBefore: spread(b),
     spreadAfter: spread(a),
   };
-}
-
-export function summariseInspection(i: Inspection): SessionSummary | null {
-  return summarise(i.readings);
 }
 
 /** What to call a run in a list: the watch, then which pass it was. */
