@@ -49,11 +49,18 @@ These decide whether measurements mean anything. All are in
 - **`checkAppliedProcessing` is three-state** (`applied` / `unreported`). Safari
   omits `autoGainControl` from `getSettings()`, so "off" and "unknown" are not
   the same thing and must not render the same.
-- **Recordings are 32-bit IEEE float**, never 16-bit PCM. They are DSP reference
-  fixtures; quantisation would be permanent.
-- **The worklet node routes to destination through a muted gain node.** A worklet
-  is only pulled when its output reaches the destination — but at zero gain, so
-  the watch isn't played out the speakers.
+- **Fixtures are 32-bit IEEE float**, never 16-bit PCM — quantisation would be
+  permanent. `audio/wav.ts` encodes them and `tools/make-synthetic-fixture.mjs`
+  generates one with an exactly known beat period, which is how the DSP is
+  checked against ground truth rather than against a plausible-looking number.
+- **The worklet node routes to a destination through a muted gain node.** A
+  worklet is only pulled when its output reaches one — at zero gain, so the
+  watch isn't played out the speakers. Which destination is not free on
+  Android: reaching `ctx.destination` opens a hardware output stream, and the
+  platform re-pairs the communication route about thirty-four seconds later,
+  taking the chosen input back to the built-in microphone. On that route the
+  graph ends at a `MediaStreamAudioDestinationNode` instead, which pulls it
+  without opening an output. Everywhere else keeps `ctx.destination`.
 
 ## How the app is put together
 
@@ -207,6 +214,7 @@ URL includes that path.
 - It is a **timegrapher** (the instrument). *Regulating* is adjusting the
   movement afterwards. Never call the product a regulator.
 - Comments explain *why*, especially where code looks arbitrary — the audio
-  constraints, the muted gain node, the copy in `WavRecorder.push()`. Several
+  constraints, the muted gain node, the stream sink the communication route
+  ends at rather than `ctx.destination`. Several
   tests carry comments naming the regression they exist to catch. Keep that.
 - Commit messages end with the `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>` trailer.

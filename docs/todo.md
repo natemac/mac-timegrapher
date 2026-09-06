@@ -147,9 +147,13 @@ note under "Cannot be fixed here".
 - **No build-record integration.** Wants an authenticated endpoint on the PHP
   side first. The session already copies as tab-separated text that pastes into
   a spreadsheet.
-- **Recording is not in the UI.** It existed to produce DSP fixtures; the code
-  stays in `web/src/audio/wav-recorder.ts`, unreferenced, if fixtures are ever
-  wanted. `RecorderPanel.tsx` is unreferenced too.
+- **There is no recorder.** One existed to produce DSP fixtures and was never
+  wired to the UI, so it was removed along with its panel. What survives is
+  `audio/wav.ts`, the 32-bit float encoder that
+  `tools/make-synthetic-fixture.mjs` uses to generate a signal with an exactly
+  known beat period — the only fixtures anything here has ever needed. Capturing
+  real bench audio is a job for a recorder app, which is how the three
+  recordings above were made.
 - **No choice of microphone route.** Android needs the communication route to
   reach a chosen input at all — both Chrome and Firefox fail without it, on two
   handsets — and every other platform wants the direct one. The answer is the

@@ -8,7 +8,7 @@
 */
 
 import { describe, it, expect } from 'vitest';
-import { encodeWavFloat32, decodeWavFloat32, WavRecorder } from './wav-recorder';
+import { encodeWavFloat32, decodeWavFloat32 } from './wav';
 
 function ascii(buffer: ArrayBuffer, offset: number, length: number): string {
   return String.fromCharCode(...new Uint8Array(buffer, offset, length));
@@ -101,57 +101,5 @@ describe('decodeWavFloat32', () => {
     });
     const cut = full.slice(0, full.byteLength - 8);
     expect(() => decodeWavFloat32(cut)).toThrow(/Truncated data chunk/);
-  });
-});
-
-describe('WavRecorder', () => {
-  it('starts empty', () => {
-    const r = new WavRecorder(48000, 1);
-    expect(r.sampleCount).toBe(0);
-    expect(r.durationSeconds).toBe(0);
-  });
-
-  it('accumulates blocks in order', () => {
-    const r = new WavRecorder(48000, 1);
-    r.push(new Float32Array([0.1, 0.2]));
-    r.push(new Float32Array([0.3]));
-    expect(Array.from(decodeWavFloat32(r.toWav()).samples)).toEqual([
-      expect.closeTo(0.1, 6), expect.closeTo(0.2, 6), expect.closeTo(0.3, 6),
-    ]);
-  });
-
-  it('copies incoming blocks so later mutation cannot corrupt the recording', () => {
-    // The AudioWorklet reuses its render-quantum buffer. Storing the reference
-    // rather than a copy silently overwrites already-recorded audio.
-    const r = new WavRecorder(48000, 1);
-    const reused = new Float32Array([0.1, 0.2]);
-    r.push(reused);
-    reused[0] = 0.9;
-    expect(decodeWavFloat32(r.toWav()).samples[0]).toBeCloseTo(0.1, 6);
-  });
-
-  it('reports duration from frame count and sample rate', () => {
-    const r = new WavRecorder(48000, 1);
-    r.push(new Float32Array(24000));
-    expect(r.durationSeconds).toBeCloseTo(0.5, 6);
-  });
-
-  it('reports duration correctly for stereo', () => {
-    const r = new WavRecorder(48000, 2);
-    r.push(new Float32Array(48000)); // 24000 frames of 2 channels
-    expect(r.durationSeconds).toBeCloseTo(0.5, 6);
-  });
-
-  it('counts interleaved samples, not frames, for stereo', () => {
-    const r = new WavRecorder(48000, 2);
-    r.push(new Float32Array(2048)); // 1024 frames of 2 channels
-    expect(r.sampleCount).toBe(2048);
-  });
-
-  it('clears on reset', () => {
-    const r = new WavRecorder(48000, 1);
-    r.push(new Float32Array([0.1]));
-    r.reset();
-    expect(r.sampleCount).toBe(0);
   });
 });

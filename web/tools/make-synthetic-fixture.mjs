@@ -27,7 +27,7 @@
  */
 
 import { writeFileSync } from 'node:fs';
-import { encodeWavFloat32 } from '../src/audio/wav-recorder.ts';
+import { encodeWavFloat32 } from '../src/audio/wav.ts';
 
 const SECONDS_PER_DAY = 86_400;
 
