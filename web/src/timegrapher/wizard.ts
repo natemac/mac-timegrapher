@@ -27,15 +27,17 @@ import type { Settling } from './stability';
 */
 
 /*
-   Ordered as the watch is physically turned, not as the positions are listed.
-   Each step is a single rotation from the one before — flip, stand on edge,
-   spin, quarter turn — so the operator is never working out what to do next.
+   Dial up, dial down, then the four crown positions in the order a watchmaker
+   lists them. This is the v36 design's order and the conventional one; it
+   replaces an order chosen so that each step was a single rotation from the
+   one before. The two differ only in whether crown up or crown down comes
+   third, and the conventional order is what a report is read against.
 */
 export const WIZARD_ORDER: PositionId[] = [
   'dial-up',
   'dial-down',
-  'crown-down',
   'crown-up',
+  'crown-down',
   'crown-left',
   'crown-right',
 ];
@@ -137,14 +139,23 @@ export function captured(state: WizardState): WizardState {
 }
 
 /**
- * Move to the next position — after a capture, or because the operator skipped
- * one. Skipping is deliberate: not every job needs six positions, and a wizard
- * that cannot be stepped past is a wizard people abandon halfway.
+ * Move to the next position that has not been recorded.
+ *
+ * The next *uncaptured* one, not simply the next index: a position measured out
+ * of order — or re-measured — must not send the run back over ground it has
+ * already covered. With a straight run through the six they are the same thing.
  */
 export function advance(state: WizardState): WizardState {
-  const step = state.step + 1;
-  if (step >= WIZARD_ORDER.length) return { ...state, step: WIZARD_ORDER.length, stage: 'done' };
-  return { ...state, step, stage: 'prompt' };
+  for (let step = state.step + 1; step < WIZARD_ORDER.length; step++) {
+    if (!state.recorded.includes(WIZARD_ORDER[step])) {
+      return { ...state, step, stage: 'prompt' };
+    }
+  }
+  /* Nothing left after this one. Anything skipped earlier is picked up here, so
+     the run only reports itself finished when there is genuinely nothing left. */
+  const earlier = WIZARD_ORDER.findIndex((p) => !state.recorded.includes(p));
+  if (earlier >= 0) return { ...state, step: earlier, stage: 'prompt' };
+  return { ...state, step: WIZARD_ORDER.length, stage: 'done' };
 }
 
 /** Stop early, keeping whatever has been recorded. */

@@ -6,7 +6,36 @@
     it under the terms of the GNU General Public License version 2 as
     published by the Free Software Foundation.
 */
-import type { CaptureProfile } from './device-test';
+import { buildAudioConstraints } from './audio-engine';
+
+/*
+   The two configurations a capture is ever opened with.
+
+   `ours` is what the app asks for everywhere it can: every browser processing
+   effect off, because gain control does not degrade amplitude, it invalidates
+   it. `ec-only` is the Android exception below — echo cancellation on, the
+   other two still off — and exists because it is the only way to reach a chosen
+   input on that platform at all.
+
+   There is no third. A wider sweep of configurations lived here while the
+   Android routing was being worked out; it is retired now that the answer is
+   known. See docs/updateui.md.
+*/
+export type CaptureProfile = 'ours' | 'ec-only';
+
+export function constraintsFor(profile: CaptureProfile, deviceId: string): MediaStreamConstraints {
+  if (profile === 'ours') return buildAudioConstraints(deviceId);
+  return {
+    audio: {
+      deviceId: { exact: deviceId },
+      echoCancellation: true,
+      autoGainControl: false,
+      noiseSuppression: false,
+      channelCount: 1,
+    },
+    video: false,
+  };
+}
 
 /*
    Which audio route to open.

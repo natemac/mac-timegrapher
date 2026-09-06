@@ -22,12 +22,10 @@ Foundation" with **no "or later" clause**. This is **GPLv2-only**.
 - `LICENSE` must stay byte-identical to upstream. Never edit it.
 - The in-app "Open source (GPLv2) — view source" link in `SourceFooter.tsx` is a
   legal obligation, not decoration. Serving WASM/JS to a browser is distribution
-  under §3. It renders in two places, both unconditional: under the welcome
-  screen, which every visitor passes on the way in, and at the foot of the guide
-  sheet, which is one tap from anywhere. It is deliberately *not* on the
-  measuring screen, which has no height to spare — but it must never be behind a
-  condition, a setting or a tab. `docs/deployment.md` blocks the deploy if it is
-  missing from the built bundle.
+  under §3. Since the v36 interface it sits in the page footer (`AppFooter.tsx`),
+  which renders on every screen — the opening screen and both measuring modes —
+  and it must never be behind a condition, a setting or a tab.
+  `docs/deployment.md` blocks the deploy if it is missing from the built bundle.
 - Business logic — build numbers, customer records, inventory, pricing, QC
   thresholds — belongs in the private PHP app at `macwatches.com`, never here.
   The two talk only over authenticated HTTP. `docs/build-plan.md` was purged from
@@ -82,18 +80,23 @@ web/src/components/      one panel each; guide-content.tsx holds every explanati
   in `timegrapher/amplitude-scale.ts`, not in `BeatCanvas.tsx`, because the
   ruler and the reading have to agree. Solid rules are time, dashed are degrees;
   they share one axis and must not look alike.
-- **The pre-measurement check is its own sheet tab** (`ReadinessCheck.tsx`),
-  reducing the live audio path to READY / WARNING / NOT READY before a
-  measurement. It adds no audio: `readiness.ts` is a pure reducer over facts the
-  app already produces. The resample/interruption catch is the clock
-  calibrator's own `disturbed` flag — a drift too large for any crystal is a
-  starved stream whatever the cause, which is what went uncaught the week 44.1
-  kHz resampled. Device and signal phases are separate so "no escapement" never
-  blocks someone still setting up the mic. It is explicitly not calibration and
-  says so.
-- **Calibration is its own sheet tab** (`CalibrationPanel.tsx`), not a setting.
-  It needs the microphone and an input chosen, so it carries both — it is
-  reachable before the measuring screen has ever asked for permission.
+- **Device Check is its own settings tab** (`settings/DeviceCheckPanel.tsx`),
+  reducing the audio path to a row per question. It adds no audio of its own:
+  `readiness.ts` is a pure reducer over facts the app already produces, and
+  `device-check.ts` merges those with a finished `runDeviceTest` report. The
+  resample/interruption catch is the clock calibrator's own `disturbed` flag — a
+  drift too large for any crystal is a starved stream whatever the cause, which
+  is what went uncaught the week 44.1 kHz resampled. Device and signal groups are
+  separate so "no escapement" never blocks someone still setting up the mic.
+  **The live rows count only while a capture is running**: `assessReadiness`
+  grades the processing flags "Off" when handed no warnings, which is equally
+  true of a clean device and one nothing has listened to, and reading the second
+  as the first is the exact failure this panel exists to catch. It is explicitly
+  not calibration and says so.
+- **Quartz Calibration is its own settings tab** (`settings/QuartzPanel.tsx`),
+  not a setting. It needs the microphone and an input chosen, so it carries
+  both — it is reachable before the measuring screen has ever asked for
+  permission.
 - **A non-native sample rate starves the audio clock on iOS.** Measured on one
   iPhone with one USB pickup, minutes apart:
 
@@ -122,8 +125,18 @@ web/src/components/      one panel each; guide-content.tsx holds every explanati
 - **`guide-content.tsx` is the single source for every explanation**, read by
   both the per-panel notes and the full guide. Do not write help text anywhere
   else.
-- **The app never scrolls.** One `100dvh` view; only sheets scroll. Anything
-  added has to earn its height or go in a sheet.
+- **The v36 interface is the source of truth for layout.** `tokens.css` is that
+  design's stylesheet taken across with its cascade intact, overrides and all,
+  and the React components reproduce its ids and class names so it could be. Do
+  not tidy the cascade by merging blocks: the later rule is the one that was
+  signed off. Only the block below the "Added for the React port" line is ours.
+  The measuring screen is about a screen-eighth taller than a phone viewport, as
+  the design itself is — the old one-screen rule no longer holds. See
+  `docs/updateui.md`, A11.
+- **`docs/updateui.md` lists what the v36 design left out of the old app** and
+  what was deliberately deviated from. Read it before "restoring" anything that
+  looks missing; several of those omissions are pending a product decision, not
+  bugs.
 
 ## Traps that cost time once already
 
@@ -184,17 +197,22 @@ pending a bench recording.
 tests **by design** — mocking the Web Audio graph would test the mock. They are
 verified at the bench. Don't "fix" this by adding mocks.
 
-Components that take only plain props are a different case and *are* tested —
-`SourceFooter` and `SessionSheet`. The latter exists because an effect that
-combined focus-on-open with an Escape listener depended on `onClose`, which the
-parent recreated every render; every keystroke in the certificate fields stole
-focus back to the close button and the field took one character per tap. Keep
-focus effects keyed on what actually opened the thing, never on a callback.
+Components that take only plain props are a different case and *are* tested, as
+is every pure module behind them — `stability-position.ts`, `device-check.ts`,
+`movement-choice.ts`, `inspection-note.ts` and `export/report.ts` exist as
+separate modules precisely so the parts that decide what a person is told, and
+what lands on a customer's document, can be driven by a test.
+
+Modal surfaces are the native `<dialog>` element (`Dialog.tsx`), so the browser
+supplies the backdrop, the focus trap, Escape and inertness. Keep focus effects
+keyed on what actually opened the thing, never on a callback the parent
+recreates every render — that bug once made a text field take one character per
+tap.
 
 ## Commands
 
 ```sh
-cd web && npm test          # 401 tests across 27 files
+cd web && npm test          # 434 tests across 28 files
 cd web && npm run build     # tsc -b && vite build
 cd web && npm run dev       # http://localhost:5173/tools/timegrapher/
 

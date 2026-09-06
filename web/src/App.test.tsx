@@ -36,14 +36,18 @@ vi.mock('./audio/audio-engine', async (loadOriginal) => {
   return { ...original, startCapture: mocks.startCapture };
 });
 
-vi.mock('./export/snapshot', async (loadOriginal) => {
-  const original = await loadOriginal<typeof import('./export/snapshot')>();
-  return { ...original, loadSnapshotLogo: vi.fn().mockResolvedValue(null) };
-});
-
-// Canvas rendering is covered by the focused component/export tests. jsdom has
-// no 2D canvas implementation; this test only needs the capture lifecycle.
+// Canvas rendering is covered by the focused component and export tests. jsdom
+// has no 2D canvas implementation; these tests only need the capture lifecycle.
+vi.mock('./components/TraceCanvas', () => ({ TraceCanvas: () => null }));
+vi.mock('./components/BeatCanvas', () => ({ BeatCanvas: () => null }));
 vi.mock('./components/WaveformCanvas', () => ({ WaveformCanvas: () => null }));
+
+async function reachTheToolbar(user: ReturnType<typeof userEvent.setup>) {
+  render(<App />);
+  await user.click(screen.getByRole('button', { name: /Live Timing/ }));
+  await user.click(screen.getByRole('button', { name: 'Grant Permission' }));
+  return screen.findByRole('button', { name: 'Start readings' });
+}
 
 describe('capture startup', () => {
   beforeEach(() => {
@@ -71,12 +75,9 @@ describe('capture startup', () => {
     const stop = vi.fn().mockResolvedValue(undefined);
     const user = userEvent.setup();
 
-    render(<App />);
-    await user.click(screen.getByRole('button', { name: 'Begin' }));
-    await screen.findByRole('button', { name: 'Start' });
-
-    await user.click(screen.getByRole('button', { name: 'Start' }));
-    await user.click(screen.getByRole('button', { name: 'Start screen' }));
+    const startButton = await reachTheToolbar(user);
+    await user.click(startButton);
+    await user.click(screen.getByRole('button', { name: 'Back to welcome' }));
 
     await act(async () => {
       finishStart({
@@ -92,7 +93,25 @@ describe('capture startup', () => {
     });
 
     expect(stop).toHaveBeenCalledOnce();
-    expect(screen.getByRole('button', { name: 'Begin' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Stop' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Live Timing/ })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Pause readings' })).not.toBeInTheDocument();
+  });
+
+  /*
+     Permission belongs to the page, not to the screen. Giving it back on the
+     way home would make every trip to the opening screen cost another browser
+     prompt — and on iOS, another interruption of whatever was on the bench.
+  */
+  it('keeps microphone permission when the operator goes back and forth', async () => {
+    mocks.startCapture.mockImplementation(() => new Promise(() => {}));
+    const user = userEvent.setup();
+
+    await reachTheToolbar(user);
+    await user.click(screen.getByRole('button', { name: 'Back to welcome' }));
+    await user.click(screen.getByRole('button', { name: /Inspection/ }));
+
+    expect(await screen.findByRole('button', { name: 'Start readings' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Grant Permission' })).not.toBeInTheDocument();
+    expect(mocks.requestPermission).toHaveBeenCalledOnce();
   });
 });

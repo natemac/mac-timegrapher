@@ -22,8 +22,17 @@ describe('SourceFooter', () => {
     expect(screen.getByText(/GPLv2/)).toBeInTheDocument();
   });
 
-  it('credits the upstream project', () => {
-    render(<SourceFooter />);
-    expect(screen.getByRole('link', { name: /tg/i })).toBeInTheDocument();
+  /*
+     The v36 footer drops the "Derived from tg by Marcello Mamino" credit that
+     used to sit beside the licence offer. Not a licence defect — the copyright
+     notices are in LICENSE and in every source header, both of which the link
+     above reaches — but it is a courtesy credit to the author of the project
+     this is a public fork of, and it is listed for a decision in
+     docs/updateui.md, A2. Restore the sentence and this test with it.
+  */
+  it('offers the source unconditionally, with no wrapper to hide it', () => {
+    const { container } = render(<SourceFooter />);
+    expect(container.querySelector('[hidden]')).toBeNull();
+    expect(screen.getByRole('link', { name: /view source/i })).toBeVisible();
   });
 });

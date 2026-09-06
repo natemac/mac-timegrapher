@@ -190,7 +190,7 @@ export class SignalMeter {
  * Thresholds are in dB of tick-above-floor. Below about 6 dB the detector has
  * little to work with; above roughly 20 dB the ticks are unmistakable.
  */
-function classify(headroomDb: number, levelDb: number): SignalStrength {
+export function classify(headroomDb: number, levelDb: number): SignalStrength {
   if (levelDb < -60) return 'none';
   if (headroomDb < 6) return 'weak';
   if (headroomDb < 12) return 'fair';

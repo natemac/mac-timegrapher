@@ -6,63 +6,67 @@
     it under the terms of the GNU General Public License version 2 as
     published by the Free Software Foundation.
 */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   requestPermission, listAudioInputs, saveSelection, loadSelection, resolveSelection,
   type AudioInput,
 } from './audio/device-manager';
 import { startCapture, type CaptureSession } from './audio/audio-engine';
 import { SignalMeter, type SignalState } from './audio/signal-strength';
-import {
-  ClockCalibrator, correctedSampleRate, type ClockDebug,
-} from './audio/clock-calibration';
-import { PermissionGate } from './components/PermissionGate';
-import { DeviceSelector } from './components/DeviceSelector';
-import { LevelMeter } from './components/LevelMeter';
-import { WaveformCanvas } from './components/WaveformCanvas';
-import { SourceFooter } from './components/SourceFooter';
-import { MeasurementPanel } from './components/MeasurementPanel';
-import { TimegrapherEngine, type Measurement, type Beat, type BeatWaveform, type Calibration } from './timegrapher/tg-engine';
-import {
-  StabilityTracker, SETTLED_BOUNDS, type BestSpread, type Settling, type Spread,
-} from './timegrapher/stability';
-import { TraceCanvas } from './components/TraceCanvas';
-import { BeatCanvas } from './components/BeatCanvas';
-import { GraphSwitch, type Graph } from './components/GraphSwitch';
-import { resolveZoom, ZOOM_AUTO } from './timegrapher/trace-zoom';
-import {
-  SettingsSheet, DEFAULT_SETTINGS, loadSettings, saveSettings, type Settings,
-} from './components/SettingsSheet';
-import { GUIDE, type Topic } from './components/guide-content';
-import { findMovement, engineConfigFor, isQuartz, loadMovementId, saveMovementId } from './timegrapher/movements';
-import { useWakeLock } from './hooks/useWakeLock';
-import { useInspectionRun } from './hooks/useInspectionRun';
-import { SessionSheet } from './components/SessionSheet';
-import { loadMode, saveMode, type Mode } from './components/ModeSwitch';
-import { InspectionWizard } from './components/InspectionWizard';
-import {
-  startWizard, begin, abort, captured, advance, finish, retry, jumpTo,
-  positionAt, loadAutoCapture, saveAutoCapture,
-  COUNTDOWN_SECONDS, type WizardState,
-} from './timegrapher/wizard';
-import {
-  drawSnapshot, dataUrlToBytes, snapshotFilename, loadSnapshotLogo, deliverSnapshot,
-  type SnapshotInput,
-} from './export/snapshot';
+import { correctedSampleRate } from './audio/clock-calibration';
+import { resolveCaptureProfile, constraintsFor } from './audio/capture-route';
+import { runDeviceCheck, type DeviceCheckReport } from './audio/device-check-run';
+import { deviceReportText, deviceReportFilename } from './export/device-report';
 import { DiagnosticsLog, diagnosticsFilename } from './export/diagnostics';
-import { currentRunSummary, type PositionId } from './timegrapher/session';
+import { deliverSnapshot } from './export/snapshot';
+
+import { TimegrapherEngine, type Measurement, type Beat, type BeatWaveform, type Calibration } from './timegrapher/tg-engine';
+import { StabilityTracker, SETTLED_BOUNDS, type Settling, type Spread } from './timegrapher/stability';
+import { resolveZoom, ZOOM_AUTO } from './timegrapher/trace-zoom';
+import { findMovement, isQuartz, loadMovementId, saveMovementId } from './timegrapher/movements';
+import {
+  MANUAL_ID, loadManualMovement, saveManualMovement, movementBadge, resolveMovementConfig,
+  type ManualMovement,
+} from './timegrapher/movement-choice';
+import { pendingResults, type StepId, type StepResult } from './timegrapher/device-check';
+import { inspectionNote } from './timegrapher/inspection-note';
+import {
+  startWizard, begin, abort, captured, positionAt, loadAutoCapture, saveAutoCapture,
+  WIZARD_ORDER, COUNTDOWN_SECONDS, type WizardState,
+} from './timegrapher/wizard';
+import { positionName, type PositionId } from './timegrapher/session';
 import {
   createInspection, upsertReading, putInspection,
   loadInspections, saveInspections, loadCurrentId, saveCurrentId,
   type Inspection,
 } from './timegrapher/inspections';
-import { Certificate } from './components/Certificate';
-import { DEFAULT_LIFT_ANGLE } from './timegrapher/movements';
-import { assessReadiness } from './timegrapher/readiness';
-import { runDeviceTest, constraintsFor, type DeviceTestReport, type TestProgress } from './audio/device-test';
-import { resolveCaptureProfile, amplitudeCaveat } from './audio/capture-route';
-import { deviceReportText, deviceReportFilename } from './export/device-report';
-import type { ProcessingWarning } from './audio/audio-engine';
+
+import {
+  loadSettings, saveSettings, resolveTheme, formatDrift, parseDrift, THEME_COLOUR,
+  type Settings,
+} from './settings/settings-store';
+
+import { AppHeader } from './components/AppHeader';
+import { AppFooter } from './components/AppFooter';
+import { WelcomeScreen } from './components/WelcomeScreen';
+import { InstrumentToolbar } from './components/InstrumentToolbar';
+import { ReadoutSurface } from './components/ReadoutSurface';
+import { GraphSurface, type Graph } from './components/GraphSurface';
+import { InspectionStrip } from './components/InspectionStrip';
+import { InspectionSummaryDialog } from './components/InspectionSummaryDialog';
+import { SettingsDialog, type SettingsTab } from './components/SettingsDialog';
+import { GeneralPanel } from './components/settings/GeneralPanel';
+import { DeviceCheckPanel } from './components/settings/DeviceCheckPanel';
+import { QuartzPanel } from './components/settings/QuartzPanel';
+import { GuidePanel } from './components/settings/GuidePanel';
+import { TraceCanvas } from './components/TraceCanvas';
+import { BeatCanvas } from './components/BeatCanvas';
+import { WaveformCanvas } from './components/WaveformCanvas';
+import { useWakeLock } from './hooks/useWakeLock';
+import { useInspectionRun } from './hooks/useInspectionRun';
+
+/** Which of the two jobs the operator came here to do. */
+type Screen = 'welcome' | 'timing' | 'inspection';
 
 function describeError(err: unknown): string {
   if (!(err instanceof Error)) return 'Could not open the audio input.';
@@ -81,88 +85,197 @@ function describeError(err: unknown): string {
 }
 
 export default function App() {
+  const [screen, setScreen] = useState<Screen>('welcome');
+  const mode = screen === 'inspection' ? 'inspection' : 'measure';
+
   const [granted, setGranted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [devices, setDevices] = useState<AudioInput[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+
   const [sampleRate, setSampleRate] = useState<number | null>(null);
-  const [requestedSampleRate, setRequestedSampleRate] = useState<number | null>(null);
   const [signal, setSignal] = useState<SignalState | null>(null);
   const [latest, setLatest] = useState<Float32Array | null>(null);
   const [measurement, setMeasurement] = useState<Measurement | null>(null);
   const [beats, setBeats] = useState<Beat[]>([]);
   const [beatWaveform, setBeatWaveform] = useState<BeatWaveform | null>(null);
+  const [settling, setSettling] = useState<Settling>('waiting');
+  const [spreads, setSpreads] = useState<{ rate: Spread | null; amplitude: Spread | null; beatError: Spread | null }>(
+    { rate: null, amplitude: null, beatError: null },
+  );
+  const [secondsCaptured, setSecondsCaptured] = useState(0);
+  const [capturing, setCapturing] = useState(false);
+
   /* A quartz clock check. Non-null only while one is running or has just
-     finished; it is deliberately not persisted, because the result is a
-     measurement of this session's audio path and nothing else. */
+     finished; deliberately not persisted, because the result is a measurement
+     of this session's audio path and nothing else. */
   const [clockCheck, setClockCheck] = useState<Calibration | null>(null);
   /* Held in a ref, not state: the engine effect has to read it without being
      re-run by it, or asking for a check would tear down the engine. */
   const wantClockCheck = useRef(false);
-  const [settling, setSettling] = useState<Settling>('waiting');
-  const [spreads, setSpreads] = useState<{ rate: Spread | null; amplitude: Spread | null; beatError: Spread | null }>({ rate: null, amplitude: null, beatError: null });
-  // Read when the settings sheet opens rather than tracked continuously: it is
-  // a slow-moving figure and re-rendering the app for it would be waste.
-  const [bestSpread, setBestSpread] = useState<BestSpread>({ rate: null, amplitude: null, beatError: null });
-  const [diagnosticSamples, setDiagnosticSamples] = useState(0);
-  const [clockDebug, setClockDebug] = useState<ClockDebug>(() => new ClockCalibrator().debug());
-  const [clockDisturbed, setClockDisturbed] = useState(false);
-  /* The processing states the browser reported at capture start, kept so the
-     readiness check can grade them. Empty means none applied / none known. */
-  const [processing, setProcessing] = useState<ProcessingWarning[]>([]);
-  /* The device test. Held here rather than in the diagnostics log because the
-     phone being diagnosed may never complete a capture at all, and its report
-     is the thing worth sending on. */
-  const [deviceTestReport, setDeviceTestReport] = useState<DeviceTestReport | null>(null);
-  const [deviceTestProgress, setDeviceTestProgress] = useState<TestProgress | null>(null);
-  const [deviceTestRunning, setDeviceTestRunning] = useState(false);
+
+
+  /*
+     The device check: one pass down a list, reported as it goes. Its rows are
+     held here rather than inside the panel so a check survives the settings
+     dialog being closed and reopened — it is the slowest thing in the app and
+     losing it to a stray tap would be its own small cruelty.
+  */
+  const [checkReport, setCheckReport] = useState<DeviceCheckReport | null>(null);
+  const [checkResults, setCheckResults] = useState<StepResult[]>(() => pendingResults(false));
+  const [checkStep, setCheckStep] = useState<StepId | null>(null);
+  const [checkElapsed, setCheckElapsed] = useState(0);
+  const [checkRunning, setCheckRunning] = useState(false);
+  const [includeMovementCheck, setIncludeMovementCheck] = useState(false);
+  const checkAbort = useRef<AbortController | null>(null);
+
   /* The last few detected beat rates, for judging whether the lock is holding.
      A ref, not state: it feeds a memo read on render, and per-block setState
      would re-render the app on every measurement for no visible gain. */
   const bphHistory = useRef<number[]>([]);
-  /* Waveform by default: it shows something the moment audio arrives, so a
-     first-time user can tell the sensor is hearing the watch before any
-     reading exists. The trace needs beats before it draws anything at all. */
-  const [graph, setGraph] = useState<Graph>('waveform');
-  /* Remembered: a bench usually works through a batch of the same calibre.
-     Nothing stored means nothing has been chosen yet, which gets the default
-     rather than automatic detection — see DEFAULT_MOVEMENT_ID. Automatic is
-     stored explicitly so choosing it survives a reload. */
-  const [movementId, setMovementId] = useState<string | null>(loadMovementId);
 
-  const selectMovement = useCallback((id: string | null) => {
-    setMovementId(id);
-    saveMovementId(id);
-  }, []);
-  // null topic means the full guide; a topic means one section's note.
-  const [helpTopic, setHelpTopic] = useState<Topic | null>(null);
+  /* Waveform by default: it shows something the moment audio arrives, so a
+     first-time user can tell the sensor is hearing the watch before any reading
+     exists. The trace needs beats before it draws anything at all, and opening
+     on an empty graph reads as a broken instrument. See GRAPHS for the order. */
+  const [graph, setGraph] = useState<Graph>('waveform');
+
+  /* Remembered: a bench usually works through a batch of the same calibre.
+     null is automatic detection, MANUAL_ID is both numbers typed in. */
+  const [movementId, setMovementId] = useState<string | null>(loadMovementId);
+  const [manual, setManual] = useState<ManualMovement>(loadManualMovement);
+  const [settings, setSettings] = useState<Settings>(loadSettings);
+
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [sessionOpen, setSessionOpen] = useState(false);
+  const [sheetTab, setSheetTab] = useState<SettingsTab>('general');
+  const [summaryOpen, setSummaryOpen] = useState(false);
+
   /*
-     Runs are records of their own, kept as a list, because a bench does not
-     measure one watch at a time from start to finish. `current` is the one
-     being added to; everything else is history that a before-and-after can be
-     paired against.
+     Every run ever recorded, held in a ref rather than in state.
+
+     Nothing on screen lists them — the design surfaces only the run in
+     progress — but they are still written, so a reload finds the current run
+     exactly where it was. Keeping them out of state means adding a reading does
+     not re-render the app for a list nobody is looking at.
   */
-  const [saved, setSaved] = useState<Inspection[]>(loadInspections);
+  const savedRuns = useRef<Inspection[]>(loadInspections());
   const [current, setCurrent] = useState<Inspection>(() => {
     const all = loadInspections();
     const id = loadCurrentId();
     return all.find((i) => i.id === id) ?? createInspection();
   });
 
-  // Which job the operator is here to do. Remembered: a bench that certifies
-  // does it all day, and a bench that regulates never opens the wizard.
-  const [mode, setMode] = useState<Mode>(loadMode);
   const [wizard, setWizard] = useState<WizardState>(startWizard);
   const [autoCapture, setAutoCapture] = useState(loadAutoCapture);
   const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
-  const [snapshotNote, setSnapshotNote] = useState<string | null>(null);
+  const [lastCaptured, setLastCaptured] = useState<PositionId | null>(null);
 
-  const selectMode = useCallback((next: Mode) => {
-    setMode(next);
-    saveMode(next);
+  /* The correction as typed, held apart from the setting itself: parsing on
+     every keystroke would reject a half-written "-" or "1." and write the wrong
+     number back. Committed on blur or Enter. */
+  const [clockDraft, setClockDraft] = useState(() => formatDrift(settings.clockDriftSecondsPerDay));
+
+  const session = useRef<CaptureSession | null>(null);
+  const engine = useRef<TimegrapherEngine | null>(null);
+  const meter = useRef(new SignalMeter());
+  const stability = useRef(new StabilityTracker());
+  // Beats accumulate across calls; the core re-reports overlapping windows,
+  // so they are keyed by time to dedupe.
+  const beatStore = useRef(new Map<number, Beat>());
+  const measurementRef = useRef<Measurement | null>(null);
+  /* Guards start/stop against re-entry. A ref rather than `busy` alone because
+     setState is asynchronous: two clicks inside one tick would both read the
+     old `busy` and both call getUserMedia, leaving the first MediaStream
+     unreachable with its tracks still live — the browser's recording indicator
+     then stays lit until the tab closes. */
+  const inFlight = useRef(false);
+  /*
+     One owner for the audio input, claimed synchronously.
+
+     Permission, normal capture and the device test each open their own stream.
+     Without a single claim, closing the settings and pressing Start during a
+     test began a second acquisition of the same microphone — a confounder in
+     exactly the measurement being used to diagnose one.
+  */
+  const audioOwner = useRef<'permission' | 'capture' | 'device check' | null>(null);
+  const activeDeviceId = useRef<string | null>(null);
+  /*
+     Which constraints a capture opens with. Android needs the communication
+     route to reach a chosen input at all — Chrome and Firefox both fail without
+     it — and everywhere else the direct route is correct and measures
+     amplitude. Nothing here is a preference.
+  */
+  const captureProfile = resolveCaptureProfile(navigator.userAgent);
+  /*
+     Which start request is still allowed to publish a session. Going home can
+     happen while getUserMedia and the audio graph are still being built, and a
+     session that lands afterwards must tear itself down rather than becoming
+     visible state with the input live.
+  */
+  const captureAttempt = useRef(0);
+  const traceSecondsRef = useRef(settings.traceSeconds);
+  /*
+    Consecutive settled reports. `settling()` is already conservative, but it is
+    evaluated twice a second and a reading can graze the bounds for a single
+    report on its way through — an unattended capture must not fire on that.
+  */
+  const settledRuns = useRef(0);
+  const wizardRef = useRef(wizard);
+  const stopRef = useRef<(() => Promise<void>) | null>(null);
+  // A written record of the run, for working out afterwards why a reading
+  // behaved the way it did. Nothing leaves the device unless it is exported.
+  const diagnostics = useRef(new DiagnosticsLog());
+  const signalRef = useRef<SignalState | null>(null);
+  const movementLabelRef = useRef<string | null>(null);
+  const movementIdRef = useRef<string | null>(null);
+  const currentRef = useRef(current);
+
+  // ---------------------------------------------------------------- theme --
+
+  /*
+     The theme, applied to the document rather than to a wrapper: the design's
+     stylesheet keys off `html[data-theme]`, and the address bar's colour is a
+     meta tag that has to move with it.
+  */
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const apply = () => {
+      const theme = resolveTheme(settings.appearance, media.matches);
+      document.documentElement.dataset.theme = theme;
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute('content', THEME_COLOUR[theme]);
+    };
+    apply();
+    media.addEventListener('change', apply);
+    return () => media.removeEventListener('change', apply);
+  }, [settings.appearance]);
+
+  /* The measuring screen is a denser layout than the opening one — a shorter
+     masthead, tighter padding — and the design switches between them with a
+     class on the body. */
+  useEffect(() => {
+    document.body.classList.toggle('instrument-page', screen !== 'welcome');
+    return () => document.body.classList.remove('instrument-page');
+  }, [screen]);
+
+  // ------------------------------------------------------------- storage --
+
+  const selectMovement = useCallback((id: string | null) => {
+    setMovementId(id);
+    saveMovementId(id);
+  }, []);
+
+  const changeManual = useCallback((next: ManualMovement) => {
+    setManual(next);
+    saveManualMovement(next);
+  }, []);
+
+  const updateSettings = useCallback((next: Settings) => {
+    setSettings(next);
+    traceSecondsRef.current = next.traceSeconds;
+    saveSettings(next);
   }, []);
 
   const changeAutoCapture = useCallback((next: boolean) => {
@@ -174,198 +287,65 @@ export default function App() {
      open all have to move together or a reload finds them disagreeing. */
   const updateCurrent = useCallback((next: Inspection) => {
     setCurrent(next);
-    setSaved((all) => {
-      const merged = putInspection(all, next);
-      saveInspections(merged);
-      return merged;
-    });
+    const merged = putInspection(savedRuns.current, next);
+    savedRuns.current = merged;
+    saveInspections(merged);
     saveCurrentId(next.id);
   }, []);
 
-  /*
-     Stable identities. Both sheets key effects on their close handler, and a
-     fresh arrow on every render re-runs those effects at the rate the app
-     re-renders — twice a second while measuring.
-  */
-  const closeSession = useCallback(() => setSessionOpen(false), []);
-  const closeSheet = useCallback(() => setSheetOpen(false), []);
-  const showFullGuide = useCallback(() => setHelpTopic(null), []);
+  useEffect(() => { traceSecondsRef.current = settings.traceSeconds; }, [settings.traceSeconds]);
+  useEffect(() => { wizardRef.current = wizard; }, [wizard]);
+  useEffect(() => { currentRef.current = current; }, [current]);
+  useEffect(() => { stopRef.current = stop; });
 
-  const showHelp = useCallback((topic: Topic) => {
-    setHelpTopic(topic);
-    setBestSpread(stability.current.best());
-    setSheetOpen(true);
-  }, []);
-
-  /*
-     The clock figure used to be read once, when the settings sheet opened.
-     That suited a passive measurement you came back to later: by the time you
-     looked, the run was long finished.
-
-     Calibration is now a tab you sit and watch, so a result that only appears
-     on the next open never appears at all — the counter passes 60s and nothing
-     happens, which is exactly what it looked like.
-
-     Polled at a second rather than derived during render. The fit is a least
-     squares over thousands of points and this component re-renders on every
-     audio block; running it there would be a regression per block.
-  */
+  /* The correction can change while the dialog is shut — applied from a fresh
+     measurement, or restored from storage — so the field is resynced on open
+     rather than only at first mount. */
   useEffect(() => {
     if (!sheetOpen) return;
-    const read = () => {
-      setClockDebug(calibrator.current.debug(sampleRate));
-      setClockDisturbed(calibrator.current.disturbed);
-    };
-    read();
-    const id = setInterval(read, 1000);
-    return () => clearInterval(id);
-  }, [sheetOpen, sampleRate]);
+    setClockDraft(formatDrift(settings.clockDriftSecondsPerDay));
+  }, [sheetOpen, settings.clockDriftSecondsPerDay]);
 
-  const openSettings = useCallback(() => {
-    setHelpTopic(null);
-    setBestSpread(stability.current.best());
-    setDiagnosticSamples(diagnostics.current.size);
-    setSheetOpen(true);
-  }, []);
-  // Remembered per device: magnification is a matter of taste and of what the
-  // operator is doing, and re-picking it every session would be tedious.
-  const [settings, setSettings] = useState<Settings>(loadSettings);
-
-  const updateSettings = useCallback((next: Settings) => {
-    setSettings(next);
-    traceSecondsRef.current = next.traceSeconds;
-    saveSettings(next);
-  }, []);
-  const [secondsCaptured, setSecondsCaptured] = useState(0);
-  const [capturing, setCapturing] = useState(false);
-
-  const session = useRef<CaptureSession | null>(null);
-  const engine = useRef<TimegrapherEngine | null>(null);
-  const meter = useRef(new SignalMeter());
-  const stability = useRef(new StabilityTracker());
-  // Beats accumulate across calls; the core re-reports overlapping windows,
-  // so they are keyed by time to dedupe.
-  const beatStore = useRef(new Map<number, Beat>());
-  // Capture reads the latest measurement without being rebuilt on every one of
-  // them, which would otherwise re-render the capture control twice a second.
-  const measurementRef = useRef<Measurement | null>(null);
-  // Guards start/stop against re-entry. A ref rather than `busy` alone
-  // because setState is asynchronous: two clicks inside one tick would both
-  // read the old `busy` and both call getUserMedia, leaving the first
-  // MediaStream unreachable with its tracks still live — the browser's
-  // recording indicator then stays lit until the tab closes.
-  const inFlight = useRef(false);
-  /*
-     One owner for the audio input, claimed synchronously.
-
-     Permission, normal capture and the device test each open their own stream,
-     and each guarded against a different subset of the others: the device test
-     never checked whether a capture was mid-open, and start never checked
-     whether a test was running. Closing the sheet and pressing Start during a
-     test began a second acquisition of the same microphone, which is a
-     confounder in exactly the measurements being used to diagnose one.
-
-     Held for as long as the input is, not merely while it is being opened.
-  */
-  const audioOwner = useRef<'permission' | 'capture' | 'device test' | null>(null);
-  /*
-     The input a capture is actually running on, which is deliberately not the
-     dropdown: the dropdown is a preference and can be re-resolved by a hot
-     plug, while this identifies the stream in flight.
-  */
-  const activeDeviceId = useRef<string | null>(null);
-  /*
-     Which constraints a capture opens with. Android needs the communication
-     route to reach a chosen input at all — Chrome and Firefox both fail
-     without it — and everywhere else the direct route is correct and measures
-     amplitude. Nothing here is a preference.
-  */
-  const captureProfile = resolveCaptureProfile(navigator.userAgent);
-  /*
-     Which start request is still allowed to publish a session.
-
-     Returning home can happen while getUserMedia and the audio graph are still
-     being built. `capturing` is not true until that finishes, so it cannot tell
-     goHome() there is a microphone request to cancel — the session then lands
-     on the opening screen with the input live, which is the exact thing
-     goHome() exists to prevent. Advancing this makes the late session tear
-     itself down instead of becoming visible state.
-  */
-  const captureAttempt = useRef(0);
-  // The measurement callback is created once when capture starts, so reading
-  // settings directly from it would pin whatever they were at that moment.
-  // A ref keeps it current when they change mid-capture.
-  const traceSecondsRef = useRef(DEFAULT_SETTINGS.traceSeconds);
-  /*
-    Consecutive settled reports. `settling()` is already conservative, but it
-    is evaluated twice a second and a reading can graze the bounds for a single
-    report on its way through — an unattended capture must not fire on that.
-  */
-  const settledRuns = useRef(0);
-  // Read by wizardCapture, which must not be rebuilt on every step change:
-  // it is a dependency of the auto-capture effect, which runs twice a second.
-  const wizardRef = useRef(wizard);
-  // Decoded ahead of time. iOS only honours navigator.share while it can still
-  // see the tap, and waiting on an image load inside the handler loses it.
-  const snapshotLogo = useRef<HTMLImageElement | null>(null);
-  // stop() is declared below the effects that end a position; a ref lets them
-  // call it without being rebuilt every time its closure changes.
-  const stopRef = useRef<(() => Promise<void>) | null>(null);
-  // A written record of the run, for working out afterwards why a reading
-  // behaved the way it did. Nothing leaves the device unless it is exported.
-  const diagnostics = useRef(new DiagnosticsLog());
-  // Measures the sound card's clock against the system clock while capture
-  // runs. It costs nothing and needs no reference watch.
-  const calibrator = useRef(new ClockCalibrator());
-  // Read inside the measurement callback, which is built once per capture and
-  // would otherwise pin whatever the signal was at that moment.
-  const signalRef = useRef<SignalState | null>(null);
-  // Read by start(), which is declared above where the label is computed.
-  const movementLabelRef = useRef<string | null>(null);
-  const movementIdRef = useRef<string | null>(null);
-  // Read by capture(), which must not be rebuilt every time a detail is typed
-  // — it is a dependency of the auto-record effect, which runs twice a second.
-  const currentRef = useRef(current);
-
-  useEffect(() => {
-    traceSecondsRef.current = settings.traceSeconds;
-  }, [settings.traceSeconds]);
-
-  useEffect(() => {
-    wizardRef.current = wizard;
-  }, [wizard]);
-
-  useEffect(() => {
-    currentRef.current = current;
-  }, [current]);
-
-  useEffect(() => {
-    stopRef.current = stop;
-  });
-
-  useEffect(() => {
-    void loadSnapshotLogo(import.meta.env.BASE_URL).then((img) => {
-      snapshotLogo.current = img;
+  const applyDrift = useCallback((value: number) => {
+    setClockDraft(formatDrift(value));
+    setSettings((s) => {
+      const next = { ...s, clockDriftSecondsPerDay: value };
+      saveSettings(next);
+      return next;
     });
   }, []);
 
-  // Readings take half a minute to settle and the operator's hands are on a
-  // watch, not the screen.
-  useWakeLock(capturing);
+  const commitClockDraft = useCallback(() => {
+    const parsed = parseDrift(clockDraft);
+    if (parsed === null) {
+      setClockDraft(formatDrift(settings.clockDriftSecondsPerDay));
+      return;
+    }
+    applyDrift(parsed);
+  }, [clockDraft, settings.clockDriftSecondsPerDay, applyDrift]);
+
+  // Asked for rather than assumed. A reading takes twenty to thirty seconds to
+  // settle with the operator's hands on a watch, but the battery is theirs.
+  useWakeLock(settings.keepAwake);
 
   /*
-     Hold off the browser's pull-to-refresh while a measurement is running.
-
-     A reload is not destructive — recorded readings and the session details
-     are in local storage — but it cuts the microphone off mid-reading and puts
-     the run back to its first position. Off only while that matters: on an
-     idle screen the gesture behaves as it does anywhere else.
+     Hold off the browser's pull-to-refresh while a measurement is running. A
+     reload is not destructive — recorded readings and the run are in local
+     storage — but it cuts the microphone off mid-reading.
   */
   useEffect(() => {
     if (!capturing) return;
     document.documentElement.classList.add('is-measuring');
     return () => document.documentElement.classList.remove('is-measuring');
   }, [capturing]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const id = window.setTimeout(() => setNotice(null), 3200);
+    return () => window.clearTimeout(id);
+  }, [notice]);
+
+  // ------------------------------------------------------------ readings --
 
   const capture = useCallback((position: PositionId) => {
     const m = measurementRef.current;
@@ -392,11 +372,8 @@ export default function App() {
   /*
     Throw away the collected average and the trace, keeping the audio running.
     Moving the watch onto the sensor makes a burst of noise the spread cannot
-    distinguish from the movement misbehaving, and it would otherwise sit in
-    the window for the next thirty seconds.
-
-    Deliberately not a full stop and start: that would tear down the engine and
-    the microphone for something the operator does several times a session.
+    distinguish from the movement misbehaving, and it would otherwise sit in the
+    window for the next thirty seconds.
   */
   const resetAverage = useCallback(() => {
     diagnostics.current.event('average restarted');
@@ -413,74 +390,19 @@ export default function App() {
     const p = positionAt(wizardRef.current.step);
     if (!p) return;
     capture(p);
+    setLastCaptured(p);
     setWizard(captured);
   }, [capture]);
 
-  const restartWizard = useCallback(() => {
-    settledRuns.current = 0;
-    setWizard(startWizard());
-  }, []);
-
-  const jumpWizard = useCallback((step: number) => {
-    settledRuns.current = 0;
-    setWizard((w) => jumpTo(w, step));
-  }, []);
-
   /*
-     Clear the reading and start the next watch.
-
-     The technician and the calibre carry over, because the next watch is
-     usually measured by the same person on the same bench. The reference does
-     not: it is what identifies the watch, and inheriting it would silently
-     pair the new reading with the old one's opposite pass.
-  */
-  const startNewInspection = useCallback(() => {
-    const next = createInspection({
-      // Before regulation, because that is what a watch arriving is. The
-      // switch changes it in one tap when this is the second visit.
-      phase: 'pre',
-      technician: currentRef.current.technician,
-      movementId: movementIdRef.current,
-      movementName: movementLabelRef.current,
-    });
-    updateCurrent(next);
-    settledRuns.current = 0;
-    setWizard(startWizard());
-    setSessionOpen(false);
-  }, [updateCurrent]);
-
-
-  /*
-    Close the sheet before printing. The print stylesheet hides it anyway, but
-    a modal left open behind the print dialog is disorienting when it returns —
-    and on iOS the dialog is a full-screen takeover, so the app underneath
-    should be in a sensible state when it comes back.
-  */
-  const printCertificate = useCallback(() => {
-    setSessionOpen(false);
-    window.setTimeout(() => window.print(), 60);
-  }, []);
-
-
-  /*
-     Count consecutive settled reports.
-
-     Declared before the effect that reads it, because effects run in
-     declaration order and the auto-capture check has to see this update's
-     count rather than the previous one's. `secondsCaptured` is in the
-     dependencies because it is the only value that changes on every report —
-     `settling` alone would run this on transitions only.
+     Count consecutive settled reports. Declared before the effect that reads
+     it, because effects run in declaration order and the auto-capture check has
+     to see this update's count rather than the previous one's.
   */
   useEffect(() => {
     settledRuns.current = settling === 'settled' ? settledRuns.current + 1 : 0;
   }, [settling, secondsCaptured]);
 
-  /*
-     The sequencing of a position — the grace, the unattended capture, and
-     capture stopping once a reading is kept. It lived here as three effects
-     and was verified by reading them; it is a hook now so it can be driven by
-     a test, because it is the part that decides what lands on a document.
-  */
   useInspectionRun({
     active: mode === 'inspection',
     wizard,
@@ -497,19 +419,31 @@ export default function App() {
     capture: wizardCapture,
     stop: () => { void stopRef.current?.(); },
     note: (label) => diagnostics.current.event(label),
-  })
+  });
 
-  // The engine is built from the movement, so it is created by an effect rather
-  // than inside start(): changing the movement mid-capture has to rebuild it,
-  // and previously that silently did nothing — the operator picked the right
-  // calibre, saw amplitude not move, and had no way to know why.
-  //
-  // Runs in a Worker. The analysis sweeps a sixteen-second window through seven
-  // FFTs, which visibly stutters the UI on the main thread.
+  /* The report opens itself once every position is in. It is the point of the
+     run, and the design says so. */
+  useEffect(() => {
+    if (mode !== 'inspection') return;
+    if (wizard.stage !== 'done') return;
+    if (wizard.recorded.length < WIZARD_ORDER.length) return;
+    setSummaryOpen(true);
+  }, [mode, wizard.stage, wizard.recorded.length]);
+
+  const movementConfig = resolveMovementConfig(movementId, manual);
+
+  /*
+     The engine is built from the movement, so it is created by an effect rather
+     than inside start(): changing the calibre mid-capture has to rebuild it, and
+     previously that silently did nothing — the operator picked the right
+     calibre, saw amplitude not move, and had no way to know why.
+
+     Runs in a Worker. The analysis sweeps a sixteen-second window through seven
+     FFTs, which visibly stutters the UI on the main thread.
+  */
   useEffect(() => {
     if (!capturing || sampleRate === null) return;
 
-    const { bph, liftAngle } = engineConfigFor(findMovement(movementId));
     /*
        The one place a clock correction has to be applied. The core's arithmetic
        is in samples, so correcting the rate it is told corrects everything
@@ -517,8 +451,8 @@ export default function App() {
     */
     const built = TimegrapherEngine.create({
       sampleRate: correctedSampleRate(sampleRate, settings.clockDriftSecondsPerDay),
-      bph,
-      liftAngle,
+      bph: movementConfig.bph,
+      liftAngle: movementConfig.liftAngle,
       onMeasurement: (m, seconds, newBeats, shape) => {
         setMeasurement(m);
         setBeatWaveform(shape);
@@ -576,9 +510,7 @@ export default function App() {
     });
     engine.current = built;
     /* A check asked for while stopped: start() only sets `capturing`, and the
-       engine does not exist until this effect runs a render later. Applying
-       the wish here rather than at the button is what makes that work — and
-       re-applies it if the engine is rebuilt mid-check. */
+       engine does not exist until this effect runs a render later. */
     if (wantClockCheck.current) built.startClockCheck();
 
     return () => {
@@ -586,121 +518,15 @@ export default function App() {
       if (engine.current === built) engine.current = null;
       /*
          Only the engine and its stores. This teardown also runs when capture
-         merely stops, and clearing the panel here is what wiped the reading
-         the operator had stopped in order to read. What genuinely invalidates
-         a retained reading — a changed calibre, a changed clock correction —
-         is handled by its own effect below, which can tell the difference.
+         merely stops, and clearing the panel here is what wiped the reading the
+         operator had stopped in order to read.
       */
       stability.current.reset();
       beatStore.current.clear();
     };
-  }, [capturing, sampleRate, movementId, settings.clockDriftSecondsPerDay]);
+  }, [capturing, sampleRate, movementConfig.bph, movementConfig.liftAngle, settings.clockDriftSecondsPerDay]);
 
-
-  // Auto magnification follows the reading, so it is resolved here rather than
-  // inside the canvas — the header has to show the figure actually in use.
-  const effectiveZoom = resolveZoom(
-    settings.zoomMs,
-    measurement?.valid ? measurement.rate : 0,
-    settings.traceSeconds,
-  );
-
-  const chosenMovement = findMovement(movementId);
-  const movementLabel = chosenMovement ? `${chosenMovement.maker} ${chosenMovement.name}` : null;
-  const chosenDeviceLabel = devices.find((d) => d.deviceId === selectedId)?.label ?? null;
-
-  /*
-     The pre-measurement verdict, from the app's own live state — no new audio.
-     Recomputed on render, which is cheap: assessReadiness is a handful of
-     comparisons over a fixed set of facts.
-  */
-  const readinessReport = useMemo(
-    () => assessReadiness({
-      capturing,
-      deviceLabel: chosenDeviceLabel,
-      sampleRate,
-      timingSeconds: clockDebug.elapsedSeconds,
-      timingDisturbed: clockDisturbed,
-      rejectionRate: clockDebug.steps > 0 ? (clockDebug.steps - clockDebug.points) / clockDebug.steps : null,
-      processing,
-      strength: signal?.strength ?? 'none',
-      clipped: signal?.clipped ?? false,
-      hot: signal?.hot ?? false,
-      measurementValid: measurement?.valid ?? false,
-      recentBph: bphHistory.current,
-      expectedBph: chosenMovement && !isQuartz(chosenMovement) ? chosenMovement.bph : null,
-      quartz: isQuartz(chosenMovement),
-    }),
-    [capturing, chosenDeviceLabel, sampleRate, clockDebug, clockDisturbed,
-     processing, signal, measurement, chosenMovement],
-  );
-  movementLabelRef.current = movementLabel;
-  movementIdRef.current = movementId;
-
-  /*
-     Save the reading on screen as an image.
-
-     Everything up to the share call is synchronous on purpose: iOS Safari only
-     opens the share sheet while it can still attribute the call to the tap
-     that started it, and an awaited toBlob is enough of a gap to lose that.
-  */
-  const saveSnapshot = useCallback(async () => {
-    const m = measurementRef.current;
-    if (!m?.valid) return;
-
-    const input: SnapshotInput = {
-      rate: m.rate,
-      amplitude: m.amplitude,
-      beatError: m.beatError,
-      bph: m.detectedBph,
-      spreads,
-      movementName: movementLabel,
-      position: mode === 'inspection' ? positionAt(wizard.step) : null,
-      reference: current.reference,
-      at: new Date(),
-      showLogo: settings.showLogo,
-    };
-
-    try {
-      const canvas = document.createElement('canvas');
-      drawSnapshot(canvas, input, snapshotLogo.current);
-      const bytes = dataUrlToBytes(canvas.toDataURL('image/png'));
-      const name = snapshotFilename(input);
-      const file = new File([bytes], name, { type: 'image/png' });
-      const outcome = await deliverSnapshot(file);
-      setSnapshotNote(outcome === 'shared' ? 'Image shared.' : `Saved as ${name}`);
-    } catch (err) {
-      // Dismissing the share sheet rejects with AbortError. That is the
-      // operator changing their mind, not a failure to report.
-      if (err instanceof Error && err.name === 'AbortError') return;
-      setSnapshotNote('Could not save the image.');
-    }
-  }, [spreads, movementLabel, mode, wizard.step, current.reference, settings.showLogo]);
-
-  /*
-     Hand over the session log.
-
-     Deliberately not automatic and not uploaded anywhere: it carries the
-     device name and the browser's user agent, so it leaves only when it is
-     asked for.
-  */
-  const exportDiagnostics = useCallback(async () => {
-    const name = diagnosticsFilename(new Date());
-    try {
-      const file = new File([diagnostics.current.toText()], name, { type: 'text/plain' });
-      const outcome = await deliverSnapshot(file);
-      setSnapshotNote(outcome === 'shared' ? 'Diagnostics shared.' : `Saved as ${name}`);
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') return;
-      setSnapshotNote('Could not save the diagnostics.');
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!snapshotNote) return;
-    const id = window.setTimeout(() => setSnapshotNote(null), 3200);
-    return () => window.clearTimeout(id);
-  }, [snapshotNote]);
+  // ------------------------------------------------------------- devices --
 
   const secure = window.isSecureContext;
   const supported = typeof AudioWorkletNode !== 'undefined';
@@ -713,8 +539,7 @@ export default function App() {
        An input that vanishes mid-capture ends the measurement even if the
        browser keeps handing us a live track: whatever is still arriving is not
        the device that was selected, and carrying on would attribute it to one
-       that has been unplugged. The disconnect path relies on track.ended,
-       which does not always fire.
+       that has been unplugged.
     */
     const active = activeDeviceId.current;
     if (active && !found.some((d) => d.deviceId === active)) {
@@ -723,18 +548,16 @@ export default function App() {
       setError('The selected input was disconnected. Choose an input and start again.');
     }
 
-    /*
-       Only re-resolve when the current choice is actually gone. Re-resolving on
+    /* Only re-resolve when the current choice is actually gone. Re-resolving on
        every device change let an unrelated hot plug silently move the selection
-       back to whatever was last saved.
-    */
+       back to whatever was last saved. */
     setSelectedId((prev) => {
       if (prev && found.some((d) => d.deviceId === prev)) return prev;
       return resolveSelection(loadSelection(), found)?.deviceId ?? null;
     });
   }, []);
 
-  const grant = async () => {
+  const grant = useCallback(async () => {
     if (audioOwner.current) return;
     audioOwner.current = 'permission';
     setBusy(true);
@@ -749,7 +572,7 @@ export default function App() {
       if (audioOwner.current === 'permission') audioOwner.current = null;
       setBusy(false);
     }
-  };
+  }, [refreshDevices]);
 
   useEffect(() => {
     if (!granted) return;
@@ -758,28 +581,12 @@ export default function App() {
     return () => navigator.mediaDevices.removeEventListener('devicechange', onChange);
   }, [granted, refreshDevices]);
 
-  // Cleanup-only: release a live capture session if App unmounts mid-capture
-  // (in production App is the singleton root, so this mostly guards against
-  // leaking the MediaStream/AudioContext during Fast Refresh in development).
-  useEffect(() => {
-    return () => {
-      // Nothing is left to report a failure to at unmount, and an unhandled
-      // rejection here would surface as a spurious console error.
-      void session.current?.stop().catch(() => {});
-    };
+  // Cleanup-only: release a live capture session if App unmounts mid-capture.
+  useEffect(() => () => {
+    void session.current?.stop().catch(() => {});
   }, []);
 
   const handleBlock = useCallback((block: Float32Array) => {
-    /*
-       Sampled here rather than on a timer, because this runs off the audio
-       thread's own delivery — so a stalled or throttled main thread shows up as
-       a gap the calibrator discards rather than as false drift.
-    */
-    const ctx = session.current?.context;
-    if (ctx && ctx.state === 'running') {
-      calibrator.current.sample(ctx.currentTime, performance.now(), block.length);
-    }
-
     engine.current?.push(block);
     const next = meter.current.push(block, block.length / (session.current?.sampleRate ?? 48000));
     signalRef.current = next;
@@ -787,14 +594,11 @@ export default function App() {
     setLatest(block);
   }, []);
 
-  // Everything a capture teardown has to undo, whether it was asked for or
-  // forced on us by the device disappearing. Kept in one place so the two
-  // paths cannot drift apart.
   /*
-     Empty the panel. Stopping no longer does this — the last reading is the
-     one you write down, and wiping it at the moment the operator reaches for a
-     pen was the wrong instinct. It is cleared when a new capture starts, and
-     when something it was computed under changes.
+     Empty the panel. Stopping no longer does this — the last reading is the one
+     you write down, and wiping it at the moment the operator reaches for a pen
+     was the wrong instinct. It is cleared when a new capture starts, and when
+     something it was computed under changes.
   */
   const clearReading = useCallback(() => {
     setMeasurement(null);
@@ -815,57 +619,56 @@ export default function App() {
   /*
      A retained reading is only good for the watch and the correction it was
      taken under. Amplitude is computed from the calibre's lift angle and every
-     rate is scaled by the clock correction, so changing either leaves figures
-     on screen that describe something else — and unlike a stopped capture,
-     nothing about the screen would say so.
-
-     Its own effect because the engine teardown cannot tell a changed calibre
-     from a capture that merely stopped, and those want opposite things.
+     rate is scaled by the clock correction, so changing either leaves figures on
+     screen that describe something else — and unlike a stopped capture, nothing
+     about the screen would say so.
   */
-  const readingBasis = useRef({ movementId, drift: settings.clockDriftSecondsPerDay });
+  const readingBasis = useRef({
+    liftAngle: movementConfig.liftAngle,
+    bph: movementConfig.bph,
+    drift: settings.clockDriftSecondsPerDay,
+  });
   useEffect(() => {
-    const basis = readingBasis.current;
-    if (basis.movementId === movementId && basis.drift === settings.clockDriftSecondsPerDay) return;
-    readingBasis.current = { movementId, drift: settings.clockDriftSecondsPerDay };
+    const b = readingBasis.current;
+    if (b.liftAngle === movementConfig.liftAngle
+      && b.bph === movementConfig.bph
+      && b.drift === settings.clockDriftSecondsPerDay) return;
+    readingBasis.current = {
+      liftAngle: movementConfig.liftAngle,
+      bph: movementConfig.bph,
+      drift: settings.clockDriftSecondsPerDay,
+    };
     clearReading();
-  }, [movementId, settings.clockDriftSecondsPerDay, clearReading]);
+  }, [movementConfig.liftAngle, movementConfig.bph, settings.clockDriftSecondsPerDay, clearReading]);
 
   const releaseCaptureState = useCallback(() => {
     // A position interrupted before it recorded has nothing to keep, so the run
-    // returns to the same prompt rather than advancing past it. A position that
-    // already recorded is left alone — stopping is how each one ends.
+    // returns to the same prompt rather than advancing past it.
     setWizard(abort);
     session.current = null;
     activeDeviceId.current = null;
     if (audioOwner.current === 'capture') audioOwner.current = null;
     setCapturing(false);
     /*
-       What is on screen stays there. A reading is taken in order to be read,
-       and stopping is how you stop it moving so you can — clearing the panel
-       at that moment threw away the thing the operator had just been waiting
-       for, and the only way back was to measure it again.
-
-       The internal stores are reset rather than the displays, so the next run
-       starts clean while the last one stays legible. The Start button says
-       plainly that nothing is live.
+       What is on screen stays there. A reading is taken in order to be read, and
+       stopping is how you stop it moving so you can. The internal stores are
+       reset rather than the displays, so the next run starts clean while the
+       last one stays legible.
     */
     stability.current.reset();
     beatStore.current.clear();
     meter.current.reset();
     bphHistory.current = [];
     setSampleRate(null);
-    setRequestedSampleRate(null);
-    setProcessing([]);
   }, []);
 
   const handleDisconnect = useCallback(() => {
     setError(
-      'The audio input was disconnected. Reconnect it, or choose another ' +
-      'input, then press Start again.',
+      'The audio input was disconnected. Reconnect it, or choose another '
+      + 'input, then press Start again.',
     );
-    // The MediaStreamTrack has already ended, but the AudioContext and the
-    // graph built on it have not: run the same teardown a deliberate stop
-    // would, so nothing is left holding the device.
+    // The track has already ended, but the AudioContext and the graph built on
+    // it have not: run the same teardown a deliberate stop would.
     void session.current?.stop().catch(() => {});
     releaseCaptureState();
   }, [releaseCaptureState]);
@@ -877,8 +680,8 @@ export default function App() {
     audioOwner.current = 'capture';
     setBusy(true);
     setError(null);
-    // The previous run's figures must not sit under a live capture that has
-    // not produced any of its own yet.
+    // The previous run's figures must not sit under a live capture that has not
+    // produced any of its own yet.
     clearReading();
     try {
       const s = await startCapture(
@@ -886,15 +689,14 @@ export default function App() {
         handleBlock,
         handleDisconnect,
         constraintsFor(captureProfile, selectedId),
-        // Echo cancellation under this profile was asked for deliberately, so
-        // it is reported as intentional rather than as the browser overriding
-        // the request.
+        // Echo cancellation under this profile was asked for deliberately, so it
+        // is reported as intentional rather than as the browser overriding us.
         captureProfile === 'ec-only' ? ['echoCancellation'] : [],
       );
       activeDeviceId.current = selectedId;
       if (attempt !== captureAttempt.current) {
-        // Home was pressed while the browser was opening the input. This
-        // session was never published, so nothing else will release it.
+        // Home was pressed while the browser was opening the input. This session
+        // was never published, so nothing else will release it.
         await s.stop().catch(() => {});
         return;
       }
@@ -902,12 +704,9 @@ export default function App() {
 
       // The rate the device actually granted, not the one requested. The core's
       // period arithmetic is in samples, so a wrong figure here would scale
-      // every reading; the engine effect builds from this value.
+      // every reading.
       setSampleRate(s.sampleRate);
-      setRequestedSampleRate(s.requestedSampleRate ?? null);
-      setProcessing(s.warnings);
       setCapturing(true);
-      calibrator.current.beginSession();
       saveSelection(selectedId);
 
       diagnostics.current.reset();
@@ -918,8 +717,8 @@ export default function App() {
         processing: s.warnings.map((w) => `${w.setting}: ${w.state}`),
         captureProfile,
         movement: movementLabelRef.current,
-        liftAngle: findMovement(movementId)?.liftAngle ?? null,
-        bph: findMovement(movementId)?.bph ?? null,
+        liftAngle: movementConfig.liftAngle,
+        bph: movementConfig.bph,
         quartz: isQuartz(findMovement(movementId)),
         mode,
         settledBounds: SETTLED_BOUNDS,
@@ -931,8 +730,8 @@ export default function App() {
       });
       diagnostics.current.event('start', `${s.sampleRate} Hz`);
 
-      // In an inspection this is the only trigger there is: it opens the
-      // device and starts the position's grace in one press.
+      // In an inspection this is the only trigger there is: it opens the device
+      // and starts the position's grace in one press.
       if (mode === 'inspection') {
         setCountdown(COUNTDOWN_SECONDS);
         setWizard(begin);
@@ -944,12 +743,11 @@ export default function App() {
       inFlight.current = false;
       setBusy(false);
       /*
-         A start that never produced a session must not leave the input marked
-         as owned. The owner is normally released by releaseCaptureState, which
-         only runs once there is something to release — so a throw here, or a
-         cancelled attempt, held the claim for the life of the page and every
-         later press returned at the guard in silence, with nothing on screen
-         to say why.
+         A start that never produced a session must not leave the input marked as
+         owned. The owner is normally released by releaseCaptureState, which only
+         runs once there is something to release — so a throw here held the claim
+         for the life of the page and every later press returned at the guard in
+         silence, with nothing on screen to say why.
       */
       if (!session.current && audioOwner.current === 'capture') {
         audioOwner.current = null;
@@ -965,9 +763,8 @@ export default function App() {
     try {
       await session.current?.stop();
     } catch (err) {
-      // ctx.close() can reject. Without this the state below never ran, so
-      // the button stayed on Stop and the dropdown stayed disabled with no
-      // way back short of reloading the page.
+      // ctx.close() can reject. Without this the state below never ran, so the
+      // button stayed on Pause and the dropdown stayed disabled.
       setError(describeError(err));
     } finally {
       diagnostics.current.event('stop');
@@ -980,33 +777,38 @@ export default function App() {
   /*
      The way back to the opening screen.
 
-     Installed to the home screen the app has no browser chrome — no address
-     bar, no reload, no pull-to-refresh — so once you are past the opening
-     screen there is otherwise no route back to it. The mark and the product
-     name are the way, because that is where a person looks for it.
+     Installed to the home screen the app has no browser chrome — no address bar,
+     no reload, no pull-to-refresh — so once you are past the opening screen
+     there is otherwise no route back to it. The mark and the back control are
+     the way, because that is where a person looks for it.
 
      The capture is stopped first. Leaving the microphone open behind a screen
      that shows no meter and no readings is how a device ends up held with its
-     input live and nothing on screen saying so.
-
-     Nothing is lost by going back: the run in progress is written to storage
-     on every change, so its readings and the run they belong to are exactly
-     where they were when you come back in.
+     input live and nothing on screen saying so. Permission is not given back:
+     it was granted to this page, not to this screen.
   */
   const goHome = async () => {
     captureAttempt.current += 1;
-    // session.current covers the narrow gap where a session was published but
-    // React has not rendered `capturing` yet.
     if (capturing || session.current) await stop();
-    setGranted(false);
+    setScreen('welcome');
     setError(null);
   };
 
+  const enter = (next: Exclude<Screen, 'welcome'>) => {
+    setScreen(next);
+    setError(null);
+    if (next === 'inspection') {
+      settledRuns.current = 0;
+      setWizard(startWizard());
+      setLastCaptured(null);
+    }
+  };
+
+  // --------------------------------------------------------- diagnostics --
+
   /*
-     The quartz clock check. It needs a live capture with the reference watch
-     on the sensor, so it starts one if there is not already one running —
-     otherwise the button would silently do nothing on the settings screen,
-     which is where it lives.
+     The quartz clock check. It needs a live capture with the reference watch on
+     the sensor, so it starts one if there is not already one running.
   */
   const startClockCheck = async () => {
     setClockCheck(null);
@@ -1019,357 +821,343 @@ export default function App() {
     engine.current?.startClockCheck();
   };
 
-  /*
-     Every configuration, the spectrum, and whether the analysis locks — in one
-     press. It drives the microphone directly, so it refuses while a capture is
-     running or still opening.
-  */
-  const startDeviceTest = async () => {
-    if (!selectedId || inFlight.current || audioOwner.current || deviceTestRunning) return;
-    audioOwner.current = 'device test';
-    setError(null);
-    setDeviceTestReport(null);
-    setDeviceTestRunning(true);
-    try {
-      const mv = findMovement(movementId);
-      const report = await runDeviceTest(
-        selectedId,
-        {
-          name: movementLabelRef.current,
-          // 0 lets the core detect the beat rate, which is what a diagnostic
-          // wants: it should not be told the answer it is checking for.
-          bph: mv && !isQuartz(mv) ? (mv.bph ?? 0) : 0,
-          liftAngle: mv?.liftAngle ?? DEFAULT_LIFT_ANGLE,
-        },
-        setDeviceTestProgress,
-      );
-      setDeviceTestReport(report);
-    } catch (err) {
-      setError(describeError(err));
-    } finally {
-      if (audioOwner.current === 'device test') audioOwner.current = null;
-      setDeviceTestRunning(false);
-      setDeviceTestProgress(null);
-    }
-  };
-
-  const exportDeviceTest = useCallback(async () => {
-    if (!deviceTestReport) return;
-    const name = deviceReportFilename(new Date());
-    try {
-      const file = new File([deviceReportText(deviceTestReport)], name, { type: 'text/plain' });
-      const outcome = await deliverSnapshot(file);
-      setSnapshotNote(outcome === 'shared' ? 'Device test shared.' : `Saved as ${name}`);
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') return;
-      setSnapshotNote('Could not save the device test.');
-    }
-  }, [deviceTestReport]);
-
   const stopClockCheck = () => {
     wantClockCheck.current = false;
     engine.current?.stopClockCheck();
     setClockCheck(null);
   };
 
-  /* Both marks are always rendered; CSS shows whichever suits the theme.
-     Extracted only so the masthead can wrap them in a button without the
-     markup appearing twice. */
-  const logoMark = (
-    <>
-      <img
-        className="app__logo app__logo--neg"
-        src={`${import.meta.env.BASE_URL}mac-logo-neg.png`}
-        alt="MAC Bespoke Watch Co."
-      />
-      <img
-        className="app__logo app__logo--pos"
-        src={`${import.meta.env.BASE_URL}mac-logo-pos.png`}
-        alt=""
-        aria-hidden="true"
-      />
-    </>
+  /*
+     The device check. It drives the microphone directly, so it refuses while a
+     capture is running or still opening — two acquisitions of one input is a
+     confounder in exactly the measurement being diagnosed.
+  */
+  const startDeviceCheck = async () => {
+    if (!selectedId || inFlight.current || audioOwner.current || checkRunning) return;
+    const abort = new AbortController();
+    checkAbort.current = abort;
+    audioOwner.current = 'device check';
+    setError(null);
+    setCheckReport(null);
+    setCheckResults(pendingResults(includeMovementCheck));
+    setCheckElapsed(0);
+    setCheckRunning(true);
+    try {
+      const report = await runDeviceCheck({
+        deviceId: selectedId,
+        profile: captureProfile,
+        includeMovement: includeMovementCheck,
+        movement: {
+          name: movementLabelRef.current,
+          bph: movementConfig.detected ? 0 : movementConfig.bph,
+          liftAngle: movementConfig.liftAngle,
+        },
+        clockDriftSecondsPerDay: settings.clockDriftSecondsPerDay,
+        onProgress: (p) => {
+          setCheckStep(p.running);
+          setCheckResults(p.results);
+          setCheckElapsed(p.elapsedSeconds);
+        },
+        signal: abort.signal,
+      });
+      setCheckReport(report);
+      setCheckResults(report.results);
+    } catch (err) {
+      setError(describeError(err));
+    } finally {
+      if (checkAbort.current === abort) checkAbort.current = null;
+      if (audioOwner.current === 'device check') audioOwner.current = null;
+      setCheckRunning(false);
+      setCheckStep(null);
+    }
+  };
+
+  const cancelDeviceCheck = useCallback(() => {
+    checkAbort.current?.abort();
+  }, []);
+
+  const handOver = useCallback(async (text: string, name: string, what: string) => {
+    try {
+      const file = new File([text], name, { type: 'text/plain' });
+      const outcome = await deliverSnapshot(file);
+      setNotice(outcome === 'shared' ? `${what} shared.` : `Saved as ${name}`);
+    } catch (err) {
+      // Dismissing the share sheet rejects with AbortError. That is the operator
+      // changing their mind, not a failure to report.
+      if (err instanceof Error && err.name === 'AbortError') return;
+      setNotice(`Could not save the ${what.toLowerCase()}.`);
+    }
+  }, []);
+
+  const exportDiagnostics = useCallback(
+    () => void handOver(diagnostics.current.toText(), diagnosticsFilename(new Date()), 'Diagnostics'),
+    [handOver],
   );
+
+  const exportDeviceCheck = useCallback(() => {
+    if (!checkReport) return;
+    void handOver(deviceReportText(checkReport), deviceReportFilename(new Date()), 'Device check');
+  }, [checkReport, handOver]);
+
+  // ------------------------------------------------------------- derived --
+
+  const chosenMovement = findMovement(movementId);
+  movementLabelRef.current = movementId === MANUAL_ID
+    ? 'Manual'
+    : chosenMovement ? `${chosenMovement.maker} ${chosenMovement.name}` : null;
+  movementIdRef.current = movementId;
+
+  const badge = movementBadge(movementId, manual);
+
+  // Auto magnification follows the reading, so it is resolved here rather than
+  // inside the canvas — the toolbar has to show the figure actually in use.
+  const effectiveZoom = resolveZoom(
+    settings.zoomMs,
+    measurement?.valid ? measurement.rate : 0,
+    settings.traceSeconds,
+  );
+
+  const graphScale = graph === 'trace'
+    ? `${settings.zoomMs === ZOOM_AUTO ? 'Auto' : `${effectiveZoom}ms`} · ${settings.traceSeconds}s`
+    : graph === 'beat' ? '35 ms' : '1 s';
+
+  const graphAxis = graph === 'trace'
+    ? { start: `−${settings.traceSeconds} s`, end: 'Now' }
+    : graph === 'beat' ? { start: '0 ms', end: '35 ms' }
+      : { start: '−1 s', end: 'Now' };
+
+  const graphEmpty = !capturing && (
+    graph === 'trace' ? beats.length === 0
+      : graph === 'beat' ? beatWaveform === null
+        : latest === null
+  );
+
+  const settled = settling === 'settled';
+  const canCapture = capturing
+    && wizard.stage === 'measuring'
+    && settled
+    && (measurement?.valid ?? false);
+
+  const positions = WIZARD_ORDER.map((id) => ({
+    name: positionName(id),
+    captured: wizard.recorded.includes(id),
+  }));
+
+  const note = inspectionNote({
+    stage: wizard.stage,
+    countdown,
+    capturing,
+    settled,
+    currentName: positionAt(wizard.step) ? positionName(positionAt(wizard.step)!) : null,
+    lastCapturedName: lastCaptured ? positionName(lastCaptured) : null,
+    recorded: wizard.recorded.length,
+    total: WIZARD_ORDER.length,
+  });
+
+  const openSettings = (tab: SettingsTab = 'general') => {
+    setSheetTab(tab);
+    setSheetOpen(true);
+  };
+
+  const toolbar = (
+    <InstrumentToolbar
+      granted={granted}
+      busy={busy}
+      devices={devices}
+      selectedId={selectedId}
+      onSelectDevice={setSelectedId}
+      onRequestMic={grant}
+      running={capturing}
+      onStart={() => void start()}
+      onStop={() => void stop()}
+      transportDisabled={!selectedId || busy}
+      movementName={badge.name}
+      movementMeta={badge.meta}
+      onOpenMovement={() => openSettings('general')}
+    />
+  );
+
+  const blocked = !secure
+    ? 'This page is not on a secure connection, so the browser will not grant microphone access. Open it over HTTPS.'
+    : !supported
+      ? 'This browser does not support AudioWorklet. Use a current version of Chrome, Edge, Firefox or Safari.'
+      : null;
 
   return (
     <>
-    <div className={granted ? 'app app--measuring' : 'app'}>
-      <header className="app__masthead">
-        {/* Buttons only once there is somewhere to go: on the opening screen
-            the mark and the name are just the identity. See goHome(). */}
-        {settings.showLogo && (
-          granted ? (
-            <button className="app__home app__home--mark" onClick={goHome} aria-label="Start screen">
-              {logoMark}
-            </button>
-          ) : (
-            logoMark
-          )
-        )}
-        {granted ? (
-          <button className="app__home app__wordmark" onClick={goHome} aria-label="Start screen">
-            Timegrapher
-          </button>
+      <AppHeader
+        showLogo={settings.showLogo}
+        onHome={() => void goHome()}
+        onOpenSettings={() => openSettings('general')}
+      />
+
+      <main>
+        {screen === 'welcome' ? (
+          <WelcomeScreen
+            onLiveTiming={() => enter('timing')}
+            onInspection={() => enter('inspection')}
+          />
         ) : (
-          <span className="app__wordmark">Timegrapher</span>
-        )}
-
-        <div className="app__controls">
-        <button
-          className="icon-button"
-          onClick={() => setSessionOpen(true)}
-          aria-label={`Inspection — ${current.readings.length} of 6 positions recorded`}
-        >
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
-            <path d="M4 5.5h16M4 12h16M4 18.5h16" strokeLinecap="round" />
-          </svg>
-          {current.readings.length > 0 && (
-            <span className="icon-button__badge">{current.readings.length}</span>
-          )}
-        </button>
-
-        <button
-          className="icon-button"
-          onClick={openSettings}
-          aria-label="Guide and settings"
-        >
-          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
-            <circle cx="12" cy="12" r="3.2" />
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-          </svg>
-        </button>
-        </div>
-      </header>
-
-      <SessionSheet
-        open={sessionOpen}
-        onClose={closeSession}
-        current={current}
-        saved={saved}
-        onChange={updateCurrent}
-        onPrint={printCertificate}
-        onClear={startNewInspection}
-      />
-
-
-      <SettingsSheet
-        open={sheetOpen}
-        topic={helpTopic}
-        onClose={closeSheet}
-        onShowFullGuide={showFullGuide}
-        settings={settings}
-        onChange={updateSettings}
-        movementId={movementId}
-        onSelectMovement={selectMovement}
-        best={bestSpread}
-        onExportDiagnostics={exportDiagnostics}
-        diagnosticSamples={diagnosticSamples}
-        clockCheck={clockCheck}
-        onStartClockCheck={startClockCheck}
-        onStopClockCheck={stopClockCheck}
-        granted={granted}
-        onRequestMic={grant}
-        busy={busy}
-        devices={devices}
-        selectedId={selectedId}
-        onSelectDevice={setSelectedId}
-        sampleRate={sampleRate}
-        capturing={capturing}
-        onStartCapture={start}
-        onStopCapture={stop}
-        readiness={readinessReport}
-        deviceTestRunning={deviceTestRunning}
-        deviceTestProgress={deviceTestProgress}
-        deviceTestReport={deviceTestReport}
-        onRunDeviceTest={startDeviceTest}
-        onExportDeviceTest={exportDeviceTest}
-      />
-
-      {!secure && (
-        <div className="panel panel--tight">
-          <p className="bad" style={{ margin: 0, fontSize: 13 }}>
-            This page is not on a secure connection, so the browser will not
-            grant microphone access. Open it over HTTPS.
-          </p>
-        </div>
-      )}
-
-      {!supported && (
-        <div className="panel panel--tight">
-          <p className="bad" style={{ margin: 0, fontSize: 13 }}>
-            This browser does not support AudioWorklet. Use a current version of
-            Chrome, Edge or Safari.
-          </p>
-        </div>
-      )}
-
-      {secure && supported && !granted && (
-        <>
-          <PermissionGate
-            onGrant={grant}
-            error={error}
-            busy={busy}
-            mode={mode}
-            onSelectMode={selectMode}
-          />
-          {/*
-            The source offer under GPLv2 §3. It is off the measuring screen,
-            which has no room for it, but it is the first thing every visitor
-            passes on the way in and it is repeated at the foot of the guide —
-            so it is always present and always one tap away, which is what the
-            licence asks for. It is not conditional on anything.
-          */}
-          <SourceFooter />
-        </>
-      )}
-
-      {granted && (
-        <>
-          <DeviceSelector
-            devices={devices}
-            selectedId={selectedId}
-            sampleRate={sampleRate}
-            requestedSampleRate={requestedSampleRate}
-            capturing={capturing}
-            busy={busy}
-            onSelect={setSelectedId}
-            onStart={start}
-            onStop={stop}
-            /* An inspection is worked entirely from the wizard, so this panel
-               keeps only the microphone. */
-            compact={mode === 'inspection'}
-            onHelp={showHelp}
-            movementId={movementId}
-            onSelectMovement={selectMovement}
-          />
-
-
-          {error && (
-            <div className="panel panel--tight">
-              <p className="bad" style={{ margin: 0, fontSize: 13 }}>{error}</p>
-            </div>
-          )}
-
-          <MeasurementPanel
-            measurement={measurement}
-            capturing={capturing}
-            secondsCaptured={secondsCaptured}
-            settling={settling}
-            spreads={spreads}
-            clockCheck={clockCheck}
-            /*
-               Shown everywhere, warned about only where the fault was
-               measured: Chrome for Android on the communication route.
-               Firefox on the same handset and the same pickup is clean, and
-               its readings should not carry another browser's warning.
-            */
-            amplitudeCaveat={amplitudeCaveat(captureProfile, navigator.userAgent)}
-            onHelp={showHelp}
-            onResetAverage={resetAverage}
-            onSnapshot={saveSnapshot}
-            guidance={mode === 'measure'}
-            quartz={isQuartz(chosenMovement)}
-            /* Only in an inspection: Measure has no set to average, and its
-               panel is never idle for long enough to look empty. */
-            summary={mode === 'inspection' ? currentRunSummary(current.readings, wizard.recorded) : null}
-          />
-
-          {snapshotNote && (
-            <p className="dim app__note" role="status">{snapshotNote}</p>
-          )}
-
-          {mode === 'inspection' && (
-            <InspectionWizard
-              state={wizard}
-              capturing={capturing}
-              phase={current.phase}
-              settling={settling}
-              valid={measurement?.valid ?? false}
-              seconds={secondsCaptured}
-              countdown={countdown}
-              auto={autoCapture}
-              onAutoChange={changeAutoCapture}
-              onCapture={wizardCapture}
-              onSkip={() => setWizard(advance)}
-              onNext={() => setWizard(advance)}
-              onRetry={() => setWizard(retry)}
-              onFinish={() => setWizard(finish)}
-              onRestart={restartWizard}
-              onOpenSummary={() => setSessionOpen(true)}
-              onJump={jumpWizard}
-              onHelp={showHelp}
-              onStart={start}
-              onStop={stop}
-              startDisabled={devices.length === 0 || busy}
-            />
-          )}
-
-          <LevelMeter signal={signal} onHelp={showHelp} />
-
-          {/* One panel, two views. The switch names what you are looking at,
-              so the panel needs no separate label of its own. */}
-          <div className="panel panel--tight app__graph">
-            <div className="panel__head">
-              <GraphSwitch value={graph} onChange={setGraph} />
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span className="dim mono" style={{ fontSize: 10 }}>
-                  {graph === 'trace'
-                    ? `${settings.traceSeconds}s · ${effectiveZoom}ms${settings.zoomMs === ZOOM_AUTO ? ' auto' : ''}`
-                    : graph === 'beat'
-                      ? '35ms'
-                      : '1s'}
-                </span>
+          <section className="instrument-workspace" id="measurement">
+            <div className="instrument-heading">
+              <button className="back" onClick={() => void goHome()} aria-label="Back to welcome">
+                ‹ <span id="instrumentMode">{screen === 'inspection' ? 'INSPECTION' : 'LIVE TIMING'}</span>
+              </button>
+              {screen === 'inspection' && (
                 <button
-                  className="panel__help-icon"
-                  onClick={() => showHelp(graph)}
-                  aria-label={`What is the ${GUIDE[graph].title.toLowerCase()}?`}
+                  id="inspectionSummaryButton"
+                  className="plain-control"
+                  onClick={() => setSummaryOpen(true)}
+                  aria-label={`Inspection summary, ${wizard.recorded.length} of ${WIZARD_ORDER.length} positions captured`}
+                  title="Inspection summary"
                 >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="M9.2 9a2.9 2.9 0 0 1 5.6 1c0 2-2.8 2.6-2.8 2.6" strokeLinecap="round" />
-                    <circle cx="12" cy="17.2" r="0.9" fill="currentColor" stroke="none" />
+                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <rect x="5" y="3" width="14" height="18" rx="3" />
+                    <path d="M9 8h6M9 12h6M9 16h3" />
                   </svg>
                 </button>
-              </div>
+              )}
             </div>
 
-            {graph === 'trace' && (
-              <TraceCanvas
-                beats={beats}
-                bph={measurement?.detectedBph ?? 0}
-                zoomMs={effectiveZoom}
-                rate={measurement?.valid ? measurement.rate : 0}
-                windowSeconds={settings.traceSeconds}
-                capturing={capturing}
-              />
-            )}
-            {graph === 'beat' && (
-              <BeatCanvas
-                waveform={beatWaveform}
-                liftAngle={chosenMovement?.liftAngle ?? DEFAULT_LIFT_ANGLE}
-                capturing={capturing}
-              />
-            )}
-            {graph === 'waveform' && <WaveformCanvas latest={latest} />}
-          </div>
-        </>
-      )}
-    </div>
+            {/* One toolbar, two homes: on its own in Live Timing, and inside
+                the wizard during an inspection so the run is worked from one
+                panel. */}
+            {screen === 'inspection' ? (
+              <InspectionStrip
+                positions={positions}
+                step={Math.min(wizard.step, WIZARD_ORDER.length - 1)}
+                note={note}
+                auto={autoCapture}
+                onAutoChange={changeAutoCapture}
+                canCapture={canCapture}
+                onCapture={wizardCapture}
+              >
+                {toolbar}
+              </InspectionStrip>
+            ) : toolbar}
 
-    {/*
-      Outside .app on purpose. The print stylesheet hides .app, and a hidden
-      parent hides its children however they are styled — nested here, printing
-      produced a blank page.
-    */}
-    <Certificate
-      current={current}
-      saved={saved}
-      liftAngle={findMovement(movementId)?.liftAngle ?? DEFAULT_LIFT_ANGLE}
-      deviceLabel={devices.find((d) => d.deviceId === selectedId)?.label ?? null}
-      sampleRate={sampleRate}
-      showLogo={settings.showLogo}
-      quartz={isQuartz(chosenMovement)}
-    />
+            <ReadoutSurface
+              measurement={measurement}
+              capturing={capturing}
+              secondsCaptured={secondsCaptured}
+              settling={settling}
+              spreads={spreads}
+              signal={signal}
+              onReset={resetAverage}
+            />
+
+            <GraphSurface
+              graph={graph}
+              onChange={setGraph}
+              scale={graphScale}
+              axis={graphAxis}
+              empty={graphEmpty}
+            >
+              {graph === 'trace' && (
+                <TraceCanvas
+                  beats={beats}
+                  bph={measurement?.detectedBph ?? 0}
+                  zoomMs={effectiveZoom}
+                  rate={measurement?.valid ? measurement.rate : 0}
+                  windowSeconds={settings.traceSeconds}
+                  capturing={capturing}
+                />
+              )}
+              {graph === 'beat' && (
+                <BeatCanvas
+                  waveform={beatWaveform}
+                  liftAngle={movementConfig.liftAngle}
+                  capturing={capturing}
+                />
+              )}
+              {graph === 'waveform' && <WaveformCanvas latest={latest} />}
+            </GraphSurface>
+
+            {(blocked || error || notice) && (
+              <p
+                className="instrument-notice"
+                id="instrumentNotice"
+                role="status"
+                data-tone={blocked || error ? 'bad' : undefined}
+              >
+                {blocked ?? error ?? notice}
+              </p>
+            )}
+          </section>
+        )}
+      </main>
+
+      <AppFooter />
+
+      <SettingsDialog
+        open={sheetOpen}
+        /* A check holds the microphone, so closing the dialog it lives in has
+           to stop it rather than leave it running behind a screen that shows
+           nothing about it. */
+        onClose={() => { cancelDeviceCheck(); setSheetOpen(false); }}
+        initialTab={sheetTab}
+        panel={(tab) => (
+          tab === 'general' ? (
+            <GeneralPanel
+              settings={settings}
+              onChange={updateSettings}
+              movementId={movementId}
+              onSelectMovement={selectMovement}
+              manual={manual}
+              onManualChange={changeManual}
+              onExportDiagnostics={exportDiagnostics}
+              status={notice}
+            />
+          ) : tab === 'device' ? (
+            <DeviceCheckPanel
+              granted={granted}
+              busy={busy}
+              devices={devices}
+              selectedId={selectedId}
+              onSelectDevice={setSelectedId}
+              onRequestMic={grant}
+              capturing={capturing}
+              running={checkRunning}
+              activeStep={checkStep}
+              results={checkResults}
+              elapsedSeconds={checkElapsed}
+              includeMovement={includeMovementCheck}
+              onIncludeMovement={setIncludeMovementCheck}
+              onRun={() => void startDeviceCheck()}
+              onCancel={cancelDeviceCheck}
+              onExport={exportDeviceCheck}
+              canExport={checkReport !== null}
+              finished={checkReport !== null}
+              hint={error}
+            />
+          ) : tab === 'quartz' ? (
+            <QuartzPanel
+              granted={granted}
+              busy={busy}
+              devices={devices}
+              selectedId={selectedId}
+              onSelectDevice={setSelectedId}
+              onRequestMic={grant}
+              hint={error}
+              check={clockCheck}
+              onStart={() => void startClockCheck()}
+              onStop={stopClockCheck}
+              onUse={(v) => { applyDrift(v); stopClockCheck(); }}
+              draft={clockDraft}
+              onDraftChange={setClockDraft}
+              onDraftCommit={commitClockDraft}
+            />
+          ) : <GuidePanel />
+        )}
+      />
+
+      <InspectionSummaryDialog
+        open={summaryOpen}
+        onClose={() => setSummaryOpen(false)}
+        inspection={current}
+        onChange={updateCurrent}
+        showLogo={settings.showLogo}
+      />
     </>
   );
 }

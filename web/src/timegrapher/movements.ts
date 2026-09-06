@@ -70,9 +70,9 @@ export const MOVEMENTS: Movement[] = [
   mech('nh71', 'NH71', 'Seiko / TMI', 21600, 53),
   mech('nh72', 'NH72', 'Seiko / TMI', 21600, 53),
 
-  // Miyota
-  mech('miyota8215', '8215', 'Miyota', 21600, 49),
+  // Miyota, in calibre order as the movement list prints them.
   mech('miyota8205', '8205', 'Miyota', 21600, 49),
+  mech('miyota8215', '8215', 'Miyota', 21600, 49),
   mech('miyota9015', '9015', 'Miyota', 28800, 51),
 
   // Chinese 2824-pattern

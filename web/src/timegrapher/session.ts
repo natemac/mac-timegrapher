@@ -28,8 +28,12 @@ export const POSITIONS = [
   { id: 'dial-down', name: 'Dial down', short: 'DD' },
   { id: 'crown-up', name: 'Crown up', short: 'CU' },
   { id: 'crown-down', name: 'Crown down', short: 'CD' },
-  { id: 'crown-left', name: '12 up', short: '12U' },
-  { id: 'crown-right', name: '6 up', short: '6U' },
+  /* Named for where the crown points, like the four before them. They used to
+     be "12 up" and "6 up", which named the dial index instead and disagreed
+     with the convention that puts 12 up when the crown is down. The ids are
+     unchanged, so readings recorded under the old names still resolve. */
+  { id: 'crown-left', name: 'Crown left', short: 'CL' },
+  { id: 'crown-right', name: 'Crown right', short: 'CR' },
 ] as const;
 
 export type PositionId = (typeof POSITIONS)[number]['id'];

@@ -6,17 +6,30 @@
     it under the terms of the GNU General Public License version 2 as
     published by the Free Software Foundation.
 */
+
+/*
+   The written offer of source, under GPLv2 §3.
+
+   Serving WebAssembly and JavaScript to a browser is distribution of object
+   code, so the offer has to travel with it. It is in the page footer, which is
+   rendered on every screen — the opening screen, both measuring modes — and is
+   never behind a condition, a setting or a tab. Do not make it one.
+*/
 const REPO = 'https://github.com/natemac/mac-timegrapher';
 
 export function SourceFooter() {
   return (
-    <footer
-      className="dim"
-      style={{ fontSize: 10.5, lineHeight: 1.5, textAlign: 'center', flex: '0 0 auto' }}
-    >
-      Open source (GPLv2) — <a href={REPO}>view source</a>. Derived from{' '}
-      <a href="https://github.com/vacaboja/tg">tg</a> by Marcello Mamino. Audio
-      never leaves this device.
-    </footer>
+    <p>
+      Open source (GPLv2) —{' '}
+      <a
+        className="source-label"
+        href={REPO}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ color: 'inherit' }}
+      >
+        view source.
+      </a>
+    </p>
   );
 }

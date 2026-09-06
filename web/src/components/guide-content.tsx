@@ -9,595 +9,463 @@
 import type { ReactNode } from 'react';
 
 /*
-   One source for every explanation in the app.
+   Every explanation the app gives, in one place.
 
-   Each panel can be tapped for a short "what am I looking at" note, and the
-   guide lists them all. Both read from here, so the answer a operator gets by
-   tapping Amplitude is word for word the one in the guide — two copies would
-   drift, and the shorter one would end up being the wrong one.
+   The words are the v36 design's, with one class of exception: the design was
+   written against a prototype with no measurement engine, and said so in
+   several places — "integration is still pending", "Run Calibration does not
+   generate a result", "escapement, beat lock and analysis lock are awaiting the
+   timing engine". Those sentences describe a build nobody will ever run and are
+   rewritten to describe this one. Everything else is left exactly as approved.
+   See docs/updateui.md, C2.
+
+   Nothing here grades a watch. The figures a movement should hold are its
+   manufacturer's business and a shop's own, and a public tool asserting a pass
+   mark would be making a claim it cannot support.
 */
 
-export type Topic =
-  | 'modes' | 'input' | 'measurement' | 'settling' | 'signal' | 'trace'
-  | 'waveform' | 'beat' | 'inspection'
-  // Settings. Explained here rather than beside the controls, so the settings
-  // page is a list of controls and not a wall of prose.
-  | 'setting-movement' | 'setting-steadiness' | 'setting-branding'
-  | 'setting-magnification' | 'setting-history' | 'setting-diagnostics'
-  | 'android-usb'
-  | 'setting-clock';
-
-export interface GuideEntry {
-  title: string;
-  /** One line: what this is, before any detail. */
-  lede: string;
+export interface GuideTopic {
+  id: string;
+  summary: string;
   body: ReactNode;
 }
 
-export const GUIDE: Record<Topic, GuideEntry> = {
-  'setting-movement': {
-    title: 'Movement',
-    lede: 'Which calibre is on the sensor. It decides the lift angle, and the lift angle decides amplitude.',
+export const GUIDE: GuideTopic[] = [
+  {
+    id: 'modes',
+    summary: 'Live Timing or Inspection?',
     body: (
       <>
         <p>
-          Beat rate the app can work out for itself. Lift angle it cannot — that
-          is escapement geometry, not something you can hear — and amplitude is
-          calculated directly from it. A degree out is about two percent of
-          amplitude, so the wrong calibre gives a confidently wrong number.
+          <strong>Live Timing</strong> gives you a continuously updating reading
+          while you check or adjust a watch.
         </p>
         <p>
-          The setup panel shows this as a dropdown until you pick one, then
-          collapses it to a line of text. A bench works through a batch of one
-          calibre, so this is where it gets changed afterwards.
-        </p>
-        <p>
-          Quartz calibres are listed so an inspection can name them, but the
-          analysis does not apply: a stepper motor has no balance wheel, so
-          amplitude and beat error are withheld rather than shown as numbers you
-          could act on.
+          <strong>Inspection</strong> guides you through six positions and
+          produces a report you can print or hand over.
         </p>
       </>
     ),
   },
-
-  'setting-clock': {
-    title: 'Audio clock',
-    lede: 'Your sound card does not run at exactly the rate it claims, and every reading inherits the difference.',
+  {
+    id: 'input',
+    summary: 'Audio input',
     body: (
       <>
         <p>
-          A device that reports 44,100 Hz is running at something near it.
-          Crystals are typically ten to a hundred parts per million out, and
-          every part per million is <strong>0.0864 seconds a day</strong> of
-          error in rate. A hundred parts per million is 8.6 s/day — the
-          difference between a watch that needs regulating and one that does
-          not.
+          Device Check and Quartz Calibration use the same audio input selection
+          as the measuring screen. If access has not been granted, press{' '}
+          <strong>Grant Permission</strong> and allow microphone access in your
+          browser. The input dropdown appears once permission is granted.
         </p>
         <p>
-          It hides from everything else here. The error is a constant scale
-          factor, so it is perfectly repeatable: the reading settles, the spread
-          stays tight, and the whole scale is shifted. Steadiness cannot see it.
-        </p>
-
-        <h4>Two ways to measure it</h4>
-        <p>
-          Both produce the same kind of number — seconds a day — and both feed
-          the same <strong>Correction</strong> box. They are named where they
-          report, because they run at different lengths and it is otherwise
-          easy to read one's progress as the other's.
-        </p>
-
-        <h4>System clock — about a minute</h4>
-        <p>
-          Start a capture and leave it running for a minute or more without
-          stopping. Nothing needs to be on the sensor. The app compares its own
-          audio clock against the system clock, which is disciplined and far
-          steadier than any sound card, and fits a line through the two.
+          Choose the microphone or pickup you will use for timing. If access is
+          denied, allow it in your browser settings and try again.
         </p>
         <p>
-          It has to be one uninterrupted run. Stitching several short ones
-          together is biased by more than the error being measured, so a new
-          capture starts the measurement over.
-        </p>
-        <p>
-          Then press <strong>Apply</strong>. The correction is remembered on
-          this device and used for every reading afterwards. It belongs to the
-          audio device, so measure it again if you change sensor or machine.
-        </p>
-
-        <h4>Entering one measured elsewhere</h4>
-        <p>
-          The <strong>Correction</strong> box takes a figure typed by hand. It
-          is the same quantity native <strong>tg</strong> calls <em>cal</em>,
-          in the same units, with the same sign, applied by the same arithmetic
-          — so a number off tg's toolbar can be typed straight in.
-        </p>
-        <p className="dim">
-          A correction measured against a quartz watch is only as good as the
-          watch. A quartz movement running 10 s/day fast puts that whole error
-          into every mechanical reading you take afterwards, because the app
-          has no way to tell the two apart. Measuring against the system clock
-          avoids that: it is disciplined against network time and is far better
-          than any wristwatch.
-        </p>
-
-        <p className="dim">
-          A figure beyond about thirty seconds a day is not offered. Sometimes
-          that is an interrupted run — a lock screen, a call, switching apps.
-          Sometimes it is not: this method compares the audio frames delivered
-          against elapsed time, and a slow crystal and frames going missing
-          look identical to it. Either way it is too large to apply on one
-          method's word, so check it against the quartz reference, which uses a
-          physical clock and can tell the two apart.
-        </p>
-
-        <h4>Quartz reference — about fifteen minutes</h4>
-        <p>
-          This is the method native tg uses. Put an analogue quartz watch with a <em>ticking seconds hand</em>
-          on the sensor, leave it still, and the app tracks the once-a-second
-          tick against its own audio clock for about fifteen minutes. It reports
-          a figure; it applies nothing until you press <strong>Use it</strong>.
-        </p>
-        <p className="dim">
-          Both run off the same capture, so a fifteen-minute quartz run also
-          gives you a system-clock figure over the same fifteen minutes — two
-          independent numbers for the price of one, and worth comparing.
-        </p>
-        <p className="dim">
-          The quartz one cannot tell the sound card apart from the watch. What it measures
-          is the difference between the two, and it attributes all of it to the
-          card — so the result carries the reference watch's own error. A
-          movement specified to ±20 seconds a month brings ±0.66 s/day with it.
-          Treat it as a second opinion on the system-clock figure rather than a
-          better one.
-        </p>
-
-        <h4>What it does not fix</h4>
-        <p>
-          Amplitude comes from the shape of the escapement impulse and the lift
-          angle, not from the clock, so this does not touch it. Beat error is a
-          ratio within one beat and barely moves either. This corrects rate.
-        </p>
-      </>
-    ),
-  },
-
-  'android-usb': {
-    title: 'USB pickups on Android',
-    lede: 'Android reaches a chosen microphone only on one audio path, and taking it costs something on Chrome. Both are handled for you.',
-    body: (
-      <>
-        <p>
-          Asking for a particular microphone is not the same as being given it.
-          Android only binds that choice on the route it uses for calls, and a
-          browser only takes that route when it asks for echo cancellation. On
-          a Pixel with all processing off, four different inputs — including a
-          USB pickup — all returned the same built-in microphone, matching each
-          other to within a decibel. With echo cancellation on, the pickup was
-          reached and the watch measured.
-        </p>
-        <p>
-          On Chrome for Android that route costs something. It applies gain
-          control of its own, underneath the browser, which the browser reports
-          as switched off: the level climbs to maximum within a second of
-          starting and stays there, and padding the movement raised it rather
-          than lowered it. Amplitude is read from where the tick's peak falls
-          in time, so a continuously rescaled signal gives a confident wrong
-          answer — around 160° for a watch reading 280° on a desktop. The
-          figure is still shown, with a warning under it, because a reading you
-          can check against another device is worth more than a blank. Rate and
-          beat error read timing rather than loudness and are unaffected.
-        </p>
-        <p>
-          Firefox for Android is not affected. On the same handset and the same
-          USB adapter it gives a clean signal well above the room with no
-          clipping and a rate that settles, so the fault belongs to one
-          browser's audio backend rather than to the platform — and its
-          readings carry no warning.
-        </p>
-        <p>
-          None of this is a setting. Android is asked for the route it needs
-          and every other platform is not, because the answer is the same for
-          every Android device tested — the first report came from a phone
-          where both Chrome and Firefox failed to reach the pickup. A control
-          here could only let you pick the configuration that cannot measure.
-        </p>
-      </>
-    ),
-  },
-  'setting-diagnostics': {
-    title: 'Session diagnostics',
-    lede: 'A written record of what the last run actually did, for working out why a reading behaved the way it did.',
-    body: (
-      <>
-        <p>
-          Everything that decides whether a reading is trustworthy happens twice
-          a second and is gone by the time you notice something is wrong. This
-          keeps it: every reading, its spread, the signal level, and a timeline
-          of what the app did — when the average was restarted, when a position
-          was recorded, when it gave up waiting for one to settle.
-        </p>
-        <p>
-          It also records the setup the run happened under: the input device,
-          the sample rate, whether the browser admitted to applying gain control
-          or noise suppression, and the calibre and lift angle in force.
-        </p>
-        <p>
-          It stays on this device. It is written while you measure and goes
-          nowhere until you export it — worth knowing before you send one on,
-          because it names your audio device and your browser.
-        </p>
-        <p>
-          A plain text file. Roughly twenty minutes of a run is kept; beyond
-          that the oldest readings are dropped.
-        </p>
-      </>
-    ),
-  },
-
-  'setting-steadiness': {
-    title: 'Steadiness of this bench',
-    lede: 'Not a setting — a measurement of your setup, for deciding where the Settled threshold belongs.',
-    body: (
-      <>
-        <p>
-          The left column is the tightest each reading has held this session. The
-          right is the threshold it has to beat to read <strong>Settled</strong>.
-        </p>
-        <p>
-          These thresholds are the one number nobody can pick from first
-          principles. They have to sit just above what a setup can actually hold,
-          and a hand-held sensor and a rigid mount are different instruments — a
-          figure that suits one is either unreachable or meaningless on the
-          other.
-        </p>
-        <p>
-          To use it: put a known-good, fully wound watch on the sensor and let it
-          run a minute or two in one position, then read the left column.
-        </p>
-        <ul>
-          <li>
-            Comfortably under the right every time — the thresholds are looser
-            than your setup needs and could come down.
-          </li>
-          <li>
-            Never gets there — too tight, or the sensor is not in firm enough
-            contact. Rule out contact first.
-          </li>
-        </ul>
-        <p>
-          Rate is the one that matters most; amplitude wanders more by nature.
-        </p>
-      </>
-    ),
-  },
-
-  'setting-branding': {
-    title: 'Branding',
-    lede: 'Whether the MAC mark appears in the app, on the inspection and on a saved reading.',
-    body: (
-      <>
-        <p>
-          Off unless you turn it on, because most people running this are not
-          MAC — a stranger's logo on your own inspection document is worse than
-          no logo at all. Turning it on is remembered on this device, so it is
-          done once.
-        </p>
-        <p>
-          The open-source notice in the footer stays either way. That one is a
-          licence condition rather than branding, and it is not affected by this.
-        </p>
-      </>
-    ),
-  },
-
-  'setting-magnification': {
-    title: 'Trace magnification',
-    lede: 'How much drift spans the width of the trace.',
-    body: (
-      <>
-        <p>
-          A smaller number magnifies more, so a small rate error leans further.
-          <strong> Auto</strong> keeps the lean as steep as it can while the line
-          still fits on the strip, and is usually what you want.
-        </p>
-        <p>
-          Lines running off one edge and reappearing on the other mean the
-          magnification is tighter than the watch's error needs.
-        </p>
-      </>
-    ),
-  },
-
-  'setting-history': {
-    title: 'Trace history',
-    lede: 'How far back the trace remembers.',
-    body: (
-      <p>
-        Longer shows the trend more clearly; shorter reacts faster when you move
-        the regulator.
-      </p>
-    ),
-  },
-
-  modes: {
-    title: 'Measure or Inspection',
-    lede: 'Two jobs. You choose which one you are doing before the watch goes on the sensor.',
-    body: (
-      <>
-        <p>
-          <strong>Measure</strong> is one live reading. Use it with a
-          screwdriver in your other hand: you watch the rate move as you adjust
-          the regulator. Nothing is recorded unless you press Capture, which
-          saves the readings on screen as an image.
-        </p>
-        <p>
-          <strong>Inspection</strong> takes the watch through six positions,
-          records each one, and produces a printable document. It is the slower
-          job and the one that ends in something you can hand over.
-        </p>
-        <p>
-          The choice is made on the opening screen, and again in these settings.
-        </p>
-      </>
-    ),
-  },
-
-  inspection: {
-    title: 'Running an inspection',
-    lede: 'Six positions, one press of Start each, and a document at the end.',
-    body: (
-      <>
-        <p>
-          A single reading tells you whether a watch is fast. Six tell you why.
-          A movement that is fine dial up and poor crown down has a poising or
-          pivot problem; one that is uniformly fast just needs the regulator
-          moved. The difference between the best and worst position — the
-          positional spread — is what separates those two cases, and it is the
-          reason a bench measures more than once.
-        </p>
-
-        <h4>The loop</h4>
-        <p>
-          The panel names a position. Put the watch that way on the sensor and
-          press <strong>Start</strong>. It counts three seconds down — that is
-          for you to take your hand off, because letting go of a watch is itself
-          a noise the analysis cannot tell from the movement misbehaving. Then
-          it listens, and the reading is recorded once it settles. Capture stops
-          on its own, the panel names the next position, and you press Start
-          again.
-        </p>
-        <p>
-          With <strong>Auto</strong> on, that is the whole job: turn the watch,
-          press Start, wait. Turn it off and a Record button appears so you
-          decide the moment yourself.
-        </p>
-        <p>
-          Nothing recorded before you pressed Start can reach a reading. The
-          average is thrown away and restarted every time, which is the point of
-          running it this way rather than leaving the microphone open.
-        </p>
-
-        <h4>If it will not settle</h4>
-        <p>
-          After a minute the panel says so and lets you record it anyway. A
-          reading that will not settle is usually poor contact with the sensor,
-          or a room that is too noisy — but it can also be the watch, which is
-          worth knowing rather than hiding.
-        </p>
-
-        <h4>Before and after</h4>
-        <p>
-          A run records into <strong>As found</strong> until every position has
-          been measured, then the next run becomes <strong>As left</strong>.
-          That gives a document showing what the watch arrived doing and what it
-          left doing, which is far more useful than a single column — "+2 s/day"
-          means little without the "+27" it started at. You can set which pass
-          you are on by hand from the session sheet.
-        </p>
-        <p>
-          You do not have to do all six. Skip moves past a position, and Finish
-          early closes the run with whatever has been recorded.
-        </p>
-      </>
-    ),
-  },
-
-  input: {
-    title: 'Audio input',
-    lede: 'Which microphone the app is listening to, and how fast it is sampling.',
-    body: (
-      <>
-        <p>
-          Pick the device the watch is resting on. A USB timegrapher or contact
-          microphone will pick up far more than a built-in mic, which mostly
+          Granting permission does not start a check or calibration. A contact
+          sensor usually gives a clearer watch signal than a microphone that also
           hears the room.
         </p>
-        <p>
-          The number on the right is the sample rate the device actually gave
-          us. If the app warns that the browser resampled the input, readings
-          are still usable but slightly less exact.
-        </p>
       </>
     ),
   },
-
-  measurement: {
-    title: 'The four readings',
-    lede: 'What the watch is doing, and whether it needs attention.',
+  {
+    id: 'measurement',
+    summary: 'The four readings',
     body: (
       <>
         <p>
-          <strong>Rate</strong> — seconds gained or lost per day. Positive is
-          fast. This is the one the regulator changes. Most mechanical watches
-          are considered good within about ±10 s/day; chronometer grade is
-          roughly −4 to +6.
+          <strong>Rate · seconds per day</strong>
+          <br />
+          How much time the watch is gaining or losing. Positive is fast;
+          negative is slow. Around ±10 s/day can be a useful general reference,
+          but judge the result against the movement’s specification. A single
+          reading between −4 and +6 s/day does not establish chronometer
+          certification.
         </p>
         <p>
-          <strong>Amplitude</strong> — how far the balance wheel swings, in
-          degrees. This is about the health of the movement, not its accuracy.
-          Roughly 270–310° fully wound and lying flat is healthy. Much below
-          250° usually means old oil, dirt, or a tired mainspring. It falls
-          naturally in vertical positions and as the watch unwinds.
+          <strong>Amplitude · degrees</strong>
+          <br />
+          An estimate of how far the balance wheel swings. It depends on the
+          correct lift angle, winding state, position, and movement design. About
+          270–310° can be typical for some fully wound movements lying flat; a
+          reading below 250° alone does not diagnose a fault. Amplitude commonly
+          drops upright and as the watch unwinds.
         </p>
         <p>
-          <strong>Beat error</strong> — whether tick and tock are evenly spaced,
-          in milliseconds. Think of a limp: the watch runs, but unevenly. Under
-          0.5 ms is good, under 0.3 ms very good. Correcting it means moving the
-          hairspring collet, not the regulator.
+          <strong>Beat error · milliseconds</strong>
+          <br />
+          The difference between alternating tick and tock intervals. Under
+          0.5 ms is a useful general goal; under 0.3 ms is better, subject to the
+          movement’s specification. Beat error is adjusted separately from rate.
         </p>
         <p>
-          <strong>Beat rate</strong> — the movement's design speed, not a fault.
-          An NH35 is 21,600 bph; many chronographs are 28,800. If it shows
-          something unexpected, the app is probably hearing something other than
-          the escapement.
+          <strong>Beat rate · beats per hour</strong>
+          <br />
+          The movement’s intended ticking frequency. Common values include 21,600
+          and 28,800 bph. An unexpected detected value can mean a weak signal,
+          background noise, or an incorrect setting.
         </p>
-        <p className="dim">
-          The small ± under each number is how much it has wandered recently. A
-          reading with a wide spread is not yet worth writing down.
+        <p>
+          <strong>The small ± value</strong>
+          <br />
+          How much a reading is varying. A wide spread means you should wait for
+          it to settle before recording.
         </p>
       </>
     ),
   },
-
-  settling: {
-    title: 'Settling',
-    lede: 'Whether the reading has stopped moving enough to trust.',
+  {
+    id: 'settling',
+    summary: 'Settling',
     body: (
       <>
         <p>
-          The dot shows how far the current rate sits from where it has been
-          sitting. While you are still finding the watch, it swings. As the
-          reading steadies, the dot draws in, comes to rest inside the band and
-          turns green.
+          Wait for <strong>LOCKED</strong> before recording a reading. The
+          indicator reflects stability, not proof of absolute accuracy — locked
+          means the reading is holding within a small range of natural variation,
+          not that it has stopped changing entirely.
         </p>
         <p>
-          Wait for <strong>Settled</strong> before recording a number. If it
-          will not settle, the usual causes are a loose grip on the sensor, a
-          noisy room, or a watch that genuinely is not running steadily.
+          If readings will not settle, check the watch’s contact with the sensor
+          and reduce background noise. If the signal is clean and the reading
+          still varies, the movement may need further investigation.
         </p>
       </>
     ),
   },
-
-  signal: {
-    title: 'Signal',
-    lede: 'How clearly the ticks stand out from the room.',
+  {
+    id: 'signal',
+    summary: 'Signal',
     body: (
       <>
         <p>
-          <strong>Good</strong> or <strong>Excellent</strong> means the sensor
-          has a clear signal and you can trust what follows.
+          A Good or Excellent signal makes analysis easier, but does not by itself
+          guarantee accurate readings. With Weak or Fair signal, improve contact
+          or move somewhere quieter.
         </p>
         <p>
-          <strong>Weak</strong> or <strong>Fair</strong> — press the watch more
-          firmly against the sensor, or move somewhere quieter.
+          Too loud means the signal may be clipping. Amplitude depends on the
+          shape of a tick, so clean audio matters more than sheer volume.
         </p>
         <p>
-          <strong>Too loud</strong> means the input is clipping. Turn the input
-          level down in your system sound settings. Slightly quiet and clean
-          beats loud and distorted, because amplitude is measured from the shape
-          of each tick.
-        </p>
-        <p>
-          <strong>Input is hot</strong> means the level is within a few decibels
-          of clipping, so the next slightly louder tick will. It appears only on
-          a computer, because that is where the input level can be changed — a
-          laptop applies its own gain to a USB pickup and usually leaves it
-          high, while a phone or tablet gives you no control at all.
-        </p>
-        <p className="dim">
-          It matters more than it sounds. Amplitude is measured from the shape
-          of the impulse, and a clipped peak is a flattened one — a clipped tick
-          does not merely read loud, it reads as a different shape.
+          Reduce input gain if your device provides that control. Otherwise,
+          adjust the sensor’s placement or coupling and run the check again.
         </p>
       </>
     ),
   },
-
-  trace: {
-    title: 'Trace',
-    lede: 'The classic paper strip. Slope is rate; the gap between lines is beat error.',
+  {
+    id: 'trace',
+    summary: 'Trace',
     body: (
       <>
         <p>
-          Every beat leaves a mark, newest at the top, exactly as paper scrolled
-          past a stylus. There are two lines — tick and tock.
+          The scrolling trace separates tick and tock. Straight lines indicate
+          little rate deviation; a slope shows gain or loss. Greater slope means a
+          larger deviation, and separation between the lines reflects beat error.
         </p>
-        <ul>
-          <li><strong>Straight down</strong> — keeping time.</li>
-          <li><strong>Leaning right</strong> — gaining. <strong>Left</strong> — losing.</li>
-          <li><strong>Steeper</strong> — further off rate.</li>
-          <li><strong>Gap between the lines</strong> — the beat error.</li>
-          <li><strong>Fuzzy or scattered marks</strong> — a dirty movement, or a poor grip on the sensor.</li>
-        </ul>
         <p>
-          Turn the regulator and watch the slope change. You will see it long
-          before the numbers catch up, which is what the trace is for.
+          A fuzzy or scattered trace can come from poor contact, noise, or
+          irregular running. Check the signal before drawing conclusions about the
+          movement.
         </p>
-        <p className="dim">
-          Lines running off one edge reappear on the other. If they wrap faster
-          than you can read, choose a wider magnification in settings.
+        <p>
+          The trace can reveal changes before the numerical reading settles. Lines
+          may wrap from one edge to the other. If they wrap too quickly, choose a
+          wider time scale in Settings.
         </p>
       </>
     ),
   },
-
-  beat: {
-    title: 'Beat',
-    lede: 'One beat, averaged and magnified. The shape of the escapement itself.',
+  {
+    id: 'beat',
+    summary: 'Beat',
     body: (
       <>
         <p>
-          Every reading in the app is a number the analysis worked out. This is
-          the sound it worked them out from — one beat, averaged over the last
-          few seconds, drawn around the tick and again around the tock.
+          The Beat view magnifies individual tick and tock sounds. Look for a
+          repeatable pattern and compare the two.
         </p>
         <p>
-          A healthy beat is <strong>two or three sharp bursts</strong> close
-          together: the escape wheel unlocking, the impulse to the balance, and
-          the drop onto the next tooth. The green line marks the impulse.
+          Weak, smeared, or extra peaks can come from the pickup, audio
+          processing, noise, or the movement. A waveform alone cannot identify a
+          worn or dirty part.
         </p>
-        <ul>
-          <li><strong>Read down from the top scale</strong> at the green line — that is amplitude. It is the same measurement the readings show, shown as a position rather than a number.</li>
-          <li><strong>Tick and tock should look alike.</strong> One weaker or smeared means the two pallet stones are not doing the same work.</li>
-          <li><strong>A smeared, spread-out impulse</strong> — a chipped or dirty pallet stone.</li>
-          <li><strong>The impulse buried in the unlocking</strong> — poor lock, or the escapement out of adjustment.</li>
-          <li><strong>Extra bursts where nothing should be</strong> — often rebanking, the balance swinging so far it knocks the escapement.</li>
-        </ul>
-        <p className="dim">
-          The bottom scale is milliseconds before the beat. Both curves share it,
-          so anything that differs between them differs in the watch.
+        <p>
+          The amplitude marker identifies the timing interval used to calculate
+          amplitude. The lift angle must be correct for that result to be
+          meaningful.
         </p>
       </>
     ),
   },
-
-  waveform: {
-    title: 'Waveform',
-    lede: 'The raw sound, for checking the sensor is hearing the watch.',
+  {
+    id: 'waveform',
+    summary: 'Waveform',
     body: (
       <>
         <p>
-          You want <strong>evenly spaced spikes in pairs</strong> against a quiet
-          floor — that is the escapement.
+          The waveform shows the raw sound and helps confirm the sensor is hearing
+          the watch. Look for repeating tick events with quieter gaps between
+          them.
         </p>
         <p>
-          A continuous fuzzy band with no repeating pattern means the sensor is
-          hearing the room instead. Check the watch is in firm contact before
-          suspecting anything else.
+          Continuous fuzz without a clear pattern usually calls for better sensor
+          contact or a quieter environment. Check those before suspecting the
+          watch.
         </p>
       </>
     ),
   },
-};
-
-export const GUIDE_ORDER: Topic[] = [
-  'modes', 'input', 'measurement', 'settling', 'signal', 'trace', 'beat',
-  'waveform', 'inspection',
-  /* Reads as part of the input story rather than as a setting, because it is
-     no longer one — it sits last so it does not interrupt the walkthrough for
-     the people it does not affect. */
-  'android-usb',
+  {
+    id: 'inspection',
+    summary: 'Running an inspection',
+    body: (
+      <>
+        <p>
+          Comparing six positions shows how the watch behaves as its orientation
+          changes. Position-dependent differences can help guide investigation,
+          but do not alone prove a mechanical fault.
+        </p>
+        <p>
+          Place the watch in the position shown and press Start. A three-second
+          countdown gives you time to let go. The app listens, waits for a settled
+          reading, and records it.
+        </p>
+        <p>
+          With Auto capture enabled, repeat: position the watch, press Start, and
+          wait. With Auto capture off, choose when to record each reading. A
+          position that will not settle cannot be captured — improve the contact
+          or the surroundings and press Start again.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: 'android-usb',
+    summary: 'USB pickups on Android',
+    body: (
+      <>
+        <p>
+          Browser and Android audio routing can affect which input is used and
+          which processing is applied. Check the selected input and the reported
+          echo cancellation, automatic gain control, and noise suppression
+          settings.
+        </p>
+        <p>
+          Processing can alter tick shape and make amplitude less dependable. Do
+          not assume rate or beat error are immune to a poor signal. If processing
+          cannot be disabled, compare another browser or input and review Device
+          Check.
+        </p>
+        <p>
+          A setting reported as Unknown means the browser did not expose its
+          state; it does not mean processing is off.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: 'setting-movement',
+    summary: 'Movement settings',
+    body: (
+      <>
+        <p>
+          In <strong>Settings → Movement</strong>, choose a preset to load its
+          beat rate and lift angle. The list is grouped by manufacturer. The
+          default is <strong>Seiko / TMI NH35 · 21,600 bph · 53°</strong>.
+        </p>
+        <p>
+          <strong>Auto</strong> leaves beat-rate detection to the timing engine.
+          You still enter the lift angle; it cannot be inferred from the audio.
+        </p>
+        <p>
+          <strong>Manual</strong> reveals Beat Rate in beats per hour and Lift
+          Angle in degrees. Enter both values. The subtext beneath Movement shows
+          the active configuration; with Auto, it shows that the beat rate is
+          awaiting a signal.
+        </p>
+        <p>
+          The lift angle must match the movement for amplitude to be meaningful.
+          Preset and manual settings are saved on this device and are applied to
+          the measurement as soon as they change.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: 'setting-magnification',
+    summary: 'Trace magnification',
+    body: (
+      <>
+        <p>
+          In <strong>Settings → Trace</strong>, choose{' '}
+          <strong>Auto, 5ms, 10ms, 20ms, 50ms, or 100ms</strong>. The default is
+          Auto.
+        </p>
+        <p>
+          Smaller values show a narrower timing range and magnify differences
+          more. Choose a larger value if the trace wraps too quickly. This
+          preference is saved on this device.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: 'setting-history',
+    summary: 'Trace history',
+    body: (
+      <>
+        <p>
+          In <strong>Settings → Trace</strong>, select{' '}
+          <strong>15s, 30s, or 60s</strong>. The default is 30s.
+        </p>
+        <p>
+          A longer window keeps more of the recent trend visible. A shorter window
+          focuses on recent changes. This is a display preference, not a change to
+          measurement accuracy.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: 'setting-general',
+    summary: 'Appearance, screen and branding',
+    body: (
+      <>
+        <p><strong>Settings → General</strong> contains three preferences.</p>
+        <p>
+          <strong>Appearance</strong> offers Light, Dark, and System. System is
+          the default and follows your device’s light or dark appearance.
+        </p>
+        <p>
+          <strong>Keep Screen Awake</strong> is off by default. Turn it on to
+          request that the screen stay awake while the app is visible.
+          Availability depends on your browser and device; this does not let
+          calibration run in the background.
+        </p>
+        <p>
+          <strong>Show Brand Logo</strong> is off by default. Turn it on to show
+          the MAC logo in the header.
+        </p>
+        <p>
+          These preferences are saved in this browser on this device. They do not
+          sync between devices.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: 'setting-diagnostics',
+    summary: 'Session diagnostics',
+    body: (
+      <>
+        <p>
+          <strong>Settings → Session Diagnostics → Export</strong> downloads a
+          text log of the current session: the settings and movement
+          configuration in force, basic browser and audio-device information, and
+          every reading the analysis produced while it was running.
+        </p>
+        <p>
+          <strong>Device Check → Export</strong> downloads the latest check’s
+          results and observed audio metrics. It becomes available after a check
+          finishes, fails, or is cancelled.
+        </p>
+        <p>
+          Only needed to assist Developer. Neither export includes an audio
+          recording or sends the file automatically. Review the contents before
+          sharing.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: 'setting-clock',
+    summary: 'Quartz calibration',
+    body: (
+      <>
+        <p>
+          Open <strong>Quartz Calibration</strong>, grant microphone permission if
+          needed, and choose your input.
+        </p>
+        <p>
+          The preparation reminders are static checkmarks; there is nothing to
+          tick off. Use an analogue quartz watch with a ticking seconds hand, such
+          as the recommended Casio MQ24. Place it against the sensor bar on a
+          rigid surface and keep everything still for about 15 minutes. Keep the
+          app in front and the screen awake.
+        </p>
+        <p>
+          <strong>Run Calibration</strong> opens the input and counts ticks up to{' '}
+          <strong>900 beats</strong>. When it finishes it reports what your device
+          measures against the reference; press <strong>Use this correction</strong>{' '}
+          to apply it. Nothing is applied until you do.
+        </p>
+        <p>
+          <strong>Correction</strong> is expressed in seconds per day and starts
+          at +0.00. The field also accepts a correction measured elsewhere and
+          saves it on this device.
+        </p>
+        <p>
+          Calibration compares the audio clock with the watch and attributes the
+          entire difference to the audio clock. It is only as accurate as the
+          reference watch. Recheck your correction when changing the audio device
+          or recording setup.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: 'setting-device',
+    summary: 'Device Check',
+    body: (
+      <>
+        <p>
+          Open <strong>Device Check</strong>, press Grant Permission if shown,
+          choose your input, then press <strong>Run Check</strong>. It works down
+          the list one item at a time, highlighting whichever it is on. About ten
+          seconds, or half a minute with the movement checks. Run Check becomes
+          Cancel while it runs, and closing Settings stops it.
+        </p>
+        <p>
+          <strong>Device</strong> covers browser support, microphone access, the
+          input the browser actually opened, the audio stream, the sample rate,
+          the three processing settings, and audio timing. Audio timing listens
+          for ten seconds and reports whether frames are keeping pace; it does
+          not calibrate the clock’s accuracy — that is what Quartz Calibration is
+          for.
+        </p>
+        <p>
+          <strong>Signal</strong> covers the input level, the headroom, and the
+          frequency range. The last of those is worth knowing about: a microphone
+          reached over Bluetooth is a voice channel, cut off below where a tick
+          lives. It looks perfectly healthy on a level meter and can never
+          produce a reading.
+        </p>
+        <p>
+          <strong>Movement</strong> is optional and off by default. Put the
+          movement on the sensor first, then tick it: the check listens for
+          fifteen seconds more and reports tick energy, beat lock and whether the
+          analysis produced a usable reading. Leave it unticked to check the
+          device alone — the movement steps are then marked Skipped rather than
+          failed, because a missing watch says nothing about the device.
+        </p>
+        <p>
+          Read the result beside each item. <strong>OK</strong> passed;{' '}
+          <strong>Review</strong> or <strong>Issue</strong> needs attention;{' '}
+          <strong>Unknown</strong> means the browser did not report the
+          information, which is not the same as it being off;{' '}
+          <strong>Skipped</strong> means the check never reached it.
+        </p>
+        <p>
+          Use <strong>Export</strong> only when needed to assist the developer.
+          It contains the results, the spectrum, the audio-clock figures and
+          everything the browser reported about the track. No audio recording,
+          and nothing is sent anywhere.
+        </p>
+      </>
+    ),
+  },
 ];

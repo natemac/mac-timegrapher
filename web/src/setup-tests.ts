@@ -53,3 +53,36 @@ if (typeof globalThis.localStorage === 'undefined') {
   g.localStorage = new MemoryStorage();
   g.sessionStorage = new MemoryStorage();
 }
+
+/*
+   jsdom implements neither `matchMedia` nor `<dialog>`, and the app uses both:
+   the theme follows the device's light/dark preference, and the settings and
+   report surfaces are native modals.
+
+   Stubbed rather than worked around in the app, because the app's behaviour in
+   a real browser is the thing under test. The media query reports "not dark",
+   which makes the default System appearance resolve to light — a deterministic
+   starting point rather than whatever the host happens to prefer.
+*/
+if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
+  window.matchMedia = ((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  })) as unknown as typeof window.matchMedia;
+}
+
+if (typeof HTMLDialogElement !== 'undefined' && !HTMLDialogElement.prototype.showModal) {
+  HTMLDialogElement.prototype.showModal = function showModal(this: HTMLDialogElement) {
+    this.open = true;
+  };
+  HTMLDialogElement.prototype.close = function close(this: HTMLDialogElement) {
+    this.open = false;
+    this.dispatchEvent(new Event('close'));
+  };
+}

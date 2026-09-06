@@ -11,7 +11,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildAudioConstraints, checkAppliedProcessing, deviceIdMismatch, isProcessingRequested, resumeWithin, armGestureResume,
 } from './audio-engine';
-import { constraintsFor } from './device-test';
+import { constraintsFor } from './capture-route';
 
 describe('buildAudioConstraints', () => {
   const audio = () => buildAudioConstraints('usb-1').audio as MediaTrackConstraints;
@@ -193,8 +193,21 @@ describe('which destination the graph ends at', () => {
   });
 
   it('does not mistake another flag for echo cancellation', () => {
-    expect(isProcessingRequested(constraintsFor('gain-only', 'd'), 'echoCancellation')).toBe(false);
-    expect(isProcessingRequested(constraintsFor('gain-only', 'd'), 'autoGainControl')).toBe(true);
+    /* Written out rather than taken from a capture profile: the app only ever
+       opens two, and neither asks for gain control — which is the point. */
+    const gainOnly: MediaStreamConstraints = {
+      audio: { deviceId: { exact: 'd' }, echoCancellation: false, autoGainControl: true, noiseSuppression: false },
+      video: false,
+    };
+    expect(isProcessingRequested(gainOnly, 'echoCancellation')).toBe(false);
+    expect(isProcessingRequested(gainOnly, 'autoGainControl')).toBe(true);
+  });
+
+  /* The Android exception, and the only place the app asks for processing. */
+  it('reports echo cancellation as requested on the communication route', () => {
+    expect(isProcessingRequested(constraintsFor('ec-only', 'd'), 'echoCancellation')).toBe(true);
+    expect(isProcessingRequested(constraintsFor('ec-only', 'd'), 'autoGainControl')).toBe(false);
+    expect(isProcessingRequested(constraintsFor('ec-only', 'd'), 'noiseSuppression')).toBe(false);
   });
 
   it('treats audio:true as requesting nothing in particular', () => {
