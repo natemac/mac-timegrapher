@@ -3321,3 +3321,32 @@ html[data-theme="dark"] .device-result[data-active] {
 #settings #deviceProgressText {
   min-height: 2.4em;
 }
+
+/*
+   A reason to distrust a reading, under the reading it applies to.
+
+   Amber rather than red: the figure is real and worth having, it just cannot be
+   trusted on this browser. Sized and wrapped to the column it sits in, so it
+   costs the readout two short lines rather than widening the grid — and only on
+   the platform where the fault was measured, which is Chrome for Android on the
+   communication route. See audio/capture-route.ts.
+*/
+.measurement-stat .stat-caveat {
+  display: block;
+  margin-top: 3px;
+  max-width: 15em;
+  font-size: 11px;
+  line-height: 1.25;
+  letter-spacing: 0;
+  font-variant-numeric: normal;
+  text-wrap: pretty;
+  color: #947238;
+}
+html[data-theme="dark"] .measurement-stat .stat-caveat {
+  color: #cfba8c;
+}
+@media (max-width: 480px) {
+  .measurement-stat .stat-caveat {
+    font-size: 10.5px;
+  }
+}

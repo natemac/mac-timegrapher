@@ -14,7 +14,7 @@ import {
 import { startCapture, type CaptureSession } from './audio/audio-engine';
 import { SignalMeter, type SignalState } from './audio/signal-strength';
 import { correctedSampleRate } from './audio/clock-calibration';
-import { resolveCaptureProfile, constraintsFor } from './audio/capture-route';
+import { resolveCaptureProfile, constraintsFor, amplitudeCaveat } from './audio/capture-route';
 import { runDeviceCheck, type DeviceCheckReport } from './audio/device-check-run';
 import { deviceReportText, deviceReportFilename } from './export/device-report';
 import { DiagnosticsLog, diagnosticsFilename } from './export/diagnostics';
@@ -1043,6 +1043,13 @@ export default function App() {
               settling={settling}
               spreads={spreads}
               signal={signal}
+              /*
+                 Shown everywhere, warned about only where the fault was
+                 measured: Chrome for Android on the communication route.
+                 Firefox on the same handset and the same pickup is clean, and
+                 its readings should not carry another browser's warning.
+              */
+              amplitudeCaveat={amplitudeCaveat(captureProfile, navigator.userAgent)}
               onReset={resetAverage}
             />
 

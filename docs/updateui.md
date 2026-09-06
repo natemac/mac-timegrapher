@@ -16,10 +16,13 @@ canvas renderers are dropped into the design's graph surface.
 
 ## A. Present in the old app, not in the new design
 
-Listed for a decision. **None of these have been added back.** Each entry says
-what it did, what it costs to lose it, and what restoring it would take.
+Listed for a decision. Nothing here was added back on my own judgement; A1 was
+restored later, on request. Each entry says what it did, what it costs to lose
+it, and what restoring it would take.
 
-### A1. Amplitude warning on Chromium for Android — *highest risk*
+### A1. Amplitude warning on Chromium for Android — ~~omitted~~ **restored**
+
+*Restored on request, after the first deploy. Kept here for the reasoning.*
 
 The old app printed a small caveat under the amplitude figure whenever the
 browser was Chrome (or another Chromium) on Android:
@@ -32,12 +35,25 @@ and the resulting amplitude reads 156–171° against 276–291° for the same w
 and pickup on a Mac. Rate and beat error read timing rather than level and
 survive; amplitude does not.
 
-Without the caveat, a Chrome-on-Android user sees a confident wrong number with
-nothing on screen to distrust. The supporting code is still in the tree and
-tested (`audio/capture-route.ts`, `amplitudeCaveat()`); restoring it is one prop
-and one line of markup under the amplitude stat.
+The v36 design had no place for it, so the first build shipped without it and a
+Chrome-on-Android user saw a confident wrong number with nothing to distrust.
 
-**Recommend restoring.** Flagged rather than done, per instruction.
+It now sits under the amplitude's ± line, in amber, wrapped inside the amplitude
+column so it does not widen the grid — 137px in a 154px cell at phone width. The
+figure is still shown rather than withheld: a caveated reading can be checked
+against another device, a blank cannot be checked against anything, and the
+caveat names the way out, since Firefox is on the same handset and measures this
+correctly.
+
+It appears only against a real figure — never against a dash, where there would
+be nothing to doubt — and only on the route and browser where the fault was
+measured. It costs the measuring screen about 29px of height, and only on the
+affected platform.
+
+**Not on the printed report.** The old app did not put it there either, so this
+is parity rather than a decision. It is arguably worse there: a wrong amplitude
+on a certificate handed to a customer outlives one on a screen. Worth deciding
+deliberately.
 
 ### A2. Upstream attribution in the footer
 

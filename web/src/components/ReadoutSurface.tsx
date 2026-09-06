@@ -33,6 +33,28 @@ interface Props {
     beatError: Spread | null;
   };
   signal: SignalState | null;
+  /*
+     A warning to sit under the amplitude, where it is read.
+
+     Measured on a Pixel 3 XL: the route that reaches a USB pickup on Android is
+     the communication route, and that route applies its own gain control below
+     the browser — the level ramps to full scale within a second of the capture
+     starting and stays welded there, and heavy acoustic padding made it go up
+     rather than down. getSettings() reports autoGainControl false throughout,
+     so nothing in the constraints can see it or switch it off.
+
+     Amplitude is read from where the impulse peak sits in time, so a
+     continuously rescaled and clipped signal produces a confident wrong number:
+     156 to 171 degrees against 276 to 291 on the same watch and the same pickup
+     through a Mac. Rate and beat error read timing rather than level and
+     survive, which is why only this one is caveated.
+
+     The figure is still shown. A reading with a caveat can be checked against
+     another device; a blank cannot be checked against anything — and the caveat
+     names the way out, because Firefox is on the same phone, needs no hardware
+     and measures this correctly.
+  */
+  amplitudeCaveat?: string | null;
   onReset: () => void;
 }
 
@@ -76,13 +98,20 @@ const WAITING_ON: Record<Exclude<Limiter, null>, string> = {
 };
 
 function Stat({
-  label, value, unit, sub,
+  label, value, unit, sub, caveat,
 }: {
   label: string;
   value: string;
   unit: string;
   /** The ± line, or whatever stands in its place. Always occupies its row. */
   sub: string;
+  /*
+     A reason to distrust the figure above, for a reading that is real but may
+     be wrong on this browser. Deliberately below the spread rather than in
+     place of it: the spread says how much the reading is moving, and this says
+     whether to believe where it has settled.
+  */
+  caveat?: string | null;
 }) {
   return (
     <div className="measurement-stat">
@@ -92,16 +121,23 @@ function Stat({
         <span className="stat-unit">{unit}</span>
       </div>
       <small>{sub}</small>
+      {caveat && <small className="stat-caveat">{caveat}</small>}
     </div>
   );
 }
 
 export function ReadoutSurface({
-  measurement, capturing, secondsCaptured, settling, spreads, signal, onReset,
+  measurement, capturing, secondsCaptured, settling, spreads, signal,
+  amplitudeCaveat = null, onReset,
 }: Props) {
   const m = measurement;
   const valid = m?.valid ?? false;
   const state = stabilityState(capturing, m !== null, settling);
+  /* Zero is the core saying it could not determine an amplitude, not a balance
+     at rest — so it is not a figure, and nothing downstream should treat it as
+     one. Declared before the bar, which is the first thing to ask. */
+  const hasAmplitude = valid && m!.amplitude > 0;
+
   const facts = {
     settling,
     seconds: secondsCaptured,
@@ -111,7 +147,7 @@ export function ReadoutSurface({
        no amplitude — a quartz movement, or a capture route that cannot read
        one. Pinning the cursor left for a figure nobody is waiting on would be
        a lie about what is holding the reading up. */
-    amplitude: valid && m!.amplitude > 0 ? spreads.amplitude : null,
+    amplitude: hasAmplitude ? spreads.amplitude : null,
   };
   const position = stabilityPosition(facts);
   const limiter = stabilityLimiter(facts);
@@ -211,9 +247,11 @@ export function ReadoutSurface({
         />
         <Stat
           label="AMPLITUDE"
-          value={valid && m!.amplitude > 0 ? m!.amplitude.toFixed(0) : DASH}
+          value={hasAmplitude ? m!.amplitude.toFixed(0) : DASH}
           unit="°"
-          sub={plusMinus(valid && m!.amplitude > 0 ? spreads.amplitude : null, 0)}
+          sub={plusMinus(hasAmplitude ? spreads.amplitude : null, 0)}
+          /* Only against a figure. There is nothing to distrust about a dash. */
+          caveat={hasAmplitude ? amplitudeCaveat : null}
         />
         <Stat
           label="BEAT ERROR"
