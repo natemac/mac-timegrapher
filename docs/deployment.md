@@ -146,3 +146,90 @@ Add the page to the private site repository's `public_html/sitemap.xml`:
 
 Do **not** add it to `robots.txt`. Unlike the workshop pages, this tool is
 public and should be indexed.
+
+## Testing on a phone before deploying
+
+`npm run dev:lan` serves the dev build to anything on the same network:
+
+```sh
+cd web && npm run dev:lan
+# ➜ Network: https://192.168.1.138:5180/tools/timegrapher/
+```
+
+**It has to be HTTPS, and that is not a preference.** `getUserMedia` is gated on
+a secure context, and `http://192.168.x.x` is not one. Over plain HTTP the app
+loads, looks entirely normal, and refuses the microphone — with a permission
+error that reads like a device fault rather than a scheme problem. `localhost`
+is the one insecure origin browsers make an exception for, which is why this
+never comes up at the desk.
+
+The certificate is self-signed and lives in `web/.certs/`, which the repo's
+leading `.*` ignore rule already excludes. Both phones warn once:
+
+- **iOS Safari** — Show Details → visit this website → Visit Website.
+- **Android Chrome** — Advanced → Proceed to … (unsafe).
+
+Accepting the warning still yields a secure context, so the microphone works.
+
+### Regenerating the certificate
+
+The machine's address must be in the certificate's `subjectAltName`, or iOS will
+not offer to continue at all. Redo this whenever the address changes:
+
+```sh
+cd web && ipconfig getifaddr en0
+```
+
+Put that address in `IP.2` below, then:
+
+```sh
+cd web && mkdir -p .certs && openssl req -x509 -newkey rsa:2048 -nodes -days 365 -keyout .certs/dev-key.pem -out .certs/dev-cert.pem -config .certs/openssl.cnf
+```
+
+`.certs/openssl.cnf` holds the names; its `[alt]` section is the part to edit.
+
+### Over Tailscale instead, when the phones are on it
+
+Better than the LAN address in every way that matters, and worth preferring:
+
+```sh
+tailscale serve --bg "https+insecure://localhost:5180"
+```
+
+Tailscale terminates TLS with a **real, trusted certificate** for the machine's
+`*.ts.net` name, so there is no warning to click through on either phone, and —
+because the origin has no certificate error — **service workers register**, which
+means offline behaviour and the install prompt can be tested here too. It also
+works away from the bench Wi-Fi, since the phones reach it over the tailnet.
+
+Confirm the scope before handing the link out:
+
+```sh
+tailscale serve status
+```
+
+It must say **tailnet only**. That is `serve`. Its sibling `funnel` publishes to
+the open internet and has no business anywhere near a dev server.
+
+Turn it off when finished:
+
+```sh
+tailscale serve --https=443 off
+```
+
+The one thing that does not survive the trip is Vite's hot-reload socket, which
+still points at port 5180 rather than at 443. Reload the page by hand after an
+edit.
+
+### What this cannot test
+
+**Service workers do not register on an origin with a certificate error.** Chrome
+and Safari both refuse. So over the *self-signed LAN address* offline behaviour,
+the install prompt and anything else PWA-shaped will not work, and their absence
+there means nothing. The Tailscale route above has a trusted certificate and does
+not have this problem; failing that, verify on the deployed site as `CLAUDE.md`
+says.
+
+Vite's hot-reload socket may also fail to connect through the warning. That
+shows up as console noise, not as a broken app; reload by hand after an edit if
+the page stops updating.

@@ -10,6 +10,7 @@
 // `test` property, so `tsc` would reject this file during `npm run build`.
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
+import { existsSync, readFileSync } from 'node:fs';
 
 /*
    The version stamp: the build's own date and time, YYMMDD-HHMM.
@@ -30,7 +31,48 @@ function buildVersion(): string {
   return `${at('year')}${at('month')}${at('day')}-${at('hour')}${at('minute')}`;
 }
 
+/*
+   Serving the dev build to a phone on the same network.
+
+   Off unless VITE_LAN is set, so `npm run dev` stays exactly as it was.
+
+   It has to be HTTPS, and that is not a preference. getUserMedia is gated on a
+   secure context, and http://192.168.x.x is not one — on a phone the app would
+   load, look completely normal, and refuse the microphone. localhost is the
+   only insecure origin browsers make an exception for, which is why this never
+   comes up on the desk.
+
+   The certificate is self-signed and lives in web/.certs, which the repo's
+   `.*` ignore rule already excludes. Both phones will warn once; accepting the
+   warning still yields a secure context, so the microphone works. Regenerate
+   it with the openssl command in docs/deployment.md if the machine's address
+   changes — the address has to be in the certificate's subjectAltName or iOS
+   will not offer to continue at all.
+*/
+function lanServer() {
+  if (!process.env.VITE_LAN) return undefined;
+  const key = '.certs/dev-key.pem';
+  const cert = '.certs/dev-cert.pem';
+  if (!existsSync(key) || !existsSync(cert)) {
+    throw new Error(
+      'VITE_LAN needs web/.certs/dev-key.pem and dev-cert.pem. '
+      + 'See docs/deployment.md for the openssl command that makes them.',
+    );
+  }
+  return {
+    host: true,
+    /* Its own port, well clear of 5173/5174, so this can run alongside the
+       ordinary dev server — and alongside whatever else on the machine has
+       already taken the usual ones. strictPort so a clash is an error rather
+       than a silent move to a port the phone was never told about. */
+    port: 5180,
+    strictPort: true,
+    https: { key: readFileSync(key), cert: readFileSync(cert) },
+  };
+}
+
 export default defineConfig({
+  server: lanServer(),
   // The production deploy serves the app from a subdirectory, not the root,
   // so that stays the default. A fork serving it elsewhere overrides it at
   // build time: VITE_BASE=/ npm run build
