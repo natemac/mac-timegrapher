@@ -173,25 +173,6 @@ not just how it looks.
   while a run was in progress.
 - **Headroom line.** "Ticks stand N dB above the room."
 
-### A11. The one-screen rule
-
-`CLAUDE.md` records a hard rule from the old interface: *"The app never scrolls.
-One `100dvh` view; only sheets scroll. Anything added has to earn its height or
-go in a sheet."*
-
-The new design does not hold to it, and this is a property of the design rather
-than of the port. Measured side by side at 375 × 812 with both pages open on the
-measuring screen, every section matches to the pixel — masthead 64, heading 44,
-toolbar 44, readout 358, graph 301, footer 69 — and the reference page is
-**975 px tall against an 812 px viewport**. The port comes out at 942, the
-difference being that the design always renders its status line and the port
-renders it only when it has something to say.
-
-So the measuring screen scrolls by about a screen-eighth on a phone. Left as
-designed. If the rule is meant to survive, the height has to come from
-somewhere — the readout's 358 px is the obvious candidate — and that is a design
-decision, not a porting one.
-
 ---
 
 ## B. Present in the design, new to the app

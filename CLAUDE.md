@@ -130,9 +130,8 @@ web/src/components/      one panel each; guide-content.tsx holds every explanati
   and the React components reproduce its ids and class names so it could be. Do
   not tidy the cascade by merging blocks: the later rule is the one that was
   signed off. Only the block below the "Added for the React port" line is ours.
-  The measuring screen is about a screen-eighth taller than a phone viewport, as
-  the design itself is — the old one-screen rule no longer holds. See
-  `docs/updateui.md`, A11.
+  The page scrolls where it needs to; height is no longer a fixed budget every
+  addition has to be argued against.
 - **`docs/updateui.md` lists what the v36 design left out of the old app** and
   what was deliberately deviated from. Read it before "restoring" anything that
   looks missing; several of those omissions are pending a product decision, not

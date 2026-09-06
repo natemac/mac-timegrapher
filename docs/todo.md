@@ -1,13 +1,48 @@
 # To do
 
-Rewritten 2026-09-05. Closed items are gone rather than archived — the reasoning
-worth keeping lives beside the code it explains.
+Rewritten 2026-09-05, updated 2026-09-06 for the v36 interface. Closed items are
+gone rather than archived — the reasoning worth keeping lives beside the code it
+explains.
 
 ---
 
 # Yours
 
-## 1. Verify amplitude against a known-good instrument
+## 1. Bench-test the new interface
+
+Build `260906-1640` replaced the whole view layer and nothing in it has been run
+against real audio. The browser preview blocks microphone access, so everything
+below was verified as logic, geometry or markup and not as a measurement. This
+is the first pass on hardware.
+
+Take an iPhone and an Android handset, both with the USB pickup.
+
+- **A live reading, end to end.** Rate, amplitude, beat error and beat rate
+  filling in; the ± spreads appearing after the three-second warm-up; the
+  reading staying on screen when you press Pause rather than being wiped.
+- **The stability bar.** It should crawl right as the reading tightens and enter
+  the green oval exactly when LOCKED lights — never before. If the cursor is
+  sitting in the green under a lit MOVING, that is a bug and worth a screenshot.
+  Its tooltip names what it is waiting on.
+- **Device Check, the whole list.** One press, works down fifteen rows lighting
+  one at a time, about twelve seconds — half a minute with the movement box
+  ticked and the watch on the sensor. Watch for: the input row naming the pickup
+  rather than the built-in mic, the three processing rows, audio timing passing
+  after its ten seconds, and frequency range passing (it fails a Bluetooth
+  headset by design — worth trying one to see it fail).
+- **The inspection run.** Six positions, three-second countdown, auto-capture
+  firing on a settled reading, the report opening itself after the sixth.
+- **The report, both sizes.** Export PDF at 8.5 x 11 and at 3.5 x 2. The card was
+  measured to fit with about two lines spare for notes; a longer note spills to a
+  second card on purpose. Turn on Settings → Show Brand Logo and check the mark
+  prints on both. **iOS Safari print behaviour is the least certain part of
+  this** — it has never been exercised.
+- **Chrome on Android specifically.** The amplitude figure should carry
+  "May be inaccurate in this browser — try Firefox" beneath it. Firefox on the
+  same handset should not.
+- **Quartz calibration** still runs to 900 beats and offers its correction.
+
+## 2. Verify amplitude against a known-good instrument
 
 Still the only thing on this list that could invalidate the tool, and it still
 matters because amplitude prints on a customer-facing document. But it is a
@@ -38,7 +73,7 @@ Calibrate the audio clock first (Settings → Quartz calibration). It corrects
 rate, not amplitude, but a bench that has not been calibrated is not a bench you
 can compare anything against.
 
-## 2. Community logs, if they come
+## 3. Community logs, if they come
 
 Two of the three gaps here have now been filled by the Android work, both with
 the same movement:
@@ -71,11 +106,18 @@ note under "Cannot be fixed here".
   for the watch. Worth deciding whether a position should wait for the trend to
   flatten rather than only for the spread to close.
 
-- **`App.tsx` is 1,375 lines**, up from about a thousand. The inspection
-  sequencing came out into `useInspectionRun`; capture, the engine, the session,
-  the device test and the exporters are still in one file. The capture
-  lifecycle — owner, in-flight guard, release, retained reading — is now
-  intricate enough to be worth its own hook.
+- **`App.tsx` is 1,170 lines.** Down from 1,375 — the device check, the settings
+  store and the report all came out — but capture, the engine, the session and
+  the exporters are still in one file. The capture lifecycle — owner, in-flight
+  guard, release, retained reading — is intricate enough to be worth its own
+  hook.
+
+- **Two open questions on the printed report.** The 8.5 x 11 sheet is correct but
+  sparse: content fills roughly the top fifth and the rest is white. And the
+  Chromium-Android amplitude caveat is on screen but not on the document, which
+  is parity with the old app rather than a decision — a wrong amplitude on a
+  certificate handed to a customer outlives one on a screen. Both want deciding
+  deliberately rather than drifting.
 
 - **The Firefox capture hang was never reproduced on the reporting hardware.**
   `await ctx.resume()` can hang forever when Firefox holds a context back, and
@@ -93,6 +135,11 @@ note under "Cannot be fixed here".
 - **No landscape layout.** Portrait-locked in the manifest. A landscape bench
   setup would want two columns.
 
+- **The device check has never run against real audio.** Its sequencing, failure
+  paths and cancellation are covered by tests with a mocked capture; the
+  measurements it takes — timing, level, headroom, spectrum, beat lock — have
+  only ever seen silence. See item 1.
+
 ## Cannot be fixed here
 
 - **Amplitude is not trustworthy on Chromium browsers on Android.** The only
@@ -103,7 +150,8 @@ note under "Cannot be fixed here".
   timing and survive. The figure is shown with a warning under it rather than
   withheld, because a caveated reading can be checked against another device and
   a blank cannot. Firefox on Android is unaffected. Measured in full in
-  `android-usb-audio-findings.md`.
+  `android-usb-audio-findings.md`. The warning is on the reading; it is not yet
+  on the printed report — see "Known gaps".
 
 - **AGC cannot be confirmed off on iOS.** Safari reports
   `autoGainControl: unreported`, so the constraint is requested and never
@@ -158,14 +206,25 @@ note under "Cannot be fixed here".
   reach a chosen input at all — both Chrome and Firefox fail without it, on two
   handsets — and every other platform wants the direct one. The answer is the
   same for every device tested, so the setting that briefly existed while it was
-  being worked out is gone. The Device check tab measures all six constraint
-  combinations if a device ever disagrees.
+  being worked out is gone.
+
+- **No six-way constraint sweep any more.** The tool that opened every
+  processing combination existed to root-cause the Android routing failure. That
+  is understood and the fix ships in `capture-route.ts`, so the Device Check is
+  now one pass on the route the app actually measures through. If a new handset
+  or browser ever disagrees, recover the sweep from
+  `git show 16c38dc:web/src/audio/device-test.ts`.
 - **No mocked tests for `startCapture` or the audio-wired components.** Mocking
   the Web Audio graph would test the mock. Everything that takes plain props is
-  tested, because there is nothing to mock. The cost is real and worth naming:
-  stopping a capture now keeps the reading on screen, and that behaviour has no
-  automated test — it was confirmed on an iPhone and a Pixel by eye.
+  tested, and every decision behind the audio — the check's sequencing, the
+  stability position, the report layout, the movement resolution — lives in a
+  pure module that is. The cost is real and worth naming: what the app does with
+  actual sound is confirmed by eye at the bench, not by CI.
+
+- **No fixed-height layout.** The old interface held itself to one `100dvh` view
+  and every addition had to earn its height against it. The v36 design does not,
+  and the page scrolls where it needs to.
 
 ---
 
-*480 tests across 31 files as of 2026-09-05.*
+*492 tests across 29 files as of 2026-09-06, build `260906-1640`.*
