@@ -584,17 +584,18 @@ export default function App() {
     return () => {
       built.destroy();
       if (engine.current === built) engine.current = null;
-      // A changed calibre invalidates everything derived from the old one.
+      /*
+         Only the engine and its stores. This teardown also runs when capture
+         merely stops, and clearing the panel here is what wiped the reading
+         the operator had stopped in order to read. What genuinely invalidates
+         a retained reading — a changed calibre, a changed clock correction —
+         is handled by its own effect below, which can tell the difference.
+      */
       stability.current.reset();
       beatStore.current.clear();
-      setBeats([]);
-      setBeatWaveform(null);
-      setMeasurement(null);
-      measurementRef.current = null;
-      setSpreads({ rate: null, amplitude: null, beatError: null });
-      setSettling('waiting');
     };
   }, [capturing, sampleRate, movementId, settings.clockDriftSecondsPerDay]);
+
 
   // Auto magnification follows the reading, so it is resolved here rather than
   // inside the canvas — the header has to show the figure actually in use.
@@ -789,6 +790,46 @@ export default function App() {
   // Everything a capture teardown has to undo, whether it was asked for or
   // forced on us by the device disappearing. Kept in one place so the two
   // paths cannot drift apart.
+  /*
+     Empty the panel. Stopping no longer does this — the last reading is the
+     one you write down, and wiping it at the moment the operator reaches for a
+     pen was the wrong instinct. It is cleared when a new capture starts, and
+     when something it was computed under changes.
+  */
+  const clearReading = useCallback(() => {
+    setMeasurement(null);
+    measurementRef.current = null;
+    setSpreads({ rate: null, amplitude: null, beatError: null });
+    setSettling('waiting');
+    setSecondsCaptured(0);
+    setBeats([]);
+    setBeatWaveform(null);
+    setSignal(null);
+    setLatest(null);
+    beatStore.current.clear();
+    stability.current.reset();
+    meter.current.reset();
+    bphHistory.current = [];
+  }, []);
+
+  /*
+     A retained reading is only good for the watch and the correction it was
+     taken under. Amplitude is computed from the calibre's lift angle and every
+     rate is scaled by the clock correction, so changing either leaves figures
+     on screen that describe something else — and unlike a stopped capture,
+     nothing about the screen would say so.
+
+     Its own effect because the engine teardown cannot tell a changed calibre
+     from a capture that merely stopped, and those want opposite things.
+  */
+  const readingBasis = useRef({ movementId, drift: settings.clockDriftSecondsPerDay });
+  useEffect(() => {
+    const basis = readingBasis.current;
+    if (basis.movementId === movementId && basis.drift === settings.clockDriftSecondsPerDay) return;
+    readingBasis.current = { movementId, drift: settings.clockDriftSecondsPerDay };
+    clearReading();
+  }, [movementId, settings.clockDriftSecondsPerDay, clearReading]);
+
   const releaseCaptureState = useCallback(() => {
     // A position interrupted before it recorded has nothing to keep, so the run
     // returns to the same prompt rather than advancing past it. A position that
@@ -797,25 +838,24 @@ export default function App() {
     session.current = null;
     activeDeviceId.current = null;
     if (audioOwner.current === 'capture') audioOwner.current = null;
-    setMeasurement(null);
-    measurementRef.current = null;
-    setSecondsCaptured(0);
     setCapturing(false);
-    // Every live-updating display has to be cleared: a frozen waveform and a
-    // frozen level meter both read as though capture were still running.
-    setSignal(null);
-    meter.current.reset();
+    /*
+       What is on screen stays there. A reading is taken in order to be read,
+       and stopping is how you stop it moving so you can — clearing the panel
+       at that moment threw away the thing the operator had just been waiting
+       for, and the only way back was to measure it again.
+
+       The internal stores are reset rather than the displays, so the next run
+       starts clean while the last one stays legible. The Start button says
+       plainly that nothing is live.
+    */
     stability.current.reset();
     beatStore.current.clear();
-    setBeats([]);
-    setBeatWaveform(null);
-    setSettling('waiting');
-    setSpreads({ rate: null, amplitude: null, beatError: null });
-    setLatest(null);
+    meter.current.reset();
+    bphHistory.current = [];
     setSampleRate(null);
     setRequestedSampleRate(null);
     setProcessing([]);
-    bphHistory.current = [];
   }, []);
 
   const handleDisconnect = useCallback(() => {
@@ -837,6 +877,9 @@ export default function App() {
     audioOwner.current = 'capture';
     setBusy(true);
     setError(null);
+    // The previous run's figures must not sit under a live capture that has
+    // not produced any of its own yet.
+    clearReading();
     try {
       const s = await startCapture(
         selectedId,
