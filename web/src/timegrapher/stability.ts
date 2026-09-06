@@ -194,7 +194,18 @@ export class StabilityTracker {
    * would leave a wandering signal permanently unable to fill a window.
    */
   push(now: number, rate: number, amplitude: number, beatError: number, quality = 1): void {
-    if (this.firstReportAt === null) this.firstReportAt = now;
+    /*
+       A report older than the one that started the warm-up means the clock
+       restarted underneath us, and the warm-up has to start again with it.
+
+       Restarting the average resets this tracker and then tells the worker to
+       discard its ring buffer, which sets its sample count back to zero. A
+       measurement already in flight arrives between those two with the old
+       timestamp, so the warm-up began at, say, 45.5s and the next report came
+       in at 0.5s — leaving now minus start permanently negative, the window
+       permanently empty, and the spread gone for the rest of the session.
+    */
+    if (this.firstReportAt === null || now < this.firstReportAt) this.firstReportAt = now;
 
     if (quality > this.quality) {
       this.samples = [];

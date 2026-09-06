@@ -407,3 +407,41 @@ describe('the first seconds of a lock', () => {
     expect(t.spread('rate')).toBeNull();
   });
 });
+
+/*
+   Restarting the average resets this tracker and then tells the worker to
+   discard its ring buffer, which sets the worker's sample count back to zero.
+   A measurement already in flight lands between the two carrying the old
+   timestamp, so the clock appears to jump backwards — and the warm-up, timed
+   from a moment in the future, never elapsed. Reported from the bench as the
+   spread never coming back after a refresh.
+*/
+describe('when the clock restarts underneath the tracker', () => {
+  it('brings the spread back rather than waiting forever', () => {
+    const t = new StabilityTracker();
+    for (let i = 0; i < 40; i++) t.push(i * 0.5, 10, 260, 0.3, 1);
+    expect(t.spread('rate')).not.toBeNull();
+
+    t.reset();
+    // The straggler from before the worker reset, carrying the old time base.
+    t.push(20.5, 10, 260, 0.3, 1);
+    // Then the worker's clock starts again from zero.
+    for (let i = 0; i < 20; i++) t.push(i * 0.5, 10, 260, 0.3, 1);
+
+    const after = t.spread('rate');
+    expect(after).not.toBeNull();
+    expect(after!.plusMinus).toBe(0);
+  });
+
+  /* The straggler itself belongs to the run that just ended and must not be
+     measured with the new one. */
+  it('does not let the straggler into the new window', () => {
+    const t = new StabilityTracker();
+    t.reset();
+    t.push(20.5, 99, 99, 9, 1);
+    for (let i = 0; i < 20; i++) t.push(i * 0.5, 10, 260, 0.3, 1);
+    const rate = t.spread('rate')!;
+    expect(rate.max).toBe(10);
+    expect(rate.plusMinus).toBe(0);
+  });
+});
