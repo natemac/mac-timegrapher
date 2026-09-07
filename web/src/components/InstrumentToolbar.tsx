@@ -31,6 +31,13 @@ interface Props {
   running: boolean;
   onStart: () => void;
   onStop: () => void;
+  /*
+     The run is finished, so the transport clears it instead of starting it.
+     There is nothing left to measure and the next thing anybody wants is the
+     next watch.
+  */
+  clearing?: boolean;
+  onClear?: () => void;
   /** No input to open, or a start/stop already in flight. */
   transportDisabled: boolean;
   movementName: string;
@@ -40,9 +47,10 @@ interface Props {
 
 export function InstrumentToolbar({
   granted, busy, devices, selectedId, onSelectDevice, onRequestMic,
-  running, onStart, onStop, transportDisabled,
+  running, onStart, onStop, clearing = false, onClear, transportDisabled,
   movementName, movementMeta, onOpenMovement,
 }: Props) {
+  const label = clearing ? 'Clear' : running ? 'Pause' : 'Start';
   return (
     <div className="instrument-toolbar" id="instrumentToolbar">
       <div className="instrument-input">
@@ -77,15 +85,22 @@ export function InstrumentToolbar({
           ))}
         </select>
 
+        {/*
+           Start is the filled button because it is the one thing to do. Pause
+           is not: while a reading runs, the button is a way to interrupt it,
+           and dressing it identically meant an operator glancing down could not
+           tell from the colour whether it was time to move the watch.
+        */}
         <button
           id="readingToggle"
           className="reading-toggle"
+          data-action={clearing ? 'clear' : running ? 'pause' : 'start'}
           hidden={!granted}
-          disabled={transportDisabled}
-          onClick={running ? onStop : onStart}
-          aria-label={running ? 'Pause readings' : 'Start readings'}
+          disabled={transportDisabled && !clearing}
+          onClick={clearing ? onClear : running ? onStop : onStart}
+          aria-label={clearing ? 'Clear this inspection' : running ? 'Pause readings' : 'Start readings'}
         >
-          {running ? 'Pause' : 'Start'}
+          {label}
         </button>
       </div>
 

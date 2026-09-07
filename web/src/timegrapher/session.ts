@@ -28,12 +28,19 @@ export const POSITIONS = [
   { id: 'dial-down', name: 'Dial down', short: 'DD' },
   { id: 'crown-up', name: 'Crown up', short: 'CU' },
   { id: 'crown-down', name: 'Crown down', short: 'CD' },
-  /* Named for where the crown points, like the four before them. They used to
-     be "12 up" and "6 up", which named the dial index instead and disagreed
-     with the convention that puts 12 up when the crown is down. The ids are
-     unchanged, so readings recorded under the old names still resolve. */
-  { id: 'crown-left', name: 'Crown left', short: 'CL' },
-  { id: 'crown-right', name: 'Crown right', short: 'CR' },
+  /*
+     Named for where the 12 index points, which is how this bench calls them:
+     crown left is 12 o'clock down (equivalently 6 up), crown right is 12
+     o'clock up (6 down).
+
+     Worth knowing that this overlaps the usual reading of the two above it —
+     under most conventions "crown down" is itself 12-up. The names here are the
+     ones the watchmaker signing the document uses, which is what a document is
+     for. The ids are unchanged, so readings recorded under any previous name
+     still resolve.
+  */
+  { id: 'crown-left', name: '12 o’clock down', short: '12D' },
+  { id: 'crown-right', name: '12 o’clock up', short: '12U' },
 ] as const;
 
 export type PositionId = (typeof POSITIONS)[number]['id'];
@@ -53,6 +60,17 @@ export interface SessionSummary {
   averageRate: number;
   /** Worst-to-best rate difference across positions — the diagnostic number. */
   positionalSpread: number;
+  /*
+     Means as well as worst cases, because they answer different questions and
+     must never be labelled as each other. The mean is what gets written down;
+     the worst case is what decides whether the watch goes back on the bench.
+     A row headed "Average" carrying a lowest amplitude is simply wrong.
+
+     Null when the core never produced an amplitude — on quartz, or on a capture
+     route that cannot read one.
+  */
+  averageAmplitude: number | null;
+  averageBeatError: number;
   minAmplitude: number;
   maxBeatError: number;
 }
@@ -82,12 +100,17 @@ export function summarise(readings: Reading[]): SessionSummary | null {
   // mistaken for a movement that barely swings.
   const amplitudes = readings.map((r) => r.amplitude).filter((a) => a > 0);
 
+  const beatErrors = readings.map((r) => r.beatError);
+  const mean = (xs: number[]) => xs.reduce((s, v) => s + v, 0) / xs.length;
+
   return {
     count: readings.length,
-    averageRate: rates.reduce((s, v) => s + v, 0) / rates.length,
+    averageRate: mean(rates),
     positionalSpread: Math.max(...rates) - Math.min(...rates),
+    averageAmplitude: amplitudes.length > 0 ? mean(amplitudes) : null,
+    averageBeatError: mean(beatErrors),
     minAmplitude: amplitudes.length > 0 ? Math.min(...amplitudes) : 0,
-    maxBeatError: Math.max(...readings.map((r) => r.beatError)),
+    maxBeatError: Math.max(...beatErrors),
   };
 }
 

@@ -7,7 +7,14 @@
     published by the Free Software Foundation.
 */
 import { describe, it, expect } from 'vitest';
-import { summarise, sessionTitle, runningSummary, currentRunSummary, type Reading, type PositionId } from './session';
+import {
+  currentRunSummary,
+  runningSummary,
+  sessionTitle,
+  summarise,
+  type PositionId,
+  type Reading,
+} from './session';
 
 const reading = (position: PositionId, rate: number, amplitude = 270, beatError = 0.2): Reading => ({
   position,
@@ -179,5 +186,51 @@ describe('the average shown between positions', () => {
     const s = currentRunSummary(readings, ['dial-up'])!;
     expect(s.count).toBe(1);
     expect(s.rate.mean).toBe(40);
+  });
+});
+
+
+/*
+   Means and worst cases answer different questions and must never be labelled
+   as each other. A row headed "Average" carrying a lowest amplitude is simply
+   wrong, and it was — the summary table printed one for a while.
+*/
+describe('averages against worst cases', () => {
+  const at = (position: PositionId, rate: number, amplitude: number, beatError: number): Reading =>
+    ({ position, rate, amplitude, beatError, bph: 21600, at: '2026-09-06T10:00:00.000Z' });
+
+  it('averages what it calls an average', () => {
+    const s = summarise([
+      at('dial-up', 2, 280, 0.2),
+      at('dial-down', 4, 260, 0.6),
+    ])!;
+    expect(s.averageRate).toBe(3);
+    expect(s.averageAmplitude).toBe(270);
+    expect(s.averageBeatError).toBeCloseTo(0.4, 6);
+  });
+
+  it('keeps the worst case apart from the mean', () => {
+    const s = summarise([
+      at('dial-up', 2, 280, 0.2),
+      at('dial-down', 4, 260, 0.6),
+    ])!;
+    expect(s.minAmplitude).toBe(260);
+    expect(s.maxBeatError).toBe(0.6);
+    expect(s.positionalSpread).toBe(2);
+  });
+
+  /* Zero is the core saying it could not determine an amplitude, not a balance
+     at rest, so it must not drag the mean down. */
+  it('leaves an undetermined amplitude out of the average', () => {
+    const s = summarise([
+      at('dial-up', 2, 280, 0.2),
+      at('dial-down', 4, 0, 0.6),
+    ])!;
+    expect(s.averageAmplitude).toBe(280);
+  });
+
+  it('reports no amplitude at all when none was ever determined', () => {
+    const s = summarise([at('dial-up', 2, 0, 0.2)])!;
+    expect(s.averageAmplitude).toBeNull();
   });
 });

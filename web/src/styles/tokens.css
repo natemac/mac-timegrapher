@@ -3359,3 +3359,60 @@ html[data-theme="dark"] .measurement-stat .stat-caveat {
   gap: 10px;
   align-items: center;
 }
+
+/*
+   The transport reads as three different actions, not one button with three
+   labels.
+
+   Start is filled, because it is the one thing to do. Pause is not: while a
+   reading runs the button is a way to interrupt it, and dressing it the same
+   meant an operator glancing down mid-inspection could not tell from the colour
+   whether it was time to move the watch. Clear is quieter still — it appears
+   only when the run is over and it throws the readings away.
+*/
+.instrument-input .reading-toggle[data-action="pause"],
+.instrument-input .reading-toggle[data-action="clear"] {
+  background: var(--glass);
+  color: var(--ink);
+  border: 1px solid var(--edge);
+}
+:root:not([data-theme="dark"])
+  .instrument-input .reading-toggle[data-action="pause"],
+:root:not([data-theme="dark"])
+  .instrument-input .reading-toggle[data-action="clear"] {
+  border-color: rgba(67, 64, 47, 0.36);
+}
+.instrument-input .reading-toggle[data-action="clear"] {
+  color: var(--muted);
+}
+
+/*
+   The summary heading takes focus when the dialog opens, so a screen reader
+   announces what just appeared. It should not draw a focus ring for it: nobody
+   tabbed there, and the blue box read as a selected text field.
+*/
+#summaryTitle:focus,
+#settingsTitle:focus {
+  outline: none;
+}
+
+/* The average, and the spread that says whether the average means anything. */
+.summary-table-wrap tfoot th,
+.summary-table-wrap tfoot td {
+  border-bottom: 0;
+  border-top: 1px solid var(--line);
+  font-variant-numeric: tabular-nums;
+}
+.summary-table-wrap tfoot tr:first-child th,
+.summary-table-wrap tfoot tr:first-child td {
+  font-weight: 550;
+  padding-top: 10px;
+}
+.summary-table-wrap tfoot .summary-spread th,
+.summary-table-wrap tfoot .summary-spread td {
+  border-top: 0;
+  padding-top: 0;
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 400;
+}

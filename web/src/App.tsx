@@ -1011,6 +1011,16 @@ export default function App() {
     setSheetOpen(true);
   };
 
+  /*
+     Every position measured, so there is nothing left to start. The transport
+     becomes the way to clear the run and take the next watch — the operator is
+     already looking at that button, and a second control elsewhere for the
+     thing they now want is one they have to go and find.
+  */
+  const runComplete = screen === 'inspection'
+    && wizard.stage === 'done'
+    && wizard.recorded.length >= WIZARD_ORDER.length;
+
   const toolbar = (
     <InstrumentToolbar
       granted={granted}
@@ -1022,6 +1032,8 @@ export default function App() {
       running={capturing}
       onStart={() => void start()}
       onStop={() => void stop()}
+      clearing={runComplete}
+      onClear={startNewInspection}
       transportDisabled={!selectedId || busy}
       movementName={badge.name}
       movementMeta={badge.meta}
@@ -1215,8 +1227,11 @@ export default function App() {
         onClose={() => setSummaryOpen(false)}
         inspection={current}
         onChange={updateCurrent}
-        onNewInspection={startNewInspection}
         showLogo={settings.showLogo}
+        movementName={movementLabelRef.current}
+        liftAngle={movementConfig.liftAngle}
+        deviceLabel={devices.find((d) => d.deviceId === selectedId)?.label ?? null}
+        sampleRate={sampleRate}
       />
     </>
   );

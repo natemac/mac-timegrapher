@@ -9,6 +9,7 @@
 import { useEffect, useState } from 'react';
 import { Dialog } from './Dialog';
 import { WIZARD_ORDER } from '../timegrapher/wizard';
+import { summarise } from '../timegrapher/session';
 import { positionName, type Reading } from '../timegrapher/session';
 import { reportDocument, printDocument, loadReportLogo, type PageSize } from '../export/report';
 import type { Inspection, Phase } from '../timegrapher/inspections';
@@ -27,15 +28,13 @@ interface Props {
   onClose: () => void;
   inspection: Inspection;
   onChange: (next: Inspection) => void;
-  /*
-     Clear the record and start the next watch.
-
-     Without it the readings accumulate: a second run replaces the positions it
-     measures and leaves the rest of the previous watch's on the record, and
-     since the position markers are drawn from the run rather than the record,
-     nothing on screen says so until the report is printed.
-  */
-  onNewInspection: () => void;
+  /* On the document because amplitude is derived from the lift angle rather
+     than measured, and a figure nobody can trace back to its assumption is not
+     worth printing. */
+  movementName: string | null;
+  liftAngle: number | null;
+  deviceLabel: string | null;
+  sampleRate: number | null;
   /*
      Whether the MAC mark goes on the document.
 
@@ -55,7 +54,8 @@ function cell(reading: Reading | undefined, pick: (r: Reading) => string): strin
 }
 
 export function InspectionSummaryDialog({
-  open, onClose, inspection, onChange, onNewInspection, showLogo,
+  open, onClose, inspection, onChange, showLogo, movementName, liftAngle,
+  deviceLabel, sampleRate,
 }: Props) {
   /* The page size is about the paper in the printer, not about the watch, so
      it is not part of the record and is not saved with it. */
@@ -76,6 +76,7 @@ export function InspectionSummaryDialog({
     onChange({ ...inspection, ...patch, updatedAt: new Date().toISOString() });
 
   const regulation = inspection.phase === 'post' ? 'Post regulation' : 'Pre regulation';
+  const average = summarise(inspection.readings);
 
   const exportReport = async () => {
     /* Awaited before the document is built. Printing happens in an iframe
@@ -89,6 +90,10 @@ export function InspectionSummaryDialog({
       measuredBy: inspection.technician,
       notes: inspection.notes,
       size,
+      movementName,
+      liftAngle,
+      deviceLabel,
+      sampleRate,
       logoDataUrl,
     }));
   };
@@ -139,6 +144,33 @@ export function InspectionSummaryDialog({
               );
             })}
           </tbody>
+          {average && (
+            /*
+               The average sits with the readings rather than beside them: it is
+               the figure that gets written down, and the spread next to it is
+               what says whether the average means anything. A watch uniformly
+               fast wants the regulator moved; one fine flat and poor on edge
+               has a different problem entirely.
+            */
+            <tfoot>
+              <tr>
+                <th scope="row">Average</th>
+                <td>{average.averageRate >= 0 ? '+' : ''}{average.averageRate.toFixed(1)}</td>
+                <td>{average.averageAmplitude === null ? DASH : average.averageAmplitude.toFixed(0)}</td>
+                <td>{average.averageBeatError.toFixed(1)}</td>
+              </tr>
+              {/* The worst case, which is a different question from the mean
+                  and decides whether the watch goes back on the bench. Rate is
+                  a spread across positions; the other two are the single worst
+                  reading of the six. */}
+              <tr className="summary-spread">
+                <th scope="row">Spread / worst</th>
+                <td>{average.positionalSpread.toFixed(1)}</td>
+                <td>{average.minAmplitude > 0 ? average.minAmplitude.toFixed(0) : DASH}</td>
+                <td>{average.maxBeatError.toFixed(1)}</td>
+              </tr>
+            </tfoot>
+          )}
         </table>
       </div>
 
@@ -206,24 +238,9 @@ export function InspectionSummaryDialog({
         <span>PDF size</span>
       </fieldset>
 
-      <div className="summary-actions">
-        <button id="exportInspection" className="export-button" onClick={() => void exportReport()}>
-          Export PDF
-        </button>
-        {/* Destructive, so it asks — and it only appears once there is
-            something to lose. */}
-        {inspection.readings.length > 0 && (
-          <button
-            id="newInspection"
-            className="export-button"
-            onClick={() => {
-              if (window.confirm('Clear these readings and start the next watch?')) onNewInspection();
-            }}
-          >
-            New watch
-          </button>
-        )}
-      </div>
+      <button id="exportInspection" className="export-button" onClick={() => void exportReport()}>
+        Export PDF
+      </button>
       <p className="summary-units">Choose Save as PDF in the print dialog.</p>
     </Dialog>
   );
