@@ -159,16 +159,6 @@ export function InspectionSummaryDialog({
                 <td>{average.averageAmplitude === null ? DASH : average.averageAmplitude.toFixed(0)}</td>
                 <td>{average.averageBeatError.toFixed(1)}</td>
               </tr>
-              {/* The worst case, which is a different question from the mean
-                  and decides whether the watch goes back on the bench. Rate is
-                  a spread across positions; the other two are the single worst
-                  reading of the six. */}
-              <tr className="summary-spread">
-                <th scope="row">Spread / worst</th>
-                <td>{average.positionalSpread.toFixed(1)}</td>
-                <td>{average.minAmplitude > 0 ? average.minAmplitude.toFixed(0) : DASH}</td>
-                <td>{average.maxBeatError.toFixed(1)}</td>
-              </tr>
             </tfoot>
           )}
         </table>

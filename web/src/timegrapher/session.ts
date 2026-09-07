@@ -55,24 +55,24 @@ export interface Reading {
   at: string;
 }
 
+/*
+   What a run comes to, as averages and nothing else.
+
+   Deliberately no spread, no lowest amplitude, no greatest beat error. Those
+   are range statistics over six samples, which makes them the most
+   outlier-sensitive figures it is possible to compute: one knock of the bench
+   during one position moves every one of them and none of the averages. They
+   were on the summary and they are not any more — a figure that a bumped table
+   can set is not a figure to put on a document.
+
+   Amplitude is null when the core never produced one — on quartz, or on a
+   capture route that cannot read it.
+*/
 export interface SessionSummary {
   count: number;
   averageRate: number;
-  /** Worst-to-best rate difference across positions — the diagnostic number. */
-  positionalSpread: number;
-  /*
-     Means as well as worst cases, because they answer different questions and
-     must never be labelled as each other. The mean is what gets written down;
-     the worst case is what decides whether the watch goes back on the bench.
-     A row headed "Average" carrying a lowest amplitude is simply wrong.
-
-     Null when the core never produced an amplitude — on quartz, or on a capture
-     route that cannot read one.
-  */
   averageAmplitude: number | null;
   averageBeatError: number;
-  minAmplitude: number;
-  maxBeatError: number;
 }
 
 /**
@@ -106,80 +106,8 @@ export function summarise(readings: Reading[]): SessionSummary | null {
   return {
     count: readings.length,
     averageRate: mean(rates),
-    positionalSpread: Math.max(...rates) - Math.min(...rates),
     averageAmplitude: amplitudes.length > 0 ? mean(amplitudes) : null,
     averageBeatError: mean(beatErrors),
-    minAmplitude: amplitudes.length > 0 ? Math.min(...amplitudes) : 0,
-    maxBeatError: Math.max(...beatErrors),
   };
 }
 
-export interface RunningRange {
-  mean: number;
-  min: number;
-  max: number;
-}
-
-export interface RunningSummary {
-  count: number;
-  bph: number;
-  rate: RunningRange;
-  /** Null when no position has produced an amplitude the core could determine. */
-  amplitude: RunningRange | null;
-  beatError: RunningRange;
-  /** Worst-to-best rate difference — the number that separates the two faults. */
-  positionalSpread: number;
-}
-
-/**
- * What the run has found so far.
- *
- * An inspection stops capture between positions, so the readings go blank
- * exactly when there is something worth looking at. This fills that gap with
- * the set as it stands, which is also the first point at which the positional
- * spread means anything — one position cannot disagree with itself.
- */
-/*
-   The average so far, over this run only.
-
-   An inspection record keeps every reading it has ever held, and a reading is
-   replaced in place when its position is measured again. So a second pass over
-   the same watch starts with all six of the previous pass's figures still
-   present, and the between-position average mixed the new dial-up with five
-   stale positions — an average of two different runs, shown as one.
-
-   `recorded` is what the wizard has taken this time round, and it empties when
-   a run restarts, so the preview clears with it. Nothing is deleted: the stored
-   readings still feed the summary sheet and the document.
-*/
-export function currentRunSummary(
-  readings: Reading[],
-  recorded: PositionId[],
-): RunningSummary | null {
-  const inThisRun = new Set(recorded);
-  return runningSummary(readings.filter((r) => inThisRun.has(r.position)));
-}
-
-export function runningSummary(readings: Reading[]): RunningSummary | null {
-  if (readings.length === 0) return null;
-
-  const range = (values: number[]): RunningRange => ({
-    mean: values.reduce((s, v) => s + v, 0) / values.length,
-    min: Math.min(...values),
-    max: Math.max(...values),
-  });
-
-  const rates = readings.map((r) => r.rate);
-  // Amplitude of 0 is the core saying it could not determine it, which is not
-  // a movement that barely swings and must not drag an average down.
-  const amplitudes = readings.map((r) => r.amplitude).filter((a) => a > 0);
-
-  return {
-    count: readings.length,
-    bph: readings[0].bph,
-    rate: range(rates),
-    amplitude: amplitudes.length > 0 ? range(amplitudes) : null,
-    beatError: range(readings.map((r) => r.beatError)),
-    positionalSpread: Math.max(...rates) - Math.min(...rates),
-  };
-}

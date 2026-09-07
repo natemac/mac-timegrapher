@@ -131,20 +131,29 @@ describe('the printable document', () => {
     expect(card).toContain('<dd>Seiko / TMI NH35</dd>');
     expect(card).toContain('<dd>N. McGraw</dd>');
     expect(card).toContain('Average rate');
-    expect(card).toContain('Positional spread');
+    expect(card).toContain('Average beat error');
   });
 
-  it('gives a watchmaker the figures they read first', () => {
+  /*
+     Averages, and nothing a single knock of the bench could set. Spread, lowest
+     amplitude and greatest beat error are all ranges over six samples, so one
+     disturbed position moves every one of them and none of these — and the six
+     readings are printed above in full for anyone who wants the extremes.
+  */
+  it('summarises the run as averages', () => {
     const html = reportDocument({
       ...base,
       readings: [reading(), reading({ position: 'dial-down', rate: -3.6, amplitude: 244, beatError: 0.8 })],
       size: 'large',
     });
     expect(html).toContain('Average rate');
-    expect(html).toContain('Positional spread');
-    expect(html).toContain('6.0 s/day');
-    expect(html).toContain('Lowest amplitude');
-    expect(html).toContain('Greatest beat error');
+    expect(html).toContain('-0.6 s/day');
+    expect(html).toContain('Average amplitude');
+    expect(html).toContain('263°');
+    expect(html).toContain('Average beat error');
+    for (const gone of ['Positional spread', 'Lowest amplitude', 'Greatest beat error']) {
+      expect(html).not.toContain(gone);
+    }
   });
 
   it('escapes the five characters that matter', () => {

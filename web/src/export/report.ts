@@ -196,15 +196,21 @@ export function reportDocument(input: ReportInput): string {
     fact('Regulation', input.regulation),
   ].filter(Boolean).join('');
 
-  /* The figures a watchmaker reads first — positional spread most of all. A
-     watch that is uniformly fast needs the regulator moved; one that is fine
-     flat and poor on edge has a different problem, and the spread is what
-     separates them. */
+  /*
+     What the run came to, as averages.
+
+     No spread, no lowest amplitude, no greatest beat error. Every one of those
+     is a range over six samples, so a single knock of the bench during a single
+     position sets all three and none of the averages — and a figure a bumped
+     table can decide has no business on a document somebody signs. The six
+     readings are printed above in full; anyone who wants the extremes can read
+     them off.
+  */
   const figures = summary ? [
     fact('Average rate', `${fmtRate(summary.averageRate)} s/day`),
-    fact('Positional spread', `${summary.positionalSpread.toFixed(1)} s/day`),
-    card ? '' : (summary.minAmplitude > 0 ? fact('Lowest amplitude', `${summary.minAmplitude.toFixed(0)}°`) : ''),
-    card ? '' : fact('Greatest beat error', `${summary.maxBeatError.toFixed(2)} ms`),
+    summary.averageAmplitude !== null
+      ? fact('Average amplitude', `${summary.averageAmplitude.toFixed(0)}°`) : '',
+    fact('Average beat error', `${summary.averageBeatError.toFixed(2)} ms`),
   ].filter(Boolean).join('') : '';
 
   const sign = card ? ''

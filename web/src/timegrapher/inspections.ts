@@ -321,7 +321,10 @@ export function pairToTable(runs: Inspection[]): string {
     const s = summarise(run.readings);
     if (s) {
       lines.push(`Average rate\t${s.averageRate.toFixed(1)}`);
-      lines.push(`Positional spread\t${s.positionalSpread.toFixed(1)}`);
+      if (s.averageAmplitude !== null) {
+        lines.push(`Average amplitude\t${s.averageAmplitude.toFixed(0)}`);
+      }
+      lines.push(`Average beat error\t${s.averageBeatError.toFixed(2)}`);
     }
     lines.push('');
   }

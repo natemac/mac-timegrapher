@@ -3396,23 +3396,12 @@ html[data-theme="dark"] .measurement-stat .stat-caveat {
   outline: none;
 }
 
-/* The average, and the spread that says whether the average means anything. */
+/* The run's average, under the readings it comes from. */
 .summary-table-wrap tfoot th,
 .summary-table-wrap tfoot td {
   border-bottom: 0;
   border-top: 1px solid var(--line);
-  font-variant-numeric: tabular-nums;
-}
-.summary-table-wrap tfoot tr:first-child th,
-.summary-table-wrap tfoot tr:first-child td {
-  font-weight: 550;
   padding-top: 10px;
-}
-.summary-table-wrap tfoot .summary-spread th,
-.summary-table-wrap tfoot .summary-spread td {
-  border-top: 0;
-  padding-top: 0;
-  font-size: 11px;
-  color: var(--muted);
-  font-weight: 400;
+  font-weight: 550;
+  font-variant-numeric: tabular-nums;
 }

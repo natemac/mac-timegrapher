@@ -8,8 +8,6 @@
 */
 import { describe, it, expect } from 'vitest';
 import {
-  currentRunSummary,
-  runningSummary,
   sessionTitle,
   summarise,
   type PositionId,
@@ -35,33 +33,31 @@ describe('summarise', () => {
     expect(s!.averageRate).toBe(4);
   });
 
-  it('reports positional spread as worst minus best', () => {
-    // This is the number that separates "needs regulating" from "needs work".
-    const s = summarise([
-      reading('dial-up', 2), reading('dial-down', 4), reading('crown-up', -3),
-    ]);
-    expect(s!.positionalSpread).toBe(7);
-  });
+  /*
+     No spread, no lowest amplitude, no greatest beat error.
 
-  it('reports the lowest amplitude', () => {
-    const s = summarise([reading('dial-up', 0, 280), reading('crown-up', 0, 240)]);
-    expect(s!.minAmplitude).toBe(240);
+     Every one of those is a range over six samples, which makes them the most
+     outlier-sensitive figures it is possible to compute: one knock of the bench
+     during one position sets all three and none of the averages. They were on
+     the summary and were taken off it — a figure a bumped table can decide has
+     no business on a document somebody signs.
+  */
+  it('reports averages and nothing that a single knock could set', () => {
+    const s = summarise([
+      reading('dial-up', 2, 280, 0.2), reading('dial-down', 6, 240, 0.8),
+    ])!;
+    expect(s).toEqual({ count: 2, averageRate: 4, averageAmplitude: 260, averageBeatError: 0.5 });
   });
 
   it('ignores unmeasurable amplitude rather than counting it as zero', () => {
-    // The core reports 0 when it cannot determine amplitude; treating that as
-    // a real reading would report a healthy watch as barely swinging.
+    // The core reports 0 when it cannot determine amplitude; averaging that in
+    // would report a healthy watch as barely swinging.
     const s = summarise([reading('dial-up', 0, 280), reading('crown-up', 0, 0)]);
-    expect(s!.minAmplitude).toBe(280);
+    expect(s!.averageAmplitude).toBe(280);
   });
 
-  it('reports zero amplitude only when nothing was measurable', () => {
-    expect(summarise([reading('dial-up', 0, 0)])!.minAmplitude).toBe(0);
-  });
-
-  it('reports the worst beat error', () => {
-    const s = summarise([reading('dial-up', 0, 270, 0.2), reading('crown-up', 0, 270, 0.9)]);
-    expect(s!.maxBeatError).toBe(0.9);
+  it('reports no amplitude at all when none was measurable', () => {
+    expect(summarise([reading('dial-up', 0, 0)])!.averageAmplitude).toBeNull();
   });
 });
 
@@ -89,148 +85,3 @@ describe('sessionTitle', () => {
   });
 });
 
-describe('runningSummary', () => {
-  it('is null before anything is recorded', () => {
-    expect(runningSummary([])).toBeNull();
-  });
-
-  it('averages what has been measured so far', () => {
-    const s = runningSummary([reading('dial-up', 10), reading('dial-down', 20)])!;
-    expect(s.count).toBe(2);
-    expect(s.rate.mean).toBe(15);
-    expect(s.rate.min).toBe(10);
-    expect(s.rate.max).toBe(20);
-  });
-
-  /* One position cannot disagree with itself, and the display should not
-     suggest otherwise. */
-  it('reports no spread from a single position', () => {
-    const s = runningSummary([reading('dial-up', 10)])!;
-    expect(s.positionalSpread).toBe(0);
-    expect(s.rate.mean).toBe(10);
-  });
-
-  it('reports the spread once there are two to compare', () => {
-    const s = runningSummary([reading('dial-up', 10), reading('dial-down', 22)])!;
-    expect(s.positionalSpread).toBe(12);
-  });
-
-  /* Amplitude of 0 is the core saying it could not determine it, not a
-     movement that barely swings — averaging it in would halve a healthy
-     reading. */
-  it('leaves undetermined amplitude out of the average', () => {
-    const s = runningSummary([
-      reading('dial-up', 10, 260),
-      reading('dial-down', 10, 0),
-    ])!;
-    expect(s.amplitude!.mean).toBe(260);
-    expect(s.amplitude!.min).toBe(260);
-  });
-
-  it('reports no amplitude at all when none was determined', () => {
-    expect(runningSummary([reading('dial-up', 10, 0)])!.amplitude).toBeNull();
-  });
-
-  it('carries the beat rate and the beat error range', () => {
-    const s = runningSummary([
-      reading('dial-up', 10, 260, 0.4),
-      reading('dial-down', 10, 260, 1.6),
-    ])!;
-    expect(s.bph).toBe(21600);
-    expect(s.beatError.mean).toBeCloseTo(1.0, 5);
-    expect(s.beatError.max).toBe(1.6);
-  });
-});
-
-describe('the average shown between positions', () => {
-  /* Six positions already stored from an earlier pass over the same watch. */
-  const previousRun: Reading[] = [
-    reading('dial-up', 10), reading('dial-down', 12), reading('crown-down', 14),
-    reading('crown-up', 16), reading('crown-left', 18), reading('crown-right', 20),
-  ];
-
-  /*
-     The fault this exists to catch. A reading is replaced in place when its
-     position is measured again, so a second pass begins with all six of the
-     first pass's figures still in the record. Averaging the record showed a
-     fresh dial-up blended with five stale positions and called it one run.
-  */
-  it('ignores positions the current run has not measured', () => {
-    // Second pass: dial-up re-measured at 40, nothing else touched yet.
-    const readings = [reading('dial-up', 40), ...previousRun.slice(1)];
-
-    expect(runningSummary(readings)!.rate.mean).toBeCloseTo(20, 6); // the old bug
-    const s = currentRunSummary(readings, ['dial-up'])!;
-    expect(s.count).toBe(1);
-    expect(s.rate.mean).toBe(40);
-  });
-
-  /* Restarting a run empties `recorded`, so the preview clears with it rather
-     than showing the previous pass until the first new position lands. */
-  it('shows nothing at the start of a fresh run', () => {
-    expect(currentRunSummary(previousRun, [])).toBeNull();
-  });
-
-  it('grows as the run records each position', () => {
-    const readings = [reading('dial-up', 40), reading('dial-down', 20), ...previousRun.slice(2)];
-    expect(currentRunSummary(readings, ['dial-up'])!.count).toBe(1);
-    const two = currentRunSummary(readings, ['dial-up', 'dial-down'])!;
-    expect(two.count).toBe(2);
-    expect(two.rate.mean).toBe(30);
-  });
-
-  /* Skipping a position leaves it out of `recorded`, so a figure the record
-     still holds for it from an earlier pass cannot creep into the average. */
-  it('leaves a skipped position out of the average', () => {
-    const readings = [reading('dial-up', 40), reading('dial-down', 30), ...previousRun.slice(2)];
-    const s = currentRunSummary(readings, ['dial-up'])!;
-    expect(s.count).toBe(1);
-    expect(s.rate.mean).toBe(40);
-  });
-});
-
-
-/*
-   Means and worst cases answer different questions and must never be labelled
-   as each other. A row headed "Average" carrying a lowest amplitude is simply
-   wrong, and it was — the summary table printed one for a while.
-*/
-describe('averages against worst cases', () => {
-  const at = (position: PositionId, rate: number, amplitude: number, beatError: number): Reading =>
-    ({ position, rate, amplitude, beatError, bph: 21600, at: '2026-09-06T10:00:00.000Z' });
-
-  it('averages what it calls an average', () => {
-    const s = summarise([
-      at('dial-up', 2, 280, 0.2),
-      at('dial-down', 4, 260, 0.6),
-    ])!;
-    expect(s.averageRate).toBe(3);
-    expect(s.averageAmplitude).toBe(270);
-    expect(s.averageBeatError).toBeCloseTo(0.4, 6);
-  });
-
-  it('keeps the worst case apart from the mean', () => {
-    const s = summarise([
-      at('dial-up', 2, 280, 0.2),
-      at('dial-down', 4, 260, 0.6),
-    ])!;
-    expect(s.minAmplitude).toBe(260);
-    expect(s.maxBeatError).toBe(0.6);
-    expect(s.positionalSpread).toBe(2);
-  });
-
-  /* Zero is the core saying it could not determine an amplitude, not a balance
-     at rest, so it must not drag the mean down. */
-  it('leaves an undetermined amplitude out of the average', () => {
-    const s = summarise([
-      at('dial-up', 2, 280, 0.2),
-      at('dial-down', 4, 0, 0.6),
-    ])!;
-    expect(s.averageAmplitude).toBe(280);
-  });
-
-  it('reports no amplitude at all when none was ever determined', () => {
-    const s = summarise([at('dial-up', 2, 0, 0.2)])!;
-    expect(s.averageAmplitude).toBeNull();
-  });
-});
