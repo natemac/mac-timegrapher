@@ -121,14 +121,35 @@ anyone running it.
 
 Asset filenames carry a content hash, so a deploy adds files rather than
 replacing them and nothing prunes what it leaves. By 2026-09-06 that had reached
-**232 files and 120.8 MB in `assets/`, against 2.4 MB actually in use** — about
-thirty-eight builds of litter, most of it source maps.
+**235 files and about 121 MB in `assets/`, against 2.4 MB actually in use** —
+roughly thirty-eight builds of litter, most of it source maps.
 
-It harms nothing served, and a stale cached `index.html` still finds its own
-assets because they are all still there, so this is housekeeping rather than
-urgency. Sweep it when it grows: keep the hashes named by the live
-`index.html` plus the `tg-core-*.wasm` and `tg-worker-*.js` that bundle
-references, and delete the rest.
+It harms nothing served, and it is not urgent: a stale cached `index.html` still
+finds its own assets because they are all still there. Sweep it when it grows.
+
+**The upload credentials cannot delete.** `hosting_generateUploadURLV1` returns a
+token scoped to the TUS endpoint; the file-browser `resources` API answers 403 to
+it under every auth shape, and the account's own JWT carries `execute: false`.
+So this is a job for hPanel's File Manager or SFTP, not for the deploy script.
+
+**Work out what to keep by following the chain, not by reading `index.html`.**
+The document names only the bundle and the stylesheet. The bundle names the
+worker. *The worker names the WebAssembly module* — so a sweep that trusts
+`index.html` alone deletes the measurement engine and leaves an app that loads,
+looks entirely normal and cannot measure anything.
+
+```sh
+BASE=https://macwatches.com/tools/timegrapher
+JS=$(curl -s $BASE/ | grep -o 'assets/index-[^"]*\.js')
+WK=$(curl -s $BASE/$JS | grep -oE 'tg-worker-[A-Za-z0-9_-]+\.js')
+WASM=$(curl -s $BASE/assets/$WK | grep -oE 'tg-core-[A-Za-z0-9_-]+\.wasm')
+curl -s $BASE/ | grep -o 'assets/index-[^"]*\.css'
+echo "$JS"; echo "$JS.map"; echo "assets/$WK"; echo "assets/$WK.map"; echo "assets/$WASM"
+```
+
+Those six survive; everything else under `assets/` goes. Confirm each one still
+returns 200 before deleting anything, and confirm the page still measures
+afterwards.
 
 Finally, clear the CDN cache (`hosting_clearWebsiteCacheV1`).
 
