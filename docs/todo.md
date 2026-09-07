@@ -1,46 +1,27 @@
 # To do
 
-Rewritten 2026-09-05, updated 2026-09-06 for the v36 interface. Closed items are
-gone rather than archived — the reasoning worth keeping lives beside the code it
-explains.
+Rewritten 2026-09-05, updated 2026-09-07 after the first bench session on the
+v36 interface. Closed items are gone rather than archived — the reasoning worth
+keeping lives beside the code it explains.
 
 ---
 
 # Yours
 
-## 1. Bench-test the new interface
+## 1. Finish the bench pass
 
-Build `260906-1640` replaced the whole view layer and nothing in it has been run
-against real audio. The browser preview blocks microphone access, so everything
-below was verified as logic, geometry or markup and not as a measurement. This
-is the first pass on hardware.
+The first session on 2026-09-06 went through the whole interface on an iPhone
+with the USB pickup and on Android, and everything measured. What it found has
+been fixed and shipped; what it has not covered yet:
 
-Take an iPhone and an Android handset, both with the USB pickup.
-
-- **A live reading, end to end.** Rate, amplitude, beat error and beat rate
-  filling in; the ± spreads appearing after the three-second warm-up; the
-  reading staying on screen when you press Pause rather than being wiped.
-- **The stability bar.** It should crawl right as the reading tightens and enter
-  the green oval exactly when LOCKED lights — never before. If the cursor is
-  sitting in the green under a lit MOVING, that is a bug and worth a screenshot.
-  Its tooltip names what it is waiting on.
-- **Device Check, the whole list.** One press, works down fifteen rows lighting
-  one at a time, about twelve seconds — half a minute with the movement box
-  ticked and the watch on the sensor. Watch for: the input row naming the pickup
-  rather than the built-in mic, the three processing rows, audio timing passing
-  after its ten seconds, and frequency range passing (it fails a Bluetooth
-  headset by design — worth trying one to see it fail).
-- **The inspection run.** Six positions, three-second countdown, auto-capture
-  firing on a settled reading, the report opening itself after the sixth.
-- **The report, both sizes.** Export PDF at 8.5 x 11 and at 3.5 x 2. The card was
-  measured to fit with about two lines spare for notes; a longer note spills to a
-  second card on purpose. Turn on Settings → Show Brand Logo and check the mark
-  prints on both. **iOS Safari print behaviour is the least certain part of
-  this** — it has never been exercised.
-- **Chrome on Android specifically.** The amplitude figure should carry
-  "May be inaccurate in this browser — try Firefox" beneath it. Firefox on the
-  same handset should not.
-- **Quartz calibration** still runs to 900 beats and offers its correction.
+- **Print the report from iOS Safari at both sizes.** The layout is verified by
+  measurement — the card fits its 3.26 x 1.76in with 28px to spare — but Safari's
+  print dialog honouring a 3.5 x 2in `@page` is not.
+- **The Bluetooth case.** Device Check's frequency-range row is designed to fail
+  a voice channel; running it against a headset is the only way to see it work.
+- **A movement that is genuinely unwell**, and one close to in beat. See item 3.
+- **The PWA on the home screen.** Splash and status bar were verified light; the
+  service worker's new twenty-asset cap has not been watched across a deploy.
 
 ## 2. Verify amplitude against a known-good instrument
 
@@ -98,6 +79,9 @@ note under "Cannot be fixed here".
 
 ## Known gaps
 
+- **The 8.5 x 11 sheet has white space below the method statement.** Not wrong,
+  just unfinished-looking. Whether that wants filling is a design decision.
+
 - **The watch is still settling when a position records.** In the 2026-08-30
   logs, rate fell and amplitude dropped across the eighteen seconds before
   recording, and neither had flattened. That is the movement recovering from
@@ -106,18 +90,25 @@ note under "Cannot be fixed here".
   for the watch. Worth deciding whether a position should wait for the trend to
   flatten rather than only for the spread to close.
 
-- **`App.tsx` is 1,170 lines.** Down from 1,375 — the device check, the settings
-  store and the report all came out — but capture, the engine, the session and
-  the exporters are still in one file. The capture lifecycle — owner, in-flight
-  guard, release, retained reading — is intricate enough to be worth its own
-  hook.
+- **`App.tsx` is 1,238 lines.** Down from 1,375 — the device check, the
+  settings store and the report all came out — but capture, the engine, the
+  session and the exporters are still in one file. The capture lifecycle —
+  owner, in-flight guard, release, retained reading — is intricate enough to be
+  worth its own hook.
 
-- **Two open questions on the printed report.** The 8.5 x 11 sheet is correct but
-  sparse: content fills roughly the top fifth and the rest is white. And the
-  Chromium-Android amplitude caveat is on screen but not on the document, which
-  is parity with the old app rather than a decision — a wrong amplitude on a
-  certificate handed to a customer outlives one on a screen. Both want deciding
-  deliberately rather than drifting.
+- **The Chromium-Android amplitude caveat is on screen but not on the printed
+  document.** That is parity with the old app rather than a decision. A wrong
+  amplitude on a certificate handed to a customer outlives one on a screen, and
+  the sheet already carries a method statement that would be the place to say
+  it.
+
+- **Device Check reports a −80 s/day audio-clock drift under an OK badge.** Seen
+  on an iPhone at 44,100 Hz, which is that platform's documented behaviour, and
+  the analysis on the same run read +1.0 s/day — so the audio path is fine and
+  the figure is an artefact. But an alarming number presented as a pass is the
+  same fault as putting a spread on a summary: it invites a conclusion the app
+  is not making. The row should either explain itself or not print the
+  figure.
 
 - **The Firefox capture hang was never reproduced on the reporting hardware.**
   `await ctx.resume()` can hang forever when Firefox holds a context back, and
@@ -172,6 +163,13 @@ note under "Cannot be fixed here".
 
 # Undecided
 
+- **About 121 MB of old builds accumulated on the server** before being swept on
+  2026-09-06. Asset filenames carry a content hash, so a deploy adds files and
+  nothing prunes what it leaves — 235 files against the 6 in use. The upload
+  credentials cannot delete, so this is a File Manager job; `deployment.md`
+  records how to work out what is safe to remove. Worth checking every few
+  dozen deploys.
+
 - **Three bench recordings exist and are not in the repo.** Made on a Pixel 3 XL
   through the USB pickup with USB Audio Recorder PRO, kept in
   `~/Downloads/timegrapher-android-recordings/`: 111s, 35s and 33s, one padded
@@ -225,6 +223,22 @@ note under "Cannot be fixed here".
   and every addition had to earn its height against it. The v36 design does not,
   and the page scrolls where it needs to.
 
+- **No spread, lowest amplitude or greatest beat error on any summary.** Every
+  one is a range over six samples, which makes it the most outlier-sensitive
+  figure obtainable from a run: one knock of the bench during one position moves
+  all three and none of the averages. The six readings are printed in full, so
+  the extremes are there for anyone who wants them — they are simply not
+  presented as a conclusion.
+
+- **No quartz calibres in the movement list.** They were there so an inspection
+  could name one, with amplitude and beat error withheld as meaningless. The v36
+  preset table is mechanical only. `isQuartz()` and the withholding logic remain
+  and are still correct if they are ever put back.
+
+- **No degree of lock.** The stability marker fills the settled region rather
+  than taking a position inside it. The verdict is binary and showing the marker
+  creeping about invited reading a confidence the app does not claim.
+
 ---
 
-*492 tests across 29 files as of 2026-09-06, build `260906-1640`.*
+*488 tests across 29 files as of 2026-09-07, build `260906-2257`.*

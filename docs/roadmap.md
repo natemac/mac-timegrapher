@@ -3,10 +3,18 @@
 A browser-based mechanical watch timegrapher derived from the open-source
 [`agrigera/tg`](https://github.com/agrigera/tg) project.
 
-> **Status.** The goals below are met and the app is in use at the bench. What
-> is still open is accuracy verification rather than features — see
-> [todo.md](todo.md), which is the live list. This file is kept for the
-> architecture and the reasoning behind it.
+> **Status, 2026-09-07.** The goals below are met and the app is in use at the
+> bench. What is still open is accuracy verification rather than features — see
+> [todo.md](todo.md), which is the live list.
+>
+> The interface described in the milestones is not the one that shipped. The
+> whole view layer was replaced on 2026-09-06 by the v36 design: an opening
+> screen with two modes, one measuring surface shared between them, and a
+> settings dialog carrying Settings, Device Check, Quartz Calibration and Guide.
+> [updateui.md](updateui.md) records what that design left out and what was
+> deviated from. This file is kept for the architecture and the reasoning behind
+> it, both of which are unchanged — the engine, the DSP and the audio path were
+> not touched.
 
 The objective is not to reproduce the entire native tg desktop application. The
 objective is to preserve its proven timing-analysis logic while replacing its
@@ -185,8 +193,14 @@ measurement requires minimal manual configuration.
 
 ### Milestone 6 — Measurement sessions
 
-Multi-position testing (dial up, dial down, crown up, crown down, 12 up, 6 up),
-stabilisation logic, averaging, a pass/review/fail result and session storage.
+Multi-position testing, stabilisation logic, averaging and session storage. The
+positions as shipped are dial up, dial down, crown up, crown down, 12 o'clock
+down and 12 o'clock up — the last two named for where the 12 index points, which
+is what the bench calls them.
+
+The pass/review/fail result was dropped deliberately: thresholds differ by
+calibre and by customer, they are a shop's own business rules, and a public tool
+asserting one would make a claim it cannot support.
 
 The application should distinguish *live*, *stabilising*, *stable* and
 *recorded* states rather than saving a single instantaneous reading: detect a

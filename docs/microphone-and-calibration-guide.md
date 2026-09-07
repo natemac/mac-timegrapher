@@ -1,5 +1,10 @@
 # Microphone And Calibration Guide
 
+> **Written for upstream tg**, the native desktop application, in 2026-03-22.
+> The physical advice — sensor contact, room noise, lift angle — applies to
+> the browser port unchanged. The menus and settings it names do not; see
+> the [README](../README.md) and the app's own Guide tab for those.
+
 ## Why This Guide Exists
 
 Tg can work well, but it is not magic.

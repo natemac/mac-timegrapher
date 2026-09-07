@@ -1,5 +1,17 @@
 # Android USB microphone routing: review and coding-agent handoff
 
+> **Historical, and its file references are dangling.** This was the handoff that
+> started the Android investigation, written before any Pixel measurement
+> existed. Its diagnosis was right and the fix ships in
+> `web/src/audio/capture-route.ts`; what it measured against —
+> `web/src/audio/device-test.ts`, the six-variant constraint sweep — was retired
+> on 2026-09-06 once the answer was known. Recover it with
+> `git show 16c38dc:web/src/audio/device-test.ts` if a new handset ever needs the
+> same investigation.
+>
+> For what was actually found on hardware, see
+> [android-usb-audio-findings.md](android-usb-audio-findings.md).
+
 Reviewed September 5, 2026. Copy revision: `5942886991f59c3f5bf3683c66efff900fd6b993`.
 
 **Most likely cause:** normal capture disables all audio processing, which can bypass the Android Chromium communication route needed to reach the selected USB input. The dropdown can correctly enumerate USB hardware without that hardware supplying the captured samples. The app already has an echo-cancellation-only experiment, but does not apply it to normal measurement.

@@ -4,6 +4,16 @@ What to do with a watch, a contact sensor and ten minutes. The output is a WAV
 committed to `fixtures/`, which is what every future change to the signal
 processing gets judged against.
 
+> **The app has no recorder.** One existed to produce fixtures, was never wired
+> to the interface, and was removed on 2026-09-05 — so the capture step below is
+> done with a recorder app on the phone or a desktop recorder, not in the
+> browser. That is how the three Pixel recordings were made. The app is still
+> what you use to *check* the signal before recording it, which is what the
+> "What you are looking for" section is for.
+>
+> Record at **32-bit float**. Quantisation is permanent, and
+> `tests/compare-wasm-native.mjs` runs against 32-bit float only.
+
 ## Before you start
 
 - Wind the movement fully and let it settle **at least 10 minutes**. A watch
@@ -12,18 +22,25 @@ processing gets judged against.
 - Make sure the movement is in **firm contact** with the sensor. Loose contact
   is the single most common cause of a signal that looks like noise.
 
-## Capture
+## Check the signal first
 
 1. Open https://macwatches.com/tools/timegrapher/ in **Chrome on macOS**.
-2. Allow microphone access.
+2. Press **Grant Permission** and allow microphone access.
 3. Select the **USB PnP Sound Device** from the input list. If it isn't listed,
    the browser can't see it — that is the finding, stop and record it.
-4. Press **Start**. Note the sample rate shown next to the button.
-5. Watch the waveform for a few seconds before recording anything. See below.
-6. Press **Record**, wait **30 seconds**, press **Stop recording**.
-7. **Download WAV.**
+4. **Settings → Device Check → Run Check**, with the movement box ticked and the
+   watch on the sensor. Twelve rows in about half a minute. Everything wants to
+   read OK; **Sample rate** flagging a resample, or **Frequency range** failing,
+   means the recording you are about to make is worthless.
+5. Close settings, press **Start**, and watch the waveform for a few seconds.
+   See below.
 
-Then repeat the whole thing in **Safari on macOS**.
+Then repeat in **Safari on macOS**.
+
+## Capture
+
+Record 30 seconds with a recorder app, at 32-bit float, from the same input.
+Nothing in the browser records.
 
 ## What you are looking for
 
@@ -45,13 +62,16 @@ If you see hash:
 3. Try the other browser.
 4. Only then conclude the hardware is unsuitable.
 
-## Two warnings the app may show
+## Two things the device check may say
 
-- **Sample-rate mismatch** (red) — the browser refused the device's rate and
-  resampled. **Discard that recording.** It is a derivative, not a reference.
-- **"Does not report whether autoGainControl…"** (grey, on Safari) — expected,
-  not a fault. Safari genuinely omits the field. Record it in the compatibility
-  table and carry on.
+- **Sample rate — Review, "the audio is being resampled".** The browser refused
+  the device's rate. **Discard that recording.** It is a derivative, not a
+  reference.
+- **Automatic gain control / Noise suppression — Unknown, "the browser did not
+  report this".** Expected on Safari, which genuinely omits the fields, and not
+  a fault. It is deliberately not shown as *Off*: silence is not consent, and
+  gain control is the one that invalidates amplitude. Record it in the
+  compatibility table and carry on.
 
 ## Save the fixture
 

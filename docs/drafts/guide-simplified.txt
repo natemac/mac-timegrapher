@@ -1,0 +1,300 @@
+GUIDE — SIMPLIFIED DRAFT
+
+================================================================
+1. MEASURE OR INSPECTION
+================================================================
+Two jobs. Pick one before you start.
+
+Measure — one live reading that updates as you watch. Use this
+while adjusting the watch. Nothing is saved unless you press
+Capture, which saves the screen as an image.
+
+Inspection — takes the watch through six positions, records
+each, and produces a document you can print or hand over.
+
+
+================================================================
+2. AUDIO INPUT
+================================================================
+Which microphone is listening.
+
+A watch is far too quiet for a normal microphone. You need a
+contact sensor — a USB timegrapher pickup, or a phone resting
+against the watch. A laptop's built-in mic mostly hears the room.
+
+Pick your device from the list. The number beside it is how fast
+it is sampling; higher is better, and anything the app accepts
+will work.
+
+
+================================================================
+3. THE FOUR READINGS
+================================================================
+
+RATE — seconds per day
+  How much the watch gains or loses in 24 hours.
+  Positive is fast, negative is slow.
+  This is the one you adjust.
+
+    within ±10 s/day    fine for most watches
+    −4 to +6 s/day      chronometer grade
+
+AMPLITUDE — degrees
+  How far the balance wheel swings. The balance wheel is the
+  part that rocks back and forth; it is what makes the ticking.
+  This tells you the health of the movement, not its accuracy.
+
+    270–310°     healthy, wound, lying flat
+    below 250°   old oil, dirt, or a tired mainspring
+
+  It normally drops when the watch is upright, and as it
+  unwinds. That is expected.
+
+BEAT ERROR — milliseconds
+  Whether the tick and the tock are evenly spaced. Like a limp:
+  it still runs, just unevenly.
+
+    under 0.5 ms   good
+    under 0.3 ms   very good
+
+  Fixing this is a different adjustment from rate.
+
+BEAT RATE — beats per hour
+  How fast the movement is designed to tick. Not a fault.
+  Common values are 21,600 and 28,800.
+  If it shows something odd, the app is probably hearing
+  something other than the watch.
+
+THE SMALL ± UNDER EACH NUMBER
+  How much that reading has been moving. A wide spread means
+  it has not settled. Do not write it down yet.
+
+
+================================================================
+4. SETTLING
+================================================================
+Whether the reading has stopped moving enough to trust.
+
+The dot drifts while the reading is still finding itself, then
+draws in and turns green.
+
+Wait for Settled before recording anything.
+
+Not settling is usually one of three things:
+  - the watch is not held firmly against the sensor
+  - the room is too noisy
+  - the watch genuinely is not running steadily
+
+
+================================================================
+5. SIGNAL
+================================================================
+How clearly the ticking stands out from background noise.
+
+  Good / Excellent   you can trust the readings
+  Weak / Fair        press the watch harder against the sensor,
+                     or move somewhere quieter
+  Too loud           the sound is distorting
+
+Too loud matters more than it sounds. Amplitude is worked out
+from the shape of each tick, and a distorted tick is the wrong
+shape. Slightly quiet and clean beats loud and distorted.
+
+On a computer you can turn the input level down in your system
+sound settings. On a phone or tablet you cannot, so move the
+sensor instead.
+
+
+================================================================
+6. TRACE
+================================================================
+The classic scrolling strip. Two lines: tick and tock.
+
+  straight down      keeping time
+  leaning right      gaining
+  leaning left       losing
+  steeper            further off
+  gap between lines  the beat error
+  fuzzy or scattered dirty movement, or poor contact
+
+Adjust the watch and the slope changes immediately — before
+the numbers catch up. That is what this view is for.
+
+Lines that run off one edge reappear on the other. If they wrap
+too fast to read, choose a wider magnification in Settings.
+
+
+================================================================
+7. BEAT
+================================================================
+One tick, magnified. This is the sound the readings come from.
+
+A healthy tick is two or three sharp spikes close together.
+Tick and tock should look alike.
+
+  one weaker or smeared     the two sides are not doing
+                            equal work
+  spread-out middle spike   worn or dirty parts
+  extra spikes              the balance is swinging too far
+
+The green line marks the part amplitude is measured from. Read
+up to the top scale from there and you get the same amplitude
+the readings show, as a position instead of a number.
+
+
+================================================================
+8. WAVEFORM
+================================================================
+The raw sound, for checking the sensor is working.
+
+  evenly spaced spikes in pairs, quiet between   correct
+  continuous fuzz with no pattern                hearing the
+                                                 room, not
+                                                 the watch
+
+If it is fuzz, fix the contact before suspecting anything else.
+
+
+================================================================
+9. RUNNING AN INSPECTION
+================================================================
+One reading tells you the watch is fast. Six tell you why.
+
+A watch that reads well in one position and badly in another
+has a mechanical problem. One that reads the same everywhere
+just needs adjusting. Six positions separate those two cases.
+
+The loop:
+  1. The panel names a position. Put the watch that way on
+     the sensor.
+  2. Press Start. It counts down three seconds — that is for
+     you to let go, because your hand is a noise too.
+  3. It listens, and records once the reading settles.
+  4. It stops on its own and names the next position.
+
+With Auto on, that is the whole job. Turn, press Start, wait.
+Turn Auto off and you decide when to record.
+
+If a position will not settle after a minute, the app says so
+and lets you record it anyway.
+
+
+================================================================
+10. USB PICKUPS ON ANDROID
+================================================================
+Only relevant on an Android phone or tablet.
+
+Android will not let a browser choose a microphone unless the
+browser also turns on echo cancellation. The app does this for
+you, automatically, and only on Android.
+
+On Chrome and browsers built on it, that path adds automatic
+volume control that cannot be switched off. Rate and beat error
+are unaffected. Amplitude is not reliable, and the app says so
+underneath the number.
+
+Firefox on Android does not have this problem.
+
+
+================================================================
+SETTINGS
+================================================================
+
+MOVEMENT
+  Which watch movement is on the sensor.
+
+  The app works out the beat rate by itself. It cannot work out
+  the amount the balance wheel swings per tick — that depends on
+  the movement's design — and amplitude is calculated from it.
+  Pick the wrong movement and amplitude will be wrong while
+  looking perfectly normal.
+
+  Quartz movements are listed so an inspection can name them.
+  They have no balance wheel, so amplitude and beat error do not
+  apply and are left blank.
+
+TRACE MAGNIFICATION
+  How much the trace exaggerates the slope. Smaller numbers
+  magnify more. Auto is usually right.
+
+TRACE HISTORY
+  How far back the trace remembers. Longer shows the trend;
+  shorter reacts faster while you adjust.
+
+BRANDING
+  Whether the MAC logo appears in the app and on documents.
+  Off unless you turn it on.
+
+SESSION DIAGNOSTICS
+  Exports a text file describing what the last run did — every
+  reading, the signal level, and the equipment settings.
+
+  For sending to someone when a reading looks wrong. It stays on
+  your device until you export it. It names your audio device
+  and browser, so read it before sending it on.
+
+STEADINESS OF THIS BENCH
+  Not a setting. It shows the steadiest each reading has been
+  this session, beside the target it has to beat to count as
+  settled.
+
+  Put a known-good, fully wound watch on the sensor, let it run
+  a minute, and read the left column. Comfortably under the
+  target means your setup is good. Never getting there usually
+  means the sensor is not held firmly enough.
+
+QUARTZ CALIBRATION
+  Sound cards do not run at exactly the speed they claim, and
+  the difference shifts every rate reading by the same amount.
+  It is invisible otherwise — the reading looks perfectly steady
+  and is simply wrong by a fixed amount.
+
+  To correct it, measure a quartz watch, which keeps far better
+  time than any sound card. The app compares what it hears
+  against what it should hear and works out the difference.
+
+  You can also type a correction in by hand if you measured it
+  elsewhere.
+
+  A correction is only as good as the quartz watch you used. It
+  belongs to the audio device, so measure it again if you change
+  sensor or computer.
+
+DEVICE CHECK
+  Two parts.
+
+  A live list of checks — microphone, sample rate, timing,
+  and whether the browser is interfering with the sound.
+  Green means ready.
+
+  And a full test, about ninety seconds, which tries every
+  combination of audio settings and reports which one works.
+  Use it when the app cannot hear the watch at all.
+
+
+================================================================
+WHAT WAS CUT, AND WHY
+================================================================
+
+Removed as out of date:
+  - "System clock" calibration. The guide still describes it as
+    one of two ways to measure the audio clock. That feature was
+    removed; only the quartz method exists now.
+
+Removed as too much detail for a first-time user:
+  - Parts-per-million arithmetic behind clock error.
+  - Named watch parts in the Beat section (pallet stones,
+    escape wheel, rebanking).
+  - The reasoning for why settled thresholds cannot be chosen
+    in advance.
+  - The explanation of why branding defaults to off.
+  - Note that a correction matches native tg's "cal" value.
+  - "Positional spread" as a term.
+
+Kept, deliberately:
+  - Every number that tells you good from bad.
+  - Every instruction that changes what you should do next.
+  - The Android amplitude warning, because a wrong number that
+    looks right is worse than no number.
+
+Roughly 3,300 words down to roughly 1,300.

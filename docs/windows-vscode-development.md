@@ -1,5 +1,11 @@
 # Windows VS Code Development Setup
 
+> **Historical.** Written 2026-03-22 for building the native GTK
+> application on Windows, before the browser port existed. Nothing here is
+> needed to work on the web app, which builds with `npm` on any platform —
+> see the [README](../README.md). Kept because the native build is still the
+> reference implementation the port is checked against.
+
 ## Purpose
 
 This document defines the intended development workflow for building and running Tg from Visual Studio Code on Windows.

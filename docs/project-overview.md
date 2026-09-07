@@ -1,5 +1,10 @@
 # Tg Overview
 
+> **This describes upstream tg**, the native GTK desktop application, and
+> dates from 2026-03-22. It is kept as reference for the program this
+> project is derived from. For what the browser port does, see the
+> [README](../README.md).
+
 ## What This Software Does
 
 Tg is a desktop application for measuring the performance of a mechanical watch.

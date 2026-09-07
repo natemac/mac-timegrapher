@@ -115,16 +115,23 @@ web/src/components/      one panel each; guide-content.tsx holds every explanati
   was removed.** It compared frame delivery against wall time and was the option
   most sensitive to an unstable audio path; on real iOS+USB hardware it never
   produced a usable figure (44.1 kHz resampling, ~2% block rejection). Its
-  diagnostic value — is the frame-vs-wall drift absurd — now lives in the
-  pre-check's Audio-timing row, which is all that comparison is trustworthy for.
-  `ClockCalibrator` stays: the pre-check reads its `disturbed`/`debug()`.
-  Correction is the quartz method (`tg_cal_*`, upstream's algorithm) or a figure
-  typed into the field; nothing is applied without a press.
-- **Lift angle comes from the movement preset**, not a constant. Amplitude is
-  calculated directly from it, so a wrong preset is a wrong amplitude.
+  diagnostic value — is the frame-vs-wall drift absurd — now lives in the device
+  check's Audio-timing row, which runs its own `ClockCalibrator` for ten seconds
+  and is all that comparison is trustworthy for. Correction is the quartz method
+  (`tg_cal_*`, upstream's algorithm) or a figure typed into the field; nothing is
+  applied without a press.
+- **Lift angle comes from the movement setting**, not a constant. Amplitude is
+  calculated directly from it, so a wrong figure is a wrong amplitude — and
+  under Auto it is still typed by hand, because nothing in the sound carries it.
+  See `timegrapher/movement-choice.ts`.
+- **A summary carries averages, never a range.** No positional spread, no lowest
+  amplitude, no greatest beat error, on screen or on the document. Each is a
+  range over six samples and so the most outlier-sensitive figure a run can
+  produce: one knock of the bench during one position moves all three and none
+  of the averages. The readings are printed in full; the extremes are readable
+  from them and are not presented as a conclusion.
 - **`guide-content.tsx` is the single source for every explanation**, read by
-  both the per-panel notes and the full guide. Do not write help text anywhere
-  else.
+  the Guide tab. Do not write help text anywhere else.
 - **The v36 interface is the source of truth for layout.** `tokens.css` is that
   design's stylesheet taken across with its cascade intact, overrides and all,
   and the React components reproduce its ids and class names so it could be. Do
@@ -136,6 +143,17 @@ web/src/components/      one panel each; guide-content.tsx holds every explanati
   what was deliberately deviated from. Read it before "restoring" anything that
   looks missing; several of those omissions are pending a product decision, not
   bugs.
+- **The stability marker fills the settled region rather than moving inside it.**
+  While the reading moves it travels and stops with its right edge on the
+  boundary — it never sits on green it has not earned. At the verdict it takes
+  the region exactly. Locked is a state, not a degree, and both shapes are given
+  as concrete left/right offsets so they animate; a width transitioning to
+  `auto` snaps. See `timegrapher/stability-position.ts`.
+- **An inspection's run is derived from its record**, not kept beside it. The six
+  markers come from `resumeWizard(readings)`, so a reload or a trip to the
+  opening screen resumes rather than showing an empty panel over stored
+  readings. They disagreed once, and the result was a report carrying two
+  watches.
 
 ## Traps that cost time once already
 
@@ -211,9 +229,10 @@ tap.
 ## Commands
 
 ```sh
-cd web && npm test          # 434 tests across 28 files
+cd web && npm test          # 488 tests across 29 files
 cd web && npm run build     # tsc -b && vite build
 cd web && npm run dev       # http://localhost:5173/tools/timegrapher/
+cd web && npm run dev:lan   # HTTPS on the LAN, for testing on a phone
 
 make -f Makefile.core       # native tg-process (needs brew fftw)
 make -f Makefile.core check # synthetic-signal tests

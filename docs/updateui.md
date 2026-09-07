@@ -358,6 +358,46 @@ than as a memo, that is a layout decision worth making deliberately.
 
 ---
 
+## F. The first bench session, 2026-09-06
+
+Everything in the checklist passed on an iPhone and on Android with the USB
+pickup — the reading, the spreads, pause keeping the figures on screen, the
+stability bar, the fifteen-row device check, the inspection run and both export
+sizes. What came back from it:
+
+- **The report is the old certificate again.** The v36 design specified a build
+  name and a table; the document it replaced carried the facts grid, unit
+  sub-headers, summary figures, a signature block and a method statement, and
+  that is what a record is. Restored, including the upstream attribution — which
+  closes A2. The card is not that at a smaller size: it keeps what identifies the
+  watch and what it read, and the rest stays on the sheet.
+- **Pause no longer looks like Start.** Both were the filled button, so an
+  operator glancing down mid-inspection could not tell from the colour whether it
+  was time to move the watch.
+- **The last two positions are named for where the 12 index points** — 12 o'clock
+  down and 12 o'clock up. This overlaps the usual reading of crown up and crown
+  down; the names on a document should be the ones the person signing it uses.
+- **The run average is on the summary**, and it is an average. The first attempt
+  put the lowest amplitude and the greatest beat error on a row headed
+  "Average", which is simply wrong.
+- **Then the extremes came off entirely.** Spread, lowest amplitude and greatest
+  beat error are ranges over six samples — one knock of the bench during one
+  position moves all three and none of the averages. Off the summary, the sheet,
+  the card and the tab-separated hand-off. The readings are printed in full.
+- **"New watch" became the transport.** Once every position is recorded there is
+  nothing left to start, so the button the operator is already looking at
+  becomes **Clear**.
+- **Locked fills the green rather than moving inside it.** The marker used to
+  take a position within the settled region according to how much margin was
+  left, which invited reading a degree of lock the app does not claim.
+- **The summary heading no longer draws a focus ring.** It still takes focus so
+  a screen reader announces the dialog.
+
+Retired with these: `RunningRange`, `runningSummary` and `currentRunSummary`,
+which fed the between-positions preview on the old measurement panel.
+
+---
+
 ## D. Plan and status
 
 | # | Step | Status |
