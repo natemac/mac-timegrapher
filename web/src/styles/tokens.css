@@ -3350,3 +3350,12 @@ html[data-theme="dark"] .measurement-stat .stat-caveat {
     font-size: 10.5px;
   }
 }
+
+/* Export sits beside the way to start the next watch, because finishing one
+   inspection and beginning another is the same moment. */
+.inspection-summary .summary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}

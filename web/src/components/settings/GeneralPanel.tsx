@@ -6,7 +6,7 @@
     it under the terms of the GNU General Public License version 2 as
     published by the Free Software Foundation.
 */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Settings, Appearance } from '../../settings/settings-store';
 import { ZOOM_AUTO, ZOOM_STEPS } from '../../timegrapher/trace-zoom';
 import {
@@ -37,6 +37,10 @@ interface Props {
 
 const HISTORY_STEPS = [15, 30, 60];
 
+/* Long enough to swallow the keystrokes of a two- or three-digit entry, short
+   enough that the summary line under the control still feels live. */
+const COMMIT_DELAY_MS = 500;
+
 const AUTO_OPTION = 'Auto';
 
 export function GeneralPanel({
@@ -64,12 +68,42 @@ export function GeneralPanel({
 
   const check = validateManual(draft, isManual);
 
+  /*
+     Committed on a short delay, not on every keystroke.
+
+     The lift angle is a dependency of the measurement engine, which is a Worker
+     with a WebAssembly module inside it. Typing "53" is two valid entries — 5,
+     then 53 — so a straight-through commit tore the engine down and rebuilt it
+     twice, clearing the reading each time, in the one field somebody is most
+     likely to adjust while a watch is on the sensor.
+
+     The panel still validates and re-renders as you type; only the value handed
+     to the engine waits.
+  */
+  const pending = useRef<number | undefined>(undefined);
+
+  const commit = (value: ManualMovement) => {
+    window.clearTimeout(pending.current);
+    pending.current = window.setTimeout(() => onManualChange(value), COMMIT_DELAY_MS);
+  };
+
+  // A half-typed entry must not be left in flight when the panel goes away.
+  useEffect(() => () => window.clearTimeout(pending.current), []);
+
   const editManual = (next: { bph: string; liftAngle: string }) => {
     setDraft(next);
     const judged = validateManual(next, isManual);
     // Only a complete, usable pair is committed. A half-written entry leaves
     // the engine on the last good one rather than on a number nobody meant.
-    if (judged.value) onManualChange(judged.value);
+    if (judged.value) commit(judged.value);
+  };
+
+  /* Leaving the field is a finished entry, so it does not wait out the delay. */
+  const flush = () => {
+    const judged = validateManual(draft, isManual);
+    if (!judged.value) return;
+    window.clearTimeout(pending.current);
+    onManualChange(judged.value);
   };
 
   const selectValue = isAuto ? AUTO_OPTION : movementId!;
@@ -180,6 +214,7 @@ export function GeneralPanel({
                 aria-describedby="manualError"
                 aria-invalid={check.badBph || undefined}
                 onChange={(e) => editManual({ ...draft, bph: e.target.value })}
+                onBlur={flush}
               />
             </div>
             <div>
@@ -195,6 +230,7 @@ export function GeneralPanel({
                 aria-describedby="manualError"
                 aria-invalid={check.badLiftAngle || undefined}
                 onChange={(e) => editManual({ ...draft, liftAngle: e.target.value })}
+                onBlur={flush}
               />
             </div>
             <p id="manualError" role="status">{check.error ?? ''}</p>

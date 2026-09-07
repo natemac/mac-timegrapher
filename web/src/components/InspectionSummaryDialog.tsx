@@ -28,6 +28,15 @@ interface Props {
   inspection: Inspection;
   onChange: (next: Inspection) => void;
   /*
+     Clear the record and start the next watch.
+
+     Without it the readings accumulate: a second run replaces the positions it
+     measures and leaves the rest of the previous watch's on the record, and
+     since the position markers are drawn from the run rather than the record,
+     nothing on screen says so until the report is printed.
+  */
+  onNewInspection: () => void;
+  /*
      Whether the MAC mark goes on the document.
 
      Off by default, and the same preference that governs the mark in the
@@ -45,7 +54,9 @@ function cell(reading: Reading | undefined, pick: (r: Reading) => string): strin
   return reading ? pick(reading) : DASH;
 }
 
-export function InspectionSummaryDialog({ open, onClose, inspection, onChange, showLogo }: Props) {
+export function InspectionSummaryDialog({
+  open, onClose, inspection, onChange, onNewInspection, showLogo,
+}: Props) {
   /* The page size is about the paper in the printer, not about the watch, so
      it is not part of the record and is not saved with it. */
   const [size, setSize] = useState<PageSize>('large');
@@ -195,9 +206,24 @@ export function InspectionSummaryDialog({ open, onClose, inspection, onChange, s
         <span>PDF size</span>
       </fieldset>
 
-      <button id="exportInspection" className="export-button" onClick={() => void exportReport()}>
-        Export PDF
-      </button>
+      <div className="summary-actions">
+        <button id="exportInspection" className="export-button" onClick={() => void exportReport()}>
+          Export PDF
+        </button>
+        {/* Destructive, so it asks — and it only appears once there is
+            something to lose. */}
+        {inspection.readings.length > 0 && (
+          <button
+            id="newInspection"
+            className="export-button"
+            onClick={() => {
+              if (window.confirm('Clear these readings and start the next watch?')) onNewInspection();
+            }}
+          >
+            New watch
+          </button>
+        )}
+      </div>
       <p className="summary-units">Choose Save as PDF in the print dialog.</p>
     </Dialog>
   );

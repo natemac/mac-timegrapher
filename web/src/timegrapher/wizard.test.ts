@@ -8,11 +8,27 @@
 */
 import { describe, it, expect } from 'vitest';
 import {
-  WIZARD_ORDER, AUTO_CAPTURE_CONFIRMATIONS, STALL_SECONDS,
+  AUTO_CAPTURE_CONFIRMATIONS,
   COUNTDOWN_SECONDS,
-  startWizard, positionAt, stepLabel, begin, armed, abort, captured, advance,
-  finish, retry, shouldAutoCapture, hasStalled, skipped, orderIsValid,
+  STALL_SECONDS,
+  WIZARD_ORDER,
+  abort,
+  advance,
+  armed,
+  begin,
+  captured,
+  finish,
+  hasStalled,
+  orderIsValid,
+  positionAt,
+  resumeWizard,
+  retry,
+  shouldAutoCapture,
+  skipped,
+  startWizard,
+  stepLabel,
 } from './wizard';
+import type { PositionId } from './session';
 
 describe('wizard order', () => {
   it('covers every session position exactly once', () => {
@@ -192,5 +208,48 @@ describe('stalling', () => {
 
   it('never reports a stall while prompting', () => {
     expect(hasStalled('prompt', 'moving', STALL_SECONDS * 2)).toBe(false);
+  });
+});
+
+/*
+   Resuming a run from the record.
+
+   The six markers are drawn from the wizard and the report from the stored
+   inspection. When a reload or a trip to the opening screen reset one and not
+   the other, the panel said nothing had been captured while the report held six
+   readings from the watch before — and printing that produced a certificate
+   mixing two watches.
+*/
+describe('resuming a run from what is already recorded', () => {
+  it('is an empty run when nothing has been measured', () => {
+    expect(resumeWizard([])).toEqual(startWizard());
+  });
+
+  it('lands on the first position not yet measured', () => {
+    const state = resumeWizard(['dial-up', 'dial-down']);
+    expect(positionAt(state.step)).toBe('crown-up');
+    expect(state.stage).toBe('prompt');
+  });
+
+  it('skips past a gap rather than stopping at it', () => {
+    const state = resumeWizard(['dial-up', 'crown-up']);
+    expect(positionAt(state.step)).toBe('dial-down');
+  });
+
+  it('is finished when every position is on the record', () => {
+    const state = resumeWizard([...WIZARD_ORDER]);
+    expect(state.stage).toBe('done');
+    expect(state.step).toBe(WIZARD_ORDER.length);
+  });
+
+  /* The markers must show exactly what the report will print, so a reading on
+     the record is a filled marker whatever order it arrived in. */
+  it("marks every recorded position, in the run's own order", () => {
+    expect(resumeWizard(['crown-right', 'dial-up']).recorded)
+      .toEqual(['dial-up', 'crown-right']);
+  });
+
+  it('ignores a position that is not part of a run', () => {
+    expect(resumeWizard(['nonsense' as PositionId]).recorded).toEqual([]);
   });
 });

@@ -76,31 +76,59 @@ curl -i -X PATCH "{url}/${DEST}?override=true" \
 # -> 204 No Content, with Upload-Offset equal to SIZE
 ```
 
-Files to upload, preserving structure:
+**Upload everything in `dist/`, preserving structure.** Do not work from a list:
+a build emits seventeen files and the five obvious ones are not the whole set.
+Missing `assets/tg-core-<hash>.wasm` alone produces an app that loads, looks
+entirely normal, and cannot measure anything — and on a server that already has
+a previous deploy on it, the omission is invisible, because the old file is
+still there answering.
 
+```sh
+cd web/dist
+for FILE in $(find . -type f | sed 's|^\./||'); do
+  DEST="tools/timegrapher/${FILE}"
+  SIZE=$(stat -f%z "$FILE")   # stat -c%s on Linux
+  curl -sf -X POST "{url}/${DEST}?override=true" \
+    -H "X-Auth: {auth_key}" -H "X-Auth-Rest: {rest_auth_key}" \
+    -H "Tus-Resumable: 1.0.0" -H "Upload-Length: ${SIZE}" -H "Upload-Offset: 0" \
+  && curl -sf -X PATCH "{url}/${DEST}?override=true" \
+    -H "X-Auth: {auth_key}" -H "X-Auth-Rest: {rest_auth_key}" \
+    -H "Tus-Resumable: 1.0.0" \
+    -H "Content-Type: application/offset+octet-stream" \
+    -H "Upload-Offset: 0" --data-binary "@${FILE}" \
+  && echo "  ok   ${FILE}" || echo "  FAIL ${FILE}"
+done
 ```
-dist/index.html                  -> tools/timegrapher/index.html
-dist/capture-worklet.js          -> tools/timegrapher/capture-worklet.js
-dist/assets/index-<hash>.css     -> tools/timegrapher/assets/index-<hash>.css
-dist/assets/index-<hash>.js      -> tools/timegrapher/assets/index-<hash>.js
-dist/assets/index-<hash>.js.map  -> tools/timegrapher/assets/index-<hash>.js.map
-```
 
-Asset hashes change on every build, so read the real filenames from `dist/`
-rather than copying the ones above. The `.js.map` is deliberately shipped: for
-GPL-licensed code delivered to a browser, source maps make the corresponding
-source directly available to anyone running it.
+Two files have to land where they are, and the loop above already does:
 
-`capture-worklet.js` must stay at the top level of the deploy path, not under
-`assets/`. It is fetched at runtime by `AudioWorklet.addModule` from
-`${BASE_URL}capture-worklet.js`, so a bundler-hashed name would break it.
+- **`capture-worklet.js` stays at the top level**, not under `assets/`. It is
+  fetched at runtime by `AudioWorklet.addModule` from
+  `${BASE_URL}capture-worklet.js`, so a bundler-hashed name would break it.
+- **`.htaccess`** is why the WebAssembly module instantiates at all. The host
+  serves `.wasm` as `text/plain`, and because the site sends
+  `X-Content-Type-Options: nosniff` the browser then refuses it —
+  `WebAssembly.instantiateStreaming` requires `application/wasm` exactly. That
+  file is scoped to this directory and adds only the MIME type; the site root's
+  `.htaccess`, which owns the HTTPS redirect and security headers, is
+  deliberately left alone. `find` picks up dotfiles, so it goes with the rest.
 
-`dist/.htaccess` must be uploaded too. The host serves `.wasm` as `text/plain`,
-and because the site sends `X-Content-Type-Options: nosniff` the browser then
-refuses to instantiate it — `WebAssembly.instantiateStreaming` requires
-`application/wasm` exactly. That file is scoped to this directory and adds only
-the MIME type; the site root's `.htaccess`, which owns the HTTPS redirect and
-security headers, is deliberately left alone.
+The `.js.map` files are deliberately shipped: for GPL-licensed code delivered to
+a browser, source maps make the corresponding source directly available to
+anyone running it.
+
+### Old builds do not remove themselves
+
+Asset filenames carry a content hash, so a deploy adds files rather than
+replacing them and nothing prunes what it leaves. By 2026-09-06 that had reached
+**232 files and 120.8 MB in `assets/`, against 2.4 MB actually in use** — about
+thirty-eight builds of litter, most of it source maps.
+
+It harms nothing served, and a stale cached `index.html` still finds its own
+assets because they are all still there, so this is housekeeping rather than
+urgency. Sweep it when it grows: keep the hashes named by the live
+`index.html` plus the `tg-core-*.wasm` and `tg-worker-*.js` that bundle
+references, and delete the rest.
 
 Finally, clear the CDN cache (`hosting_clearWebsiteCacheV1`).
 

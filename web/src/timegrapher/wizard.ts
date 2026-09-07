@@ -85,6 +85,29 @@ export function startWizard(): WizardState {
   return { step: 0, stage: 'prompt', recorded: [] };
 }
 
+/**
+ * A run rebuilt from the readings already on the record.
+ *
+ * The markers and the report have to agree. They are drawn from different
+ * places — the markers from this state, the report from the stored inspection —
+ * and when a reload or a trip to the opening screen reset one and not the other,
+ * the panel said nothing had been captured while the report held six readings
+ * from the watch before. Printing that produced a certificate mixing two
+ * watches.
+ *
+ * So the run is derived from the record rather than kept beside it, and lands on
+ * the first position that has not been measured.
+ */
+export function resumeWizard(recorded: PositionId[]): WizardState {
+  const kept = WIZARD_ORDER.filter((p) => recorded.includes(p));
+  const next = WIZARD_ORDER.findIndex((p) => !kept.includes(p));
+  return {
+    step: next === -1 ? WIZARD_ORDER.length : next,
+    stage: next === -1 ? 'done' : 'prompt',
+    recorded: kept,
+  };
+}
+
 /** The position a step measures, or null once the run is past the end. */
 export function positionAt(step: number): PositionId | null {
   return WIZARD_ORDER[step] ?? null;

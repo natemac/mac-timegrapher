@@ -31,7 +31,8 @@ import {
 import { pendingResults, type StepId, type StepResult } from './timegrapher/device-check';
 import { inspectionNote } from './timegrapher/inspection-note';
 import {
-  startWizard, begin, abort, captured, positionAt, loadAutoCapture, saveAutoCapture,
+  startWizard, resumeWizard, begin, abort, captured, positionAt,
+  loadAutoCapture, saveAutoCapture,
   WIZARD_ORDER, COUNTDOWN_SECONDS, type WizardState,
 } from './timegrapher/wizard';
 import { positionName, type PositionId } from './timegrapher/session';
@@ -84,7 +85,16 @@ function describeError(err: unknown): string {
   }
 }
 
+/* Read once, before the component, because two pieces of state are built from
+   it and they must be built from the same one. */
+function openInspection(): Inspection {
+  const all = loadInspections();
+  const id = loadCurrentId();
+  return all.find((i) => i.id === id) ?? createInspection();
+}
+
 export default function App() {
+  const [currentInspection] = useState(openInspection);
   const [screen, setScreen] = useState<Screen>('welcome');
   const mode = screen === 'inspection' ? 'inspection' : 'measure';
 
@@ -161,13 +171,17 @@ export default function App() {
      not re-render the app for a list nobody is looking at.
   */
   const savedRuns = useRef<Inspection[]>(loadInspections());
-  const [current, setCurrent] = useState<Inspection>(() => {
-    const all = loadInspections();
-    const id = loadCurrentId();
-    return all.find((i) => i.id === id) ?? createInspection();
-  });
+  const [current, setCurrent] = useState<Inspection>(currentInspection);
 
-  const [wizard, setWizard] = useState<WizardState>(startWizard);
+  /*
+     Seeded from what the record already holds, so the six markers and the
+     report cannot disagree — see resumeWizard. A reload mid-run comes back to
+     the position it was on rather than to an empty panel over six stored
+     readings.
+  */
+  const [wizard, setWizard] = useState<WizardState>(
+    () => resumeWizard(currentInspection.readings.map((r) => r.position)),
+  );
   const [autoCapture, setAutoCapture] = useState(loadAutoCapture);
   const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
   const [lastCaptured, setLastCaptured] = useState<PositionId | null>(null);
@@ -674,7 +688,20 @@ export default function App() {
   }, [releaseCaptureState]);
 
   const start = async () => {
-    if (!selectedId || inFlight.current || audioOwner.current) return;
+    if (!selectedId || inFlight.current) return;
+    /*
+       Something else has the input — a permission prompt, or a device check
+       still unwinding after being cancelled. This used to return in silence,
+       so pressing Start during the few hundred milliseconds a cancelled check
+       takes to release the microphone did nothing at all, with nothing on
+       screen to say why.
+    */
+    if (audioOwner.current) {
+      setError(audioOwner.current === 'device check'
+        ? 'The device check is still releasing the microphone. Try again in a moment.'
+        : 'The microphone is busy. Try again in a moment.');
+      return;
+    }
     const attempt = ++captureAttempt.current;
     inFlight.current = true;
     audioOwner.current = 'capture';
@@ -799,10 +826,35 @@ export default function App() {
     setError(null);
     if (next === 'inspection') {
       settledRuns.current = 0;
-      setWizard(startWizard());
+      /* Resumed, not restarted. Returning to the opening screen and coming back
+         used to reset the markers while leaving the readings on the record, so
+         the next watch's positions landed among the last one's. */
+      setWizard(resumeWizard(currentRef.current.readings.map((r) => r.position)));
       setLastCaptured(null);
     }
   };
+
+  /*
+     Clear the record and start the next watch.
+
+     The technician and the calibre carry over, because the next watch is
+     usually measured by the same person on the same bench. The reference does
+     not: it is what identifies the watch, and inheriting it would silently
+     label the new readings with the old watch's name.
+  */
+  const startNewInspection = useCallback(() => {
+    const next = createInspection({
+      phase: 'pre',
+      technician: currentRef.current.technician,
+      movementId: movementIdRef.current,
+      movementName: movementLabelRef.current,
+    });
+    updateCurrent(next);
+    settledRuns.current = 0;
+    setWizard(startWizard());
+    setLastCaptured(null);
+    setSummaryOpen(false);
+  }, [updateCurrent]);
 
   // --------------------------------------------------------- diagnostics --
 
@@ -1163,6 +1215,7 @@ export default function App() {
         onClose={() => setSummaryOpen(false)}
         inspection={current}
         onChange={updateCurrent}
+        onNewInspection={startNewInspection}
         showLogo={settings.showLogo}
       />
     </>

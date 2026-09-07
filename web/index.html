@@ -15,9 +15,17 @@
     <meta name="description" content="A browser-based timegrapher for mechanical watches. Measures rate, amplitude and beat error from any audio input.">
       <link rel="manifest" href="./manifest.webmanifest">
     <link rel="apple-touch-icon" href="./apple-touch-icon.png">
-    <meta name="theme-color" content="#0a0b0d">
+    <!-- The light palette, which is what System resolves to on most
+         devices. App.tsx corrects it to match the theme once React runs; this
+         is what paints before that. -->
+    <meta name="theme-color" content="#eeeae0">
+    <meta name="color-scheme" content="light dark">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <!-- "default" is dark status-bar text, which is what a cream page needs.
+         black-translucent gives white text and was right only while the app was
+         dark-only. env(safe-area-inset-top) reports 0 under this style, so the
+         header padding falls back to its 16px minimum rather than doubling. -->
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Timegrapher">
   </head>
   <body>

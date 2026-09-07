@@ -26,6 +26,28 @@
 const CACHE = 'mac-timegrapher-v1';
 const SHELL = ['./', './index.html'];
 
+/*
+   How many hashed assets to keep.
+
+   Asset filenames carry a content hash, so a deploy never replaces an entry —
+   it adds one, and the old build's files stay cached forever. Left alone that
+   grows without bound: six files a build, and the WebAssembly module alone is
+   600 KB.
+
+   Trimmed by insertion order rather than by build, because the cache has no
+   idea what a build is. Twenty is roughly three builds of headroom, which keeps
+   the current one and the one before it well clear of eviction.
+*/
+const MAX_ASSETS = 20;
+
+async function trimAssets(cache) {
+  const keys = await cache.keys();
+  const assets = keys.filter((request) => new URL(request.url).pathname.includes('/assets/'));
+  // keys() is in insertion order, so the front of the list is the oldest.
+  const excess = assets.length - MAX_ASSETS;
+  for (let i = 0; i < excess; i++) await cache.delete(assets[i]);
+}
+
 self.addEventListener('install', (event) => {
   // Take over as soon as the new worker is ready rather than waiting for every
   // tab to close, which on a phone can be never.
@@ -40,6 +62,9 @@ self.addEventListener('activate', (event) => {
     caches
       .keys()
       .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      // An install predating the cap arrives here holding every build it ever
+      // saw, so the first activation after this ships is what clears it.
+      .then(() => caches.open(CACHE).then(trimAssets))
       .then(() => self.clients.claim()),
   );
 });
@@ -66,7 +91,13 @@ self.addEventListener('fetch', (event) => {
           fetch(request).then((response) => {
             if (response.ok) {
               const copy = response.clone();
-              caches.open(CACHE).then((cache) => cache.put(request, copy)).catch(() => {});
+              caches
+                .open(CACHE)
+                .then(async (cache) => {
+                  await cache.put(request, copy);
+                  await trimAssets(cache);
+                })
+                .catch(() => {});
             }
             return response;
           }),
