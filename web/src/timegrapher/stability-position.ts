@@ -34,20 +34,28 @@ import { SETTLED_BOUNDS, type Settling, type Spread } from './stability';
    swinging sixteen degrees is not nearly settled, and a bar that said so would
    be lying about which thing to wait for.
 
-   Approaching, and inside, are two different scales:
+   The cursor only ever travels while the reading is still moving. It crosses
+   the first three quarters of the track on a logarithmic scale — the useful
+   range spans a factor of three, the same factor `settling()` uses to call a
+   reading "nearly there", and a linear scale would spend most of that distance
+   on readings that are all equally hopeless. Each halving of the spread moves
+   it the same distance right.
 
-     - Outside the bounds the cursor travels the first three quarters of the
-       track. The useful range spans a factor of three — the same factor
-       `settling()` uses to call a reading "nearly there" — and a linear scale
-       would spend most of that distance on readings that are all equally
-       hopeless, so it is logarithmic. Each halving of the spread moves the
-       cursor the same distance right.
-     - Inside them the cursor is in the oval, and its position there is how much
-       margin is left over: at the bound it is just inside, and it reaches the
-       far end only for a reading that has stopped moving altogether.
+   Once the verdict is settled it stops travelling and *becomes* the green
+   region: the marker grows rightwards to fill it and stays filled. Locked is a
+   state, not a position. Showing the marker still creeping about inside the
+   zone invited the operator to read a degree of lock that the app is not
+   claiming — the verdict is binary, and the bar should say so. If the reading
+   slips, it shrinks back to a travelling marker and carries on.
 */
 
-/** Where the green oval begins, as a fraction of the track. */
+/**
+ * Where the green region begins, as a fraction of the marker's travel.
+ *
+ * Shared with the stylesheet through an inline style, so "the marker has
+ * arrived" and "the reading is settled" are the same fact rather than two that
+ * have to be kept in step.
+ */
 export const LOCKED_FROM = 0.76;
 
 /** How far outside the bounds the track's left edge sits. Matches `settling()`. */
@@ -91,37 +99,27 @@ function approach(spread: Spread | null, bound: number): number | null {
   return clamp(Math.log((OUTER_FACTOR * bound) / s) / Math.log(OUTER_FACTOR), 0, 1);
 }
 
-/** 0 at the bound, 1 at a reading that has stopped moving. */
-function margin(spread: Spread | null, bound: number): number | null {
-  if (spread === null || !Number.isFinite(spread.plusMinus)) return null;
-  return clamp(1 - Math.max(spread.plusMinus, 0) / bound, 0, 1);
-}
-
 function worst(values: (number | null)[]): number | null {
   const known = values.filter((v): v is number => v !== null);
   return known.length === 0 ? null : Math.min(...known);
 }
 
 /**
- * The cursor position, 0 to 1, or null when there is nothing to place.
+ * Where the marker's left edge sits, 0 to `LOCKED_FROM`, or null when there is
+ * nothing to place.
  *
  * Null rather than zero: zero is the left end of a real scale, and a reading
  * that has not arrived yet is not a reading pinned at its worst.
+ *
+ * It never travels past `LOCKED_FROM`. At the verdict the marker stops being a
+ * position and becomes the filled region — see the note at the top.
  */
 export function stabilityPosition(facts: StabilityFacts): number | null {
   const { settling, seconds, rate, beatError, amplitude } = facts;
   if (rate === null) return null;
 
-  if (settling === 'settled') {
-    /* Inside the oval. How far in is how much room is left against the
-       tightest of the bounds — the one that would be first to fail. */
-    const room = worst([
-      margin(rate, SETTLED_BOUNDS.rate),
-      margin(beatError, SETTLED_BOUNDS.beatError),
-      margin(amplitude, SETTLED_BOUNDS.amplitude),
-    ]) ?? 0;
-    return LOCKED_FROM + (1 - LOCKED_FROM) * room;
-  }
+  // Settled: anchored at the near edge of the region it now fills.
+  if (settling === 'settled') return LOCKED_FROM;
 
   /*
      Short of it. Time counts as one of the criteria because it genuinely is
@@ -136,8 +134,8 @@ export function stabilityPosition(facts: StabilityFacts): number | null {
     clamp(seconds / SETTLED_AFTER_SECONDS, 0, 1),
   ]) ?? 0;
 
-  /* Never quite touching the oval. Reaching it means settled, and settled is
-     the branch above; a cursor resting on the line under a lit MOVING label
+  /* Never quite touching the region. Reaching it means settled, and settled is
+     the branch above; a marker resting on the line under a lit MOVING label
      reads as a broken instrument. */
   return Math.min(closeness, 1) * LOCKED_FROM * 0.985;
 }

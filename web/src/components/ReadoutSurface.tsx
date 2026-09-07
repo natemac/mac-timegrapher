@@ -74,6 +74,32 @@ function meterPercent(db: number): number {
   return Math.max(0, Math.min(100, ((db + 60) / 60) * 100));
 }
 
+/** The travelling marker's width, which both edge calculations work against. */
+const MARKER = 18;
+
+/*
+   Where the marker's two edges sit.
+
+   Given as a pair of concrete offsets rather than a position and a width,
+   because the marker has two shapes and has to animate between them: a width
+   transitioning to `auto` simply snaps.
+
+   While the reading moves, the marker travels until its *right* edge reaches
+   the near edge of the green — it never sits on the region it has not earned.
+   At the verdict it takes the region exactly: left edge on the boundary, right
+   edge at the end of the track. So locking slides it the last marker-width and
+   swells it out to fill, and a slip runs the same motion backwards.
+*/
+function markerEdges(position: number, locked: boolean): { left: string; right: string } {
+  const region = `(100% - ${MARKER}px) * ${LOCKED_FROM}`;
+  if (locked) return { left: `calc(${region})`, right: '0px' };
+
+  // How far along the approach, as a fraction of it rather than of the track.
+  const along = Math.min(Math.max(position / LOCKED_FROM, 0), 1);
+  const left = `(100% - ${MARKER}px) * ${LOCKED_FROM * along} - ${MARKER * along}px`;
+  return { left: `calc(${left})`, right: `calc(100% - (${left}) - ${MARKER}px)` };
+}
+
 const SPOKEN: Record<ReturnType<typeof stabilityState>, string> = {
   idle: 'Awaiting signal',
   moving: 'Readings still moving',
@@ -186,24 +212,16 @@ export function ReadoutSurface({
             data-state={state}
             title={spoken}
           >
-            {/*
-               The oval spans the cursor *centres* that count as settled, so its
-               left edge is where the cursor's centre lands at exactly the
-               threshold. Placing it in left-edge space instead put the whole
-               shape 9px early, and a reading held just short of settling drew
-               its cursor inside the green while the label beside it still read
-               MOVING.
-            */}
+            {/* The region the marker fills once the reading is settled. */}
             <span
               className="locked-range"
-              style={{ left: `calc(9px + (100% - 18px) * ${LOCKED_FROM})` }}
+              style={{ left: `calc((100% - ${MARKER}px) * ${LOCKED_FROM})` }}
             />
+
             <span
               id="stabilityCursor"
               style={{
-                // Inset by half the cursor's own width at each end, so it never
-                // rides off the track it is measuring against.
-                left: `calc(9px + (100% - 18px) * ${position ?? 0})`,
+                ...markerEdges(position ?? 0, state === 'locked'),
                 opacity: position === null ? 0 : undefined,
               }}
             />

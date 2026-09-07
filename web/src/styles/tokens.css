@@ -3405,3 +3405,26 @@ html[data-theme="dark"] .measurement-stat .stat-caveat {
   font-weight: 550;
   font-variant-numeric: tabular-nums;
 }
+
+/*
+   The stability marker is positioned by both edges rather than by a centre and
+   a width, because it has two shapes: a small travelling oval while the reading
+   is still moving, and the whole green region once it is settled. Animating
+   between them wants two real lengths — a width transitioning to `auto` snaps.
+
+   Locked is a state, not a position, so nothing moves inside the region.
+*/
+#stabilityCursor {
+  width: auto;
+  transform: none;
+  border-radius: 20px;
+  transition:
+    left 0.65s linear,
+    right 0.65s linear,
+    background 0.3s;
+}
+@media (prefers-reduced-motion: reduce) {
+  #stabilityCursor {
+    transition: none;
+  }
+}

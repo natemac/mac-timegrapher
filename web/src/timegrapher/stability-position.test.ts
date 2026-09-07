@@ -31,15 +31,28 @@ describe('the stability cursor', () => {
     expect(stabilityPosition(steady({ settling: 'waiting', rate: null }))).toBeNull();
   });
 
-  it('reaches the far end only for a reading that has stopped moving', () => {
-    expect(stabilityPosition(steady({
+  /*
+     Locked is a state, not a position. The marker stops travelling at the
+     threshold and fills the region instead — showing it still creeping about
+     inside would invite the operator to read a degree of lock the app is not
+     claiming.
+  */
+  it('stops travelling at the threshold once settled, however good the reading', () => {
+    const perfect = stabilityPosition(steady({
       rate: spread(0), beatError: spread(0), amplitude: spread(0),
-    }))).toBe(1);
+    }));
+    const barely = stabilityPosition(steady({ rate: spread(SETTLED_BOUNDS.rate) }));
+    expect(perfect).toBe(LOCKED_FROM);
+    expect(barely).toBe(LOCKED_FROM);
   });
 
-  it('sits just inside the oval for a reading exactly at the bound', () => {
-    const at = stabilityPosition(steady({ rate: spread(SETTLED_BOUNDS.rate) }));
-    expect(at).toBeCloseTo(LOCKED_FROM, 6);
+  it('never travels past the threshold', () => {
+    for (const settling of ['waiting', 'moving', 'settling', 'settled'] as const) {
+      for (const s of [0, 0.01, 0.5, 1, 5, 500]) {
+        const p = stabilityPosition(steady({ settling, rate: spread(SETTLED_BOUNDS.rate * s) }));
+        if (p !== null) expect(p).toBeLessThanOrEqual(LOCKED_FROM);
+      }
+    }
   });
 
   it('is at the far left once a spread is three times its bound', () => {
@@ -100,17 +113,15 @@ describe('the stability cursor', () => {
      The bar and the two words beside it are one statement. Entering the oval
      IS the locked verdict, so nothing short of that verdict may reach it.
   */
-  it('never reaches the oval unless the verdict is settled', () => {
+  it('never reaches the region unless the verdict is settled', () => {
     for (const settling of ['waiting', 'moving', 'settling'] as const) {
       const p = stabilityPosition(steady({ settling }))!;
       expect(p).toBeLessThan(LOCKED_FROM);
     }
   });
 
-  it('is always inside the oval when the verdict is settled', () => {
-    const p = stabilityPosition(steady({ rate: spread(SETTLED_BOUNDS.rate) }))!;
-    expect(p).toBeGreaterThanOrEqual(LOCKED_FROM);
-    expect(p).toBeLessThanOrEqual(1);
+  it('is anchored at the region it fills when the verdict is settled', () => {
+    expect(stabilityPosition(steady({ rate: spread(SETTLED_BOUNDS.rate) }))).toBe(LOCKED_FROM);
   });
 
   /*
